@@ -37,6 +37,7 @@ const openAuth = (mode = 'login') => {
   authForm.value = { username: '', email: '', password: '' }
   showAuthModal.value = true
 }
+
 const closeAuth = () => { showAuthModal.value = false }
 
 const submitAuth = async () => {
@@ -62,6 +63,12 @@ const submitAuth = async () => {
   } finally {
     authLoading.value = false
   }
+}
+const handleLogout = async () => {
+  alert('退出被触发')
+  console.log('currentUser before:', currentUser.value)
+  await logout()
+  console.log('currentUser after:', currentUser.value)
 }
 </script>
 
@@ -90,7 +97,7 @@ const submitAuth = async () => {
             <div class="nav-user">
               <div class="user-avatar">{{ currentUser.avatar }}</div>
               <span class="user-name">{{ currentUser.username }}</span>
-              <button class="nav-btn ghost small" @click="logout">退出</button>
+<button class="nav-btn ghost small" @click="handleLogout">退出</button>
             </div>
           </template>
         </div>
