@@ -3,7 +3,7 @@
 
     <!-- Back Button -->
     <nav class="back-nav">
-      <button class="back-btn" @click="$router.push('/3D-problem/')">
+      <button class="back-btn" @click="$router.push('/')">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path d="M11 4L6 9l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>

@@ -33,7 +33,7 @@
           :key="problem.id"
           class="problem-card"
           :style="{ '--card-color': problem.color, '--delay': index * 0.04 + 's' }"
-          @click="$router.push(`/3D-problem/detail/${problem.id}`)"
+          @click="$router.push(`/detail/${problem.id}`)"
         >
           <!-- Image area -->
           <div class="card-image" :style="{ background: problem.bgGradient }">

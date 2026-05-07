@@ -1,6 +1,6 @@
 <template>
   <div class="container">
-    <ProblemDetailView />
+
     <router-view>
     </router-view>
   </div>

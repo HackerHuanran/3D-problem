@@ -6,14 +6,16 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
-      path: '/3D-problem/',
-      name: 'problems',
-      component: ProblemsView
+      path: '/',
+      name: 'home',
+      // 修改这里：指向你 components 文件夹下真实的组件名
+      component: () => import('../components/ProblemsView.vue') 
     },
     {
-      path: '/3D-problem/detail/:id',
+      path: '/detail/:id',
       name: 'problem-detail',
-      component: ProblemDetailView
+      // 修改这里：指向你 components 文件夹下真实的组件名
+      component: () => import('../components/ProblemDetailView.vue')
     }
   ],
 })
