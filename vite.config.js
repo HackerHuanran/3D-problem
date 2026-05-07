@@ -13,6 +13,7 @@ export default defineConfig({
     vueJsx(),
     vueDevTools(),
   ],
+  base: '/3D-problem/', // 必须确保这一行存在，且前后都有斜杠
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
