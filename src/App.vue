@@ -65,7 +65,6 @@ const submitAuth = async () => {
   }
 }
 const handleLogout = async () => {
-  alert('退出被触发')
   console.log('currentUser before:', currentUser.value)
   await logout()
   console.log('currentUser after:', currentUser.value)
