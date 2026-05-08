@@ -28,9 +28,7 @@ jobs:
 
       - name: Deploy to CloudBase Static Hosting
         env:
-          SECRETID: ${{ secrets.TENCENT_SECRET_ID }}
-          SECRETKEY: ${{ secrets.TENCENT_SECRET_KEY }}
+          CLOUDBASE_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
+          CLOUDBASE_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
           ENV_ID: ${{ secrets.VITE_TCB_ENV_ID }}
-        run: |
-          cloudbase login --secretId $SECRETID --secretKey $SECRETKEY
-          cloudbase hosting deploy dist / -e $ENV_ID
+        run: cloudbase hosting deploy dist / -e $ENV_ID
