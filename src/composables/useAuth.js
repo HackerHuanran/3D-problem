@@ -5,14 +5,15 @@ const currentUser = ref(null)
 
 async function loadProfile(uid) {
   try {
-    const { data } = await db.collection('profiles').doc(uid).get()
-    if (data) {
+    const { data } = await db.collection('profiles').where({ uid }).limit(1).get()
+    const profile = data?.[0]
+    if (profile?.username) {
       currentUser.value = {
         id:       uid,
-        username: data.username || uid.slice(0, 8),
-        avatar:   data.avatar   || '?',
-        phone:    data.phone    || '',
-        points:   data.points   ?? 0,
+        username: profile.username,
+        avatar:   profile.avatar  || '?',
+        phone:    profile.phone   || '',
+        points:   profile.points  ?? 0,
       }
     } else {
       currentUser.value = { id: uid, username: uid.slice(0, 8), avatar: '?', phone: '', points: 0 }
@@ -127,9 +128,9 @@ export function useAuth() {
     }
 
     try {
-      const { data: profile } = await db.collection('profiles').doc(uid).get()
-      if (profile) {
-        await db.collection('profiles').doc(uid).update({
+      const { data: rows } = await db.collection('profiles').where({ uid }).limit(1).get()
+      if (rows?.length > 0) {
+        await db.collection('profiles').doc(rows[0]._id).update({
           username: username.trim(),
           avatar:   username.trim()[0].toUpperCase(),
         })

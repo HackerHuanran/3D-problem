@@ -1,5 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useLocale } from '@/composables/useLocale.js'
+
+const { t } = useLocale()
 
 const CATEGORIES = ['全部', '产品发布', '行业动态', '技术前沿', '创客故事', '教程指南']
 
@@ -68,6 +71,16 @@ const filtered = computed(() =>
   activeCategory.value === '全部' ? NEWS : NEWS.filter(n => n.category === activeCategory.value)
 )
 
+const catLabel = (c) => {
+  if (c === '全部') return t('n.all')
+  if (c === '产品发布') return t('n.c.release')
+  if (c === '行业动态') return t('n.c.industry')
+  if (c === '技术前沿') return t('n.c.tech')
+  if (c === '创客故事') return t('n.c.maker')
+  if (c === '教程指南') return t('n.c.tutorial')
+  return c
+}
+
 function timeAgo(dateStr) {
   const days = Math.floor((Date.now() - new Date(dateStr)) / 86400000)
   if (days === 0) return '今天'
@@ -81,9 +94,9 @@ function timeAgo(dateStr) {
   <div class="news-page">
     <section class="hero">
       <div class="hero-inner">
-        <p class="eyebrow">3D 打印 · 行业资讯</p>
-        <h1 class="h1">最新动态<br><em>一览无余。</em></h1>
-        <p class="desc">精选 {{ NEWS.length }} 篇资讯，涵盖产品发布、技术突破与行业趋势。</p>
+        <p class="eyebrow">{{ t('n.eyebrow') }}</p>
+        <h1 class="h1">{{ t('n.h1a') }}<br><em>{{ t('n.h1b') }}</em></h1>
+        <p class="desc">{{ t('n.desc', { n: NEWS.length }) }}</p>
       </div>
     </section>
 
@@ -94,9 +107,9 @@ function timeAgo(dateStr) {
             v-for="c in CATEGORIES" :key="c"
             :class="['cat-btn', { active: activeCategory === c }]"
             @click="activeCategory = c"
-          >{{ c }}</button>
+          >{{ catLabel(c) }}</button>
         </div>
-        <span class="result-count">{{ filtered.length }} 篇</span>
+        <span class="result-count">{{ t('n.results', { n: filtered.length }) }}</span>
       </div>
     </div>
 
@@ -104,8 +117,8 @@ function timeAgo(dateStr) {
       <div class="grid">
         <article v-for="item in filtered" :key="item.id" class="card">
           <div class="card-top">
-            <span class="badge" :style="CAT_STYLE[item.category]">{{ item.category }}</span>
-            <span v-if="item.hot" class="hot-tag">热门</span>
+            <span class="badge" :style="CAT_STYLE[item.category]">{{ catLabel(item.category) }}</span>
+            <span v-if="item.hot" class="hot-tag">{{ t('n.hot') }}</span>
           </div>
           <h2 class="card-title">{{ item.title }}</h2>
           <p class="card-summary">{{ item.summary }}</p>
@@ -114,7 +127,7 @@ function timeAgo(dateStr) {
             <span class="sep">·</span>
             <span>{{ timeAgo(item.date) }}</span>
             <span class="sep">·</span>
-            <span>{{ item.readMin }} 分钟阅读</span>
+            <span>{{ t('n.read', { n: item.readMin }) }}</span>
           </div>
         </article>
       </div>
@@ -123,33 +136,33 @@ function timeAgo(dateStr) {
 </template>
 
 <style scoped>
-.news-page { min-height: 100vh; background: #000; }
+.news-page { min-height: 100vh; background: #f5f5f7; }
 
 .hero { padding: 64px 24px 44px; text-align: center; }
 .hero-inner { max-width: 600px; margin: 0 auto; }
 .eyebrow { font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: #6e6e73; margin-bottom: 16px; }
-.h1 { font-size: clamp(32px, 5vw, 52px); font-weight: 700; color: #f5f5f7; line-height: 1.1; letter-spacing: -0.03em; margin-bottom: 16px; }
+.h1 { font-size: clamp(32px, 5vw, 52px); font-weight: 700; color: #1d1d1f; line-height: 1.1; letter-spacing: -0.03em; margin-bottom: 16px; }
 .h1 em { font-style: normal; color: #ff6b6b; }
-.desc { font-size: 15px; color: #86868b; line-height: 1.6; }
+.desc { font-size: 15px; color: #6e6e73; line-height: 1.6; }
 
-.bar { border-bottom: 0.5px solid rgba(255,255,255,0.08); }
+.bar { border-bottom: 1px solid rgba(0,0,0,0.08); background: rgba(255,255,255,0.6); }
 .bar-inner { max-width: 1200px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .cats { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
-.cat-btn { padding: 6px 14px; border-radius: 100px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #86868b; font-size: 13px; font-family: inherit; cursor: pointer; transition: all 0.15s; }
-.cat-btn:hover { border-color: rgba(255,255,255,0.22); color: #aeaeb2; }
-.cat-btn.active { background: #f5f5f7; color: #1d1d1f; border-color: #f5f5f7; font-weight: 500; }
-.result-count { font-size: 12px; color: #48484a; white-space: nowrap; }
+.cat-btn { padding: 6px 14px; border-radius: 100px; border: 1px solid rgba(0,0,0,0.12); background: transparent; color: #6e6e73; font-size: 13px; font-family: inherit; cursor: pointer; transition: all 0.15s; }
+.cat-btn:hover { border-color: rgba(0,0,0,0.22); color: #1d1d1f; }
+.cat-btn.active { background: #1d1d1f; color: #fff; border-color: #1d1d1f; font-weight: 500; }
+.result-count { font-size: 12px; color: #aeaeb2; white-space: nowrap; }
 
 .grid-wrap { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
 
-.card { background: #111; border: 0.5px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 12px; transition: border-color 0.2s, transform 0.2s; }
-.card:hover { border-color: rgba(255,255,255,0.18); transform: translateY(-2px); }
+.card { background: #fff; border: 1px solid rgba(0,0,0,0.06); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 12px; transition: box-shadow 0.2s, transform 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.1); transform: translateY(-2px); }
 .card-top { display: flex; align-items: center; gap: 8px; }
 .badge { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 100px; }
-.hot-tag { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 100px; background: rgba(249,115,22,.15); color: #fb923c; }
-.card-title { font-size: 16px; font-weight: 600; color: #f5f5f7; line-height: 1.45; letter-spacing: -0.01em; }
-.card-summary { font-size: 13px; color: #86868b; line-height: 1.65; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.card-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #48484a; margin-top: auto; flex-wrap: wrap; }
-.sep { color: #3a3a3c; }
+.hot-tag { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 100px; background: rgba(249,115,22,.12); color: #e56910; }
+.card-title { font-size: 16px; font-weight: 600; color: #1d1d1f; line-height: 1.45; letter-spacing: -0.01em; }
+.card-summary { font-size: 13px; color: #6e6e73; line-height: 1.65; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #aeaeb2; margin-top: auto; flex-wrap: wrap; }
+.sep { color: #c7c7cc; }
 </style>

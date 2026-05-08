@@ -6,6 +6,7 @@ if (!import.meta.env.VITE_TCB_ENV_ID) {
 
 const app = cloudbase.init({ env: import.meta.env.VITE_TCB_ENV_ID })
 
+export { app }
 export const auth = app.auth({ persistence: 'local' })
 export const db   = app.database()
 export const cmd  = db.command
