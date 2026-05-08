@@ -22,40 +22,45 @@ async function loadProfile(uid) {
   }
 }
 
+// Only update currentUser for real (non-anonymous) logins
 auth.onLoginStateChanged(async loginState => {
-  if (loginState?.user?.uid) {
-    await loadProfile(loginState.user.uid)
-  } else {
+  if (!loginState) {
     currentUser.value = null
+    return
   }
+  // Anonymous sessions are used only to enable DB reads — don't show as logged-in user
+  if (loginState.loginType === 'ANONYMOUS') return
+  if (loginState?.user?.uid) await loadProfile(loginState.user.uid)
 });
 
+// On startup: restore session or init anonymous session for DB reads
 (async () => {
   try {
     const timeout    = new Promise(resolve => setTimeout(resolve, 5000))
     const loginState = await Promise.race([auth.getLoginState(), timeout])
-    if (loginState?.user?.uid) await loadProfile(loginState.user.uid)
+    if (loginState?.user?.uid && loginState?.loginType !== 'ANONYMOUS') {
+      await loadProfile(loginState.user.uid)
+    } else if (!loginState) {
+      // No session — sign in anonymously so DB reads work for all users
+      try { await auth.signInAnonymously() } catch {}
+    }
   } catch {}
 })()
 
 export function useAuth() {
 
-  // Check username uniqueness against profiles
   const checkUsername = async (username) => {
-    // Done while user is registering (phone/password not yet submitted)
-    // At this point there may be no auth state, so wrap in try/catch
     try {
       const { data: existing } = await db.collection('profiles')
         .where({ username }).limit(1).get()
       if (existing?.length > 0) throw new Error('用户名已被占用')
     } catch (e) {
       if (e.message === '用户名已被占用') throw e
-      // DB query failed (no auth state) — skip the check and allow registration to proceed
-      console.warn('username uniqueness check skipped:', e.message)
+      console.warn('username check skipped:', e.message)
     }
   }
 
-  // Registration step 1: send SMS, returns verifyOtp closure
+  // Registration step 1: send SMS
   const requestPhoneCode = async (phone, password) => {
     if (!phone) throw new Error('请输入手机号')
     if (!password || password.length < 6) throw new Error('密码至少6位')
@@ -70,7 +75,7 @@ export function useAuth() {
     return result.data.verifyOtp
   }
 
-  // Registration step 2: verify SMS code, set auth username, create profile
+  // Registration step 2: verify SMS code, write profile, update UI directly
   const confirmCode = async (verifyOtpFn, code, username, phone) => {
     if (!verifyOtpFn) throw new Error('请先获取验证码')
 
@@ -87,23 +92,15 @@ export function useAuth() {
     if (!loginState?.user?.uid) throw new Error('注册失败，请重试')
     const uid = loginState.user.uid
 
-    // Set username in CloudBase auth system so it can be used for login
-    try {
-      const { data } = await auth.getUser()
-      if (data?.user) await data.user.updateUsername(username)
-    } catch (e) {
-      console.warn('updateUsername failed:', e.message)
-    }
-
-    // Write profile document (set overwrites or creates)
     await db.collection('profiles').doc(uid).set({
       uid, username, avatar: username[0].toUpperCase(), phone, points: 0,
     })
 
-    await loadProfile(uid)
+    // Update UI directly — don't re-read from DB (may return cached old value)
+    currentUser.value = { id: uid, username, avatar: username[0].toUpperCase(), phone, points: 0 }
   }
 
-  // Login with phone + password — no OTP, no DB query
+  // Login with phone + password — no OTP needed
   const login = async (phone, password) => {
     try {
       await auth.signInWithPhoneCodeOrPassword({ phoneNumber: phone, password })
@@ -115,7 +112,7 @@ export function useAuth() {
     if (loginState?.user?.uid) await loadProfile(loginState.user.uid)
   }
 
-  // Set or update username for logged-in user (used when profile is missing)
+  // Set or update username for logged-in user
   const setupProfile = async (username) => {
     if (!currentUser.value?.id) throw new Error('请先登录')
     if (!username?.trim()) throw new Error('请输入用户名')
@@ -149,7 +146,13 @@ export function useAuth() {
       const msg = e?.message || JSON.stringify(e)
       throw new Error('设置失败：' + msg)
     }
-    await loadProfile(uid)
+
+    // Update UI directly — don't rely on DB re-read
+    currentUser.value = {
+      ...currentUser.value,
+      username: username.trim(),
+      avatar:   username.trim()[0].toUpperCase(),
+    }
   }
 
   // Change password for logged-in user
@@ -168,13 +171,17 @@ export function useAuth() {
   const logout = async () => {
     currentUser.value = null
     try { await auth.signOut() } catch {}
+    // Re-init anonymous session after logout so DB reads keep working
+    try { await auth.signInAnonymously() } catch {}
   }
 
   const init = async () => {
     try {
       const timeout    = new Promise(resolve => setTimeout(resolve, 5000))
       const loginState = await Promise.race([auth.getLoginState(), timeout])
-      if (loginState?.user?.uid) await loadProfile(loginState.user.uid)
+      if (loginState?.user?.uid && loginState?.loginType !== 'ANONYMOUS') {
+        await loadProfile(loginState.user.uid)
+      }
     } catch {}
   }
 

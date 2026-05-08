@@ -231,11 +231,11 @@ const submitEditUsername = async () => {
             <div class="form-fields">
               <div class="field">
                 <label>手机号</label>
-                <input v-model="authForm.phone" type="tel" placeholder="注册时的手机号" @keyup.enter="submitAuth" />
+                <input v-model="authForm.phone" type="tel" placeholder="注册时的手机号" required @keyup.enter="submitAuth" />
               </div>
               <div class="field">
                 <label>密码</label>
-                <input v-model="authForm.password" type="password" placeholder="登录密码" @keyup.enter="submitAuth" />
+                <input v-model="authForm.password" type="password" placeholder="登录密码" required @keyup.enter="submitAuth" />
               </div>
             </div>
           </template>
@@ -247,24 +247,24 @@ const submitEditUsername = async () => {
             <div class="form-fields">
               <div class="field">
                 <label>用户名</label>
-                <input v-model="authForm.username" placeholder="如：打印达人007" :disabled="codeSent" />
+                <input v-model="authForm.username" placeholder="如：打印达人007" required :disabled="codeSent" />
               </div>
               <div class="field">
                 <label>密码</label>
-                <input v-model="authForm.password" type="password" placeholder="至少6位" :disabled="codeSent" />
+                <input v-model="authForm.password" type="password" placeholder="至少6位" required :disabled="codeSent" />
               </div>
               <div class="field">
                 <label>手机号</label>
                 <div class="phone-row">
-                  <input v-model="authForm.phone" type="tel" placeholder="手机号" class="phone-input" :disabled="codeSent" />
-                  <button class="send-btn" :disabled="authLoading || countdown > 0" @click="handleSendCode">
+                  <input v-model="authForm.phone" type="tel" placeholder="手机号" class="phone-input" required :disabled="codeSent" />
+                  <button class="send-btn" :disabled="authLoading || countdown > 0 || !authForm.username.trim() || !authForm.phone.trim() || !authForm.password || authForm.password.length < 6" @click="handleSendCode">
                     {{ countdown > 0 ? countdown + 's' : (codeSent ? '重新发送' : '获取验证码') }}
                   </button>
                 </div>
               </div>
               <div v-if="codeSent" class="field">
                 <label>短信验证码</label>
-                <input v-model="authForm.code" placeholder="6位验证码" maxlength="6" @keyup.enter="submitAuth" autofocus />
+                <input v-model="authForm.code" placeholder="6位验证码" maxlength="6" required @keyup.enter="submitAuth" autofocus />
               </div>
             </div>
           </template>
@@ -274,7 +274,7 @@ const submitEditUsername = async () => {
             class="submit-btn"
             :class="{ loading: authLoading }"
             @click="submitAuth"
-            :disabled="authLoading || (authMode === 'register' && !codeSent)"
+            :disabled="authLoading || (authMode === 'register' && (!codeSent || !authForm.code.trim())) || (authMode === 'login' && (!authForm.phone.trim() || !authForm.password))"
           >
             <span v-if="authLoading" class="btn-spinner"></span>
             {{ authLoading ? '请稍候…' : (authMode === 'login' ? '登录' : '完成注册') }}
@@ -295,15 +295,15 @@ const submitEditUsername = async () => {
           <div class="form-fields">
             <div class="field">
               <label>原密码</label>
-              <input v-model="changePwdForm.oldPassword" type="password" placeholder="当前密码" @keyup.enter="submitChangePwd" />
+              <input v-model="changePwdForm.oldPassword" type="password" placeholder="当前密码" required @keyup.enter="submitChangePwd" />
             </div>
             <div class="field">
               <label>新密码</label>
-              <input v-model="changePwdForm.newPassword" type="password" placeholder="至少6位" @keyup.enter="submitChangePwd" />
+              <input v-model="changePwdForm.newPassword" type="password" placeholder="至少6位" required @keyup.enter="submitChangePwd" />
             </div>
             <div class="field">
               <label>确认新密码</label>
-              <input v-model="changePwdForm.confirmPassword" type="password" placeholder="再次输入新密码" @keyup.enter="submitChangePwd" />
+              <input v-model="changePwdForm.confirmPassword" type="password" placeholder="再次输入新密码" required @keyup.enter="submitChangePwd" />
             </div>
           </div>
           <div v-if="changePwdError" class="auth-error">{{ changePwdError }}</div>
