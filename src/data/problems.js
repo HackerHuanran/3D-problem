@@ -1,6 +1,18 @@
 // src/data/problems.js
 // 3D打印常见问题数据 - 共30个问题
-
+import qiaobian from '../../public/images/problems/qiaobian.jpg';
+import lasi from '../../public/images/problems/lasi.jpg';
+import liekai from '../../public/images/problems/liekai.jpg';
+import qianjichu from '../../public/images/problems/qianjichu.jpg';
+import guojichu from '../../public/images/problems/guojichu.jpg';
+import xiangjiao from '../../public/images/problems/xiangjiao.jpg';
+import shouchao from '../../public/images/problems/shouchao.png';
+import zhicheng from '../../public/images/problems/zhicheng.png';
+import chaomian from '../../public/images/problems/chaomian.jpg';
+import penzui from '../../public/images/problems/penzui.png';
+import diyiceng from '../../public/images/problems/diyiceng.webp';
+import cuowei from '../../public/images/problems/cuowei.jpg';
+import du from '../../public/images/problems/du.webp';
 export const problems = [
   // ─── 新手问题 ───
   {
@@ -9,6 +21,7 @@ export const problems = [
     title: '打印件翘边',
     subtitle: '底部脱离热床',
     emoji: '🌀',
+    images: qiaobian,
     color: '#FF6B6B',
     bgGradient: 'linear-gradient(135deg, #1a0a0a 0%, #2d0f0f 100%)',
     difficulty: '常见',
@@ -30,6 +43,7 @@ export const problems = [
     title: '拉丝现象',
     subtitle: '模型间出现细线',
     emoji: '🕸',
+    images: lasi,
     color: '#FFB347',
     bgGradient: 'linear-gradient(135deg, #1a1000 0%, #2d1f00 100%)',
     difficulty: '常见',
@@ -50,6 +64,7 @@ export const problems = [
     title: '层间开裂',
     subtitle: '层与层之间分离',
     emoji: '💔',
+    images: liekai,
     color: '#FF6B9D',
     bgGradient: 'linear-gradient(135deg, #1a0010 0%, #2d001a 100%)',
     difficulty: '常见',
@@ -69,6 +84,7 @@ export const problems = [
     title: '欠挤出',
     subtitle: '打印线条缺失稀疏',
     emoji: '🫧',
+    images: qianjichu,
     color: '#74B9FF',
     bgGradient: 'linear-gradient(135deg, #000f1a 0%, #001a2d 100%)',
     difficulty: '中等',
@@ -88,6 +104,7 @@ export const problems = [
     title: '过挤出',
     subtitle: '表面鼓包溢出',
     emoji: '💦',
+    images: guojichu,
     color: '#00CEC9',
     bgGradient: 'linear-gradient(135deg, #001a1a 0%, #002d2d 100%)',
     difficulty: '常见',
@@ -106,6 +123,7 @@ export const problems = [
     title: '象脚效应',
     subtitle: '底层向外扩展',
     emoji: '🐘',
+    images: xiangjiao,
     color: '#55EFC4',
     bgGradient: 'linear-gradient(135deg, #001a0f 0%, #002d1a 100%)',
     difficulty: '常见',
@@ -125,6 +143,7 @@ export const problems = [
     title: '耗材受潮',
     subtitle: '打印噼啪声、气泡',
     emoji: '💧',
+    images: shouchao,
     color: '#81ECEC',
     bgGradient: 'linear-gradient(135deg, #001515 0%, #002020 100%)',
     difficulty: '常见',
@@ -143,6 +162,7 @@ export const problems = [
     title: '支撑难以去除',
     subtitle: '支撑与模型粘连',
     emoji: '🏗',
+    images: zhicheng,
     color: '#FDCB6E',
     bgGradient: 'linear-gradient(135deg, #1a1000 0%, #2d1f00 100%)',
     difficulty: '常见',
@@ -162,6 +182,7 @@ export const problems = [
     title: '意大利面打印',
     subtitle: '打印件整体坍塌',
     emoji: '🍝',
+    images: chaomian,
     color: '#E17055',
     bgGradient: 'linear-gradient(135deg, #1a0800 0%, #2d1200 100%)',
     difficulty: '紧急',
@@ -181,6 +202,7 @@ export const problems = [
     title: '喷嘴不出丝',
     subtitle: '开始打印无耗材挤出',
     emoji: '⛔',
+    images: penzui,
     color: '#FD79A8',
     bgGradient: 'linear-gradient(135deg, #1a000d 0%, #2d0018 100%)',
     difficulty: '紧急',
@@ -201,6 +223,7 @@ export const problems = [
     title: '第一层不粘床',
     subtitle: '耗材粘不上热床',
     emoji: '🫠',
+    images: diyiceng,
     color: '#A29BFE',
     bgGradient: 'linear-gradient(135deg, #0d001a 0%, #1a002d 100%)',
     difficulty: '常见',
@@ -220,6 +243,7 @@ export const problems = [
     title: '层移位 / 打印错位',
     subtitle: '某层突然偏移',
     emoji: '↔️',
+    images: cuowei,
     color: '#6C5CE7',
     bgGradient: 'linear-gradient(135deg, #08001a 0%, #10002d 100%)',
     difficulty: '中等',
@@ -241,6 +265,7 @@ export const problems = [
     title: '喷嘴堵塞',
     subtitle: '无法正常出丝',
     emoji: '🚫',
+    images: du,
     color: '#A29BFE',
     bgGradient: 'linear-gradient(135deg, #0d001a 0%, #1a002d 100%)',
     difficulty: '需处理',

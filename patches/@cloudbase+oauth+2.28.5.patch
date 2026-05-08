@@ -1,0 +1,44 @@
+diff --git a/node_modules/@cloudbase/oauth/dist/cjs/oauth2client/oauth2client.js b/node_modules/@cloudbase/oauth/dist/cjs/oauth2client/oauth2client.js
+index b55bc50..e07a134 100644
+--- a/node_modules/@cloudbase/oauth/dist/cjs/oauth2client/oauth2client.js
++++ b/node_modules/@cloudbase/oauth/dist/cjs/oauth2client/oauth2client.js
+@@ -257,7 +257,7 @@ var LocalCredentials = (function () {
+     };
+     LocalCredentials.prototype.setAccessKeyCredentials = function (credentials) {
+         this.accessKeyCredentials = credentials;
+-        if (credentials.scope === consts_2.DEFAULT_NODE_ACCESS_SCOPE) {
++        if (credentials && credentials.scope === consts_2.DEFAULT_NODE_ACCESS_SCOPE) {
+             this.credentials = credentials;
+         }
+     };
+@@ -1121,7 +1121,7 @@ var OAuth2Client = exports.OAuth2Client = (function () {
+                     case 0: return [4, this.localCredentials.getCredentials()];
+                     case 1:
+                         credentials = _d.sent();
+-                        if (credentials.scope === consts_2.DEFAULT_NODE_ACCESS_SCOPE) {
++                        if (credentials && credentials.scope === consts_2.DEFAULT_NODE_ACCESS_SCOPE) {
+                             return [2, credentials];
+                         }
+                         if (!credentials) {
+diff --git a/node_modules/@cloudbase/oauth/dist/esm/oauth2client/oauth2client.js b/node_modules/@cloudbase/oauth/dist/esm/oauth2client/oauth2client.js
+index 376bfe6..cbdb414 100644
+--- a/node_modules/@cloudbase/oauth/dist/esm/oauth2client/oauth2client.js
++++ b/node_modules/@cloudbase/oauth/dist/esm/oauth2client/oauth2client.js
+@@ -148,7 +148,7 @@ class LocalCredentials {
+     }
+     setAccessKeyCredentials(credentials) {
+         this.accessKeyCredentials = credentials;
+-        if (credentials.scope === DEFAULT_NODE_ACCESS_SCOPE) {
++        if (credentials?.scope === DEFAULT_NODE_ACCESS_SCOPE) {
+             this.credentials = credentials;
+         }
+     }
+@@ -668,7 +668,7 @@ class OAuth2Client {
+     }
+     async _getCredentials() {
+         let credentials = await this.localCredentials.getCredentials();
+-        if (credentials.scope === DEFAULT_NODE_ACCESS_SCOPE) {
++        if (credentials?.scope === DEFAULT_NODE_ACCESS_SCOPE) {
+             return credentials;
+         }
+         if (!credentials) {

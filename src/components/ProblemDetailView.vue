@@ -95,7 +95,9 @@
           <span class="count-badge">{{ solutions.length }}</span>
         </h2>
 
-        <div v-if="loadingSolutions" class="loading-state">加载中…</div>
+        <div v-if="loadingSolutions" class="loading-state">
+          <span class="spinner"></span>加载社区方案…
+        </div>
         <div v-else>
           <div v-if="solutions.length > 0" class="community-cards">
             <div v-for="sol in solutions" :key="sol.id" class="community-card">
@@ -123,6 +125,7 @@
             <div class="form-footer">
               <span class="char-count">{{ newSolDetail.length }}/500</span>
               <button class="submit-btn" @click="submitSolution" :disabled="submittingSol || !newSolTitle.trim() || !newSolDetail.trim()">
+                <span v-if="submittingSol" class="btn-spinner"></span>
                 {{ submittingSol ? '发布中…' : '发布方案' }}
               </button>
             </div>
@@ -148,6 +151,7 @@
             <div class="form-footer">
               <span class="char-count">{{ newComment.length }}/300 · Ctrl+Enter 发送</span>
               <button class="submit-btn" @click="submitComment" :disabled="submittingComment || !newComment.trim()">
+                <span v-if="submittingComment" class="btn-spinner"></span>
                 {{ submittingComment ? '发送中…' : '发表' }}
               </button>
             </div>
@@ -157,7 +161,9 @@
           <span>✏️</span><span>登录后参与讨论</span><span class="prompt-arrow">→</span>
         </div>
 
-        <div v-if="loadingComments" class="loading-state">加载中…</div>
+        <div v-if="loadingComments" class="loading-state">
+          <span class="spinner"></span>加载评论…
+        </div>
         <div v-else-if="comments.length > 0" class="comments-list">
           <div v-for="comment in comments" :key="comment.id" class="comment-item">
             <div class="avatar">{{ comment.avatar }}</div>
@@ -374,7 +380,10 @@ const diffClass = (d) => { if (d === '紧急') return 'urgent'; if (d === '需�
 .tip-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .tip-label { font-size: 13px; font-weight: 600; color: var(--color); letter-spacing: 0.04em; }
 .tip-text { font-size: 14px; color: #aeaeb2; line-height: 1.75; }
-.loading-state { color: #48484a; font-size: 14px; padding: 20px 0; text-align: center; }
+.loading-state { display: flex; align-items: center; justify-content: center; gap: 10px; color: #48484a; font-size: 14px; padding: 32px 0; }
+.spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.07); border-top-color: #6e6e73; border-radius: 50%; animation: spin 0.75s linear infinite; flex-shrink: 0; }
+.btn-spinner { width: 12px; height: 12px; border: 1.5px solid rgba(29,29,31,0.15); border-top-color: #1d1d1f; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg,#ff6b6b,#ffb347); color: #fff; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .community-cards { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
 .community-card { background: #1c1c1e; border: 0.5px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 18px; }
@@ -398,7 +407,7 @@ const diffClass = (d) => { if (d === '紧急') return 'urgent'; if (d === '需�
 .form-input { margin-bottom: 10px; resize: none; }
 .form-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
 .char-count { font-size: 11px; color: #48484a; }
-.submit-btn { background: #f5f5f7; color: #1d1d1f; border: none; border-radius: 100px; padding: 8px 20px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.18s; }
+.submit-btn { background: #f5f5f7; color: #1d1d1f; border: none; border-radius: 100px; padding: 8px 20px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.18s; display: inline-flex; align-items: center; gap: 6px; }
 .submit-btn:hover:not(:disabled) { background: #e5e5e7; }
 .submit-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .login-prompt { display: flex; align-items: center; gap: 10px; background: #1c1c1e; border: 1px dashed rgba(255,255,255,0.1); border-radius: 14px; padding: 16px 20px; font-size: 14px; color: #6e6e73; cursor: pointer; transition: all 0.2s; margin-top: 12px; }

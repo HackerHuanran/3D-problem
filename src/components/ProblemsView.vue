@@ -73,7 +73,7 @@
           @click="$emit('go-detail', problem.id)"
         >
           <div class="card-image" :style="{ background: problem.bgGradient }">
-            <span class="card-emoji">{{ problem.emoji }}</span>
+            <span class="card-emoji"><img :src="problem.images" alt="icon" style="width: 100%; height: 100%; object-fit: contain;" /></span>
             <div class="card-glow" :style="{ background: problem.color }"></div>
             <span class="card-difficulty" :class="'diff-' + diffClass(problem.difficulty)">{{ problem.difficulty }}</span>
           </div>

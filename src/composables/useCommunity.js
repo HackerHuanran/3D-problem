@@ -1,119 +1,151 @@
-// src/composables/useCommunity.js
-// 评论和补充方案 —— 对接 Supabase 数据库
-
-import { ref } from 'vue'
-import { supabase } from '@/lib/supabase.js'
+import { db, cmd } from '@/lib/tcb.js'
 
 export function useCommunity() {
 
   // ── 评论 ──
   const getComments = async (problemId) => {
-    const { data, error } = await supabase
-      .from('comments')
-      .select(`
-        id, content, created_at,
-        profiles ( username, avatar ),
-        likes ( user_id )
-      `)
-      .eq('problem_id', problemId)
-      .order('created_at', { ascending: false })
+    try {
+      const { data: comments } = await db.collection('comments')
+        .where({ problem_id: problemId })
+        .orderBy('created_at', 'desc')
+        .limit(100)
+        .get()
 
-    if (error) { console.error(error); return [] }
-    return data.map(c => ({
-      id: c.id,
-      userId: c.profiles?.id,
-      username: c.profiles?.username || '匿名用户',
-      avatar: c.profiles?.avatar || '?',
-      content: c.content,
-      createdAt: new Date(c.created_at).getTime(),
-      likes: c.likes.map(l => l.user_id)
-    }))
+      if (!comments.length) return []
+
+      const userIds    = [...new Set(comments.map(c => c.user_id).filter(Boolean))]
+      const commentIds = comments.map(c => c._id)
+
+      const [profileRes, likesRes] = await Promise.all([
+        db.collection('profiles').where({ uid: cmd.in(userIds) }).limit(userIds.length).get(),
+        db.collection('likes').where({ target_id: cmd.in(commentIds) }).limit(500).get(),
+      ])
+
+      const profileMap = {}
+      profileRes.data.forEach(p => { profileMap[p.uid] = p })
+
+      const likesByTarget = {}
+      likesRes.data.forEach(l => {
+        if (!likesByTarget[l.target_id]) likesByTarget[l.target_id] = []
+        likesByTarget[l.target_id].push(l.user_id)
+      })
+
+      return comments.map(c => ({
+        id:        c._id,
+        userId:    c.user_id,
+        username:  profileMap[c.user_id]?.username || '匿名用户',
+        avatar:    profileMap[c.user_id]?.avatar   || '?',
+        content:   c.content,
+        createdAt: c.created_at instanceof Date ? c.created_at.getTime() : new Date(c.created_at).getTime(),
+        likes:     likesByTarget[c._id] || [],
+      }))
+    } catch (e) {
+      console.error('getComments:', e)
+      return []
+    }
   }
 
   const addComment = async (problemId, userId, content) => {
-    const { error } = await supabase
-      .from('comments')
-      .insert({ problem_id: problemId, user_id: userId, content })
-    if (error) throw new Error('发表失败：' + error.message)
+    await db.collection('comments').add({
+      problem_id: problemId,
+      user_id:    userId,
+      content,
+      created_at: db.serverDate(),
+    })
   }
 
   const deleteComment = async (commentId) => {
-    const { error } = await supabase.from('comments').delete().eq('id', commentId)
-    if (error) throw new Error('删除失败')
+    await db.collection('comments').doc(commentId).remove()
+    const { data: likes } = await db.collection('likes')
+      .where({ target_id: commentId, target_type: 'comment' }).get()
+    await Promise.all(likes.map(l => db.collection('likes').doc(l._id).remove()))
   }
 
   const toggleCommentLike = async (commentId, userId) => {
-    // 查是否已点赞
-    const { data } = await supabase
-      .from('likes')
-      .select('id')
-      .eq('target_id', commentId)
-      .eq('user_id', userId)
-      .maybeSingle()
-
-    if (data) {
-      await supabase.from('likes').delete().eq('id', data.id)
+    const { data } = await db.collection('likes')
+      .where({ target_id: commentId, user_id: userId }).limit(1).get()
+    if (data.length > 0) {
+      await db.collection('likes').doc(data[0]._id).remove()
     } else {
-      await supabase.from('likes').insert({ target_id: commentId, user_id: userId, target_type: 'comment' })
+      await db.collection('likes').add({ target_id: commentId, user_id: userId, target_type: 'comment' })
     }
   }
 
   // ── 补充方案 ──
   const getSolutions = async (problemId) => {
-    const { data, error } = await supabase
-      .from('solutions')
-      .select(`
-        id, title, detail, created_at,
-        profiles ( username, avatar ),
-        likes ( user_id )
-      `)
-      .eq('problem_id', problemId)
-      .order('created_at', { ascending: false })
+    try {
+      const { data: solutions } = await db.collection('solutions')
+        .where({ problem_id: problemId })
+        .orderBy('created_at', 'desc')
+        .limit(100)
+        .get()
 
-    if (error) { console.error(error); return [] }
-    return data
-      .map(s => ({
-        id: s.id,
-        userId: s.profiles?.id,
-        username: s.profiles?.username || '匿名用户',
-        avatar: s.profiles?.avatar || '?',
-        title: s.title,
-        detail: s.detail,
-        createdAt: new Date(s.created_at).getTime(),
-        likes: s.likes.map(l => l.user_id)
-      }))
-      .sort((a, b) => b.likes.length - a.likes.length || b.createdAt - a.createdAt)
+      if (!solutions.length) return []
+
+      const userIds     = [...new Set(solutions.map(s => s.user_id).filter(Boolean))]
+      const solutionIds = solutions.map(s => s._id)
+
+      const [profileRes, likesRes] = await Promise.all([
+        db.collection('profiles').where({ uid: cmd.in(userIds) }).limit(userIds.length).get(),
+        db.collection('likes').where({ target_id: cmd.in(solutionIds) }).limit(500).get(),
+      ])
+
+      const profileMap = {}
+      profileRes.data.forEach(p => { profileMap[p.uid] = p })
+
+      const likesByTarget = {}
+      likesRes.data.forEach(l => {
+        if (!likesByTarget[l.target_id]) likesByTarget[l.target_id] = []
+        likesByTarget[l.target_id].push(l.user_id)
+      })
+
+      return solutions
+        .map(s => ({
+          id:        s._id,
+          userId:    s.user_id,
+          username:  profileMap[s.user_id]?.username || '匿名用户',
+          avatar:    profileMap[s.user_id]?.avatar   || '?',
+          title:     s.title,
+          detail:    s.detail,
+          createdAt: s.created_at instanceof Date ? s.created_at.getTime() : new Date(s.created_at).getTime(),
+          likes:     likesByTarget[s._id] || [],
+        }))
+        .sort((a, b) => b.likes.length - a.likes.length || b.createdAt - a.createdAt)
+    } catch (e) {
+      console.error('getSolutions:', e)
+      return []
+    }
   }
 
   const addSolution = async (problemId, userId, title, detail) => {
-    const { error } = await supabase
-      .from('solutions')
-      .insert({ problem_id: problemId, user_id: userId, title, detail })
-    if (error) throw new Error('发布失败：' + error.message)
+    await db.collection('solutions').add({
+      problem_id: problemId,
+      user_id:    userId,
+      title,
+      detail,
+      created_at: db.serverDate(),
+    })
   }
 
   const deleteSolution = async (solutionId) => {
-    const { error } = await supabase.from('solutions').delete().eq('id', solutionId)
-    if (error) throw new Error('删除失败')
+    await db.collection('solutions').doc(solutionId).remove()
+    const { data: likes } = await db.collection('likes')
+      .where({ target_id: solutionId, target_type: 'solution' }).get()
+    await Promise.all(likes.map(l => db.collection('likes').doc(l._id).remove()))
   }
 
   const toggleSolutionLike = async (solutionId, userId) => {
-    const { data } = await supabase
-      .from('likes')
-      .select('id')
-      .eq('target_id', solutionId)
-      .eq('user_id', userId)
-      .maybeSingle()
-
-    if (data) {
-      await supabase.from('likes').delete().eq('id', data.id)
+    const { data } = await db.collection('likes')
+      .where({ target_id: solutionId, user_id: userId }).limit(1).get()
+    if (data.length > 0) {
+      await db.collection('likes').doc(data[0]._id).remove()
     } else {
-      await supabase.from('likes').insert({ target_id: solutionId, user_id: userId, target_type: 'solution' })
+      await db.collection('likes').add({ target_id: solutionId, user_id: userId, target_type: 'solution' })
     }
   }
 
   return {
     getComments, addComment, deleteComment, toggleCommentLike,
-    getSolutions, addSolution, deleteSolution, toggleSolutionLike
+    getSolutions, addSolution, deleteSolution, toggleSolutionLike,
   }
 }
