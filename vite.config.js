@@ -7,13 +7,12 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/3D-problem/', // 必须和你的仓库名一致
   plugins: [
     vue(),
     vueJsx(),
     vueDevTools(),
   ],
-  base: '/3D-problem/', // 必须确保这一行存在，且前后都有斜杠
+  base: '/',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))

@@ -1,8 +1,8 @@
-name: Deploy to GitHub Pages
+name: Deploy to CloudBase
 
 on:
   push:
-    branches: [ "main" ] # 如果你的主分支叫 master，请修改这里
+    branches: [ "main" ]
 
 jobs:
   build-and-deploy:
@@ -16,11 +16,12 @@ jobs:
           npm install
           npm run build
         env:
-          # 这里会读取你刚才在 GitHub Settings 里填的 Secret
           VITE_TCB_ENV_ID: ${{ secrets.VITE_TCB_ENV_ID }}
 
-      - name: Deploy
-        uses: JamesIves/github-pages-deploy-action@v4
+      - name: Deploy to CloudBase
+        uses: TencentCloudBase/cloudbase-action@v2
         with:
-          folder: dist # Vue 打包后的目录名
-          branch: gh-pages # 部署到这个分支
+          secretId: ${{ secrets.TENCENT_SECRET_ID }}
+          secretKey: ${{ secrets.TENCENT_SECRET_KEY }}
+          envId: ${{ secrets.VITE_TCB_ENV_ID }}
+          staticSrcPath: dist
