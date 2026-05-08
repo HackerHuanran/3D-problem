@@ -1,26 +1,26 @@
 name: Deploy to GitHub Pages
+
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ] # 如果你的主分支叫 master，请修改这里
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
+
       - name: Install and Build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
           npm install
           npm run build
+        env:
+          # 这里会读取你刚才在 GitHub Settings 里填的 Secret
+          VITE_TCB_ENV_ID: ${{ secrets.VITE_TCB_ENV_ID }}
+
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: dist
-          branch: gh-pages
+          folder: dist # Vue 打包后的目录名
+          branch: gh-pages # 部署到这个分支
