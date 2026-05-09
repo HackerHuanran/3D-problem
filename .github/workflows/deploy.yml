@@ -31,4 +31,6 @@ jobs:
           CLOUDBASE_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
           CLOUDBASE_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
           ENV_ID: ${{ secrets.VITE_TCB_ENV_ID }}
-        run: cloudbase hosting deploy dist / -e $ENV_ID
+        run: |
+          cd dist
+          cloudbase hosting deploy . / -e $ENV_ID
