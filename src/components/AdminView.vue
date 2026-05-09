@@ -43,6 +43,10 @@ async function load() {
                     ? d.created_at.getTime()
                     : new Date(d.created_at).getTime(),
     }))
+  } catch (e) {
+    if (!e?.code?.includes('COLLECTION_NOT_EXIST') && !e?.message?.includes('not exist')) {
+      console.warn('[AdminView] 加载失败:', e?.message)
+    }
   } finally {
     loading.value = false
   }

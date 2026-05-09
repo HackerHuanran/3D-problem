@@ -37,7 +37,11 @@ onMounted(async () => {
       tags:        [],
       fromDb:      true,
     }))
-  } catch { /* 加载失败静默，仍显示静态数据 */ }
+  } catch (e) {
+    if (!e?.code?.includes('COLLECTION_NOT_EXIST') && !e?.message?.includes('not exist')) {
+      console.warn('[ServicesView] 加载服务商失败:', e?.message)
+    }
+  }
 })
 
 // 合并静态 + 数据库数据
