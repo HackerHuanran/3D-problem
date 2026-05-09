@@ -124,10 +124,6 @@ const selectedMaterials   = ref([])
 const selectedSpecialties = ref([])
 const selectedPostProcess = ref([])
 
-function toggleItem(arr, item) {
-  const idx = arr.indexOf(item)
-  idx === -1 ? arr.push(item) : arr.splice(idx, 1)
-}
 
 async function submitJoin() {
   joinError.value = ''
@@ -266,14 +262,7 @@ async function submitJoin() {
               </div>
             </div>
             <div class="card-right">
-              <div class="rating-block">
-                <span class="rating-num">{{ s.rating }}</span>
-                <div class="rating-stars">
-                  <span v-for="i in 5" :key="i" class="star" :class="{ filled: i <= Math.round(s.rating) }">★</span>
-                </div>
-                <span class="review-count">{{ s.reviewCount }}评</span>
-              </div>
-              <span class="price-badge" :style="{ background: priceStyle(s.priceRange).bg, color: priceStyle(s.priceRange).color }">{{ PRICE_LABEL[s.priceRange] }}</span>
+<span class="price-badge" :style="{ background: priceStyle(s.priceRange).bg, color: priceStyle(s.priceRange).color }">{{ PRICE_LABEL[s.priceRange] }}</span>
               <svg class="expand-arrow" :class="{ open: expandedId === s.id }" width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
