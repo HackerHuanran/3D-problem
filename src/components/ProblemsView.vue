@@ -21,7 +21,11 @@
       <div class="hero-inner">
         <p class="hero-eyebrow">{{ t('p.eyebrow') }}</p>
         <h1 class="hero-title">{{ t('p.h1a') }}<br><em>{{ t('p.h1b') }}</em></h1>
-        <p class="hero-desc">{{ t('p.desc', { n: problems.length }) }}</p>
+        <p class="hero-desc">{{ t('p.desc', { n: allProblems.length }) }}</p>
+        <button class="share-btn" @click="$emit(currentUser ? 'go-submit' : 'open-auth', currentUser ? undefined : 'login')">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 1v9M3.5 6l4-5 4 5M2 12h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          分享你遇到的问题
+        </button>
       </div>
     </section>
 
@@ -89,7 +93,7 @@
         >
           <div class="card-image" :style="{ background: problem.bgGradient }">
             <span class="card-emoji">
-              <img v-if="problem.images" :src="problem.images" alt="" style="width:100%;height:100%;object-fit:contain;" />
+              <img v-if="problem.images" :src="problem.images" alt="" style="width:100%;height:100%;object-fit:cover;" />
               <span v-else class="card-emoji-icon">{{ problem.emoji }}</span>
             </span>
             <div class="card-glow" :style="{ background: problem.color }"></div>
@@ -133,11 +137,16 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { problems, categories } from '@/data/problems.js'
+import { ref, computed, onMounted } from 'vue'
+import { problems } from '@/data/problems.js'
 import { useLocale } from '@/composables/useLocale.js'
+import { useUserProblems } from '@/composables/useUserProblems.js'
 
-defineEmits(['go-detail', 'open-auth'])
+const props = defineProps({ currentUser: Object })
+defineEmits(['go-detail', 'open-auth', 'go-submit'])
+
+const { userProblems, fetchUserProblems } = useUserProblems()
+onMounted(fetchUserProblems)
 
 const { t } = useLocale()
 
@@ -179,15 +188,22 @@ const activeCategory = ref('全部')
 const searchQuery = ref('')
 const searchFocused = ref(false)
 
+const allProblems = computed(() => [...userProblems.value, ...problems])
+
+const categories = computed(() => {
+  const cats = allProblems.value.map(p => p.category).filter(Boolean)
+  return ['全部', ...new Set(cats)]
+})
+
 const filteredProblems = computed(() => {
-  let list = problems
+  let list = allProblems.value
   if (activeCategory.value !== '全部') list = list.filter(p => p.category === activeCategory.value)
   const q = searchQuery.value.trim().toLowerCase()
   if (q) list = list.filter(p =>
     p.title.toLowerCase().includes(q) ||
-    p.subtitle.toLowerCase().includes(q) ||
-    p.description.toLowerCase().includes(q) ||
-    p.causes.some(c => c.toLowerCase().includes(q))
+    p.subtitle?.toLowerCase().includes(q) ||
+    p.description?.toLowerCase().includes(q) ||
+    p.causes?.some(c => c.toLowerCase().includes(q))
   )
   return list
 })
@@ -236,7 +252,9 @@ const materials = [
 .hero-eyebrow { font-size: 12px; letter-spacing: 0.12em; color: #6e6e73; margin-bottom: 16px; text-transform: uppercase; }
 .hero-title { font-size: clamp(2.2rem,6vw,3.8rem); font-weight: 700; line-height: 1.08; letter-spacing: -0.03em; margin-bottom: 20px; color: #1d1d1f; }
 .hero-title em { font-style: normal; background: linear-gradient(135deg,#ff6b6b 0%,#ff9500 50%,#ff2d55 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.hero-desc { font-size: 16px; color: #6e6e73; line-height: 1.7; }
+.hero-desc { font-size: 16px; color: #6e6e73; line-height: 1.7; margin-bottom: 20px; }
+.share-btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 24px; background: #1d1d1f; color: #fff; border: none; border-radius: 100px; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; transition: background 0.15s; }
+.share-btn:hover { background: #3a3a3c; }
 
 /* 背景滚动标题 */
 .hero-bg-scroll { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; justify-content: space-around; pointer-events: none; overflow: hidden; }

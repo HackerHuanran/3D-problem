@@ -204,7 +204,7 @@ function timeAgo(ts) {
       <div class="section">
         <h2 class="sec-title">{{ t('md.comments') }} <span class="sec-count">{{ comments.length }}</span></h2>
 
-        <div class="comment-box">
+        <div v-if="props.currentUser" class="comment-box">
           <textarea
             v-model="commentText"
             class="comment-input"
@@ -222,6 +222,11 @@ function timeAgo(ts) {
             >{{ commentLoading ? t('md.sending') : t('md.send') }}</button>
           </div>
           <div v-if="commentError" class="form-error" style="margin-top:8px">{{ commentError }}</div>
+        </div>
+        <div v-else class="login-prompt" @click="emit('open-auth', 'login')">
+          <span>✏️</span>
+          <span>{{ t('pd.loginComment') }}</span>
+          <span class="prompt-arrow">→</span>
         </div>
 
         <p v-if="comments.length === 0" class="empty-hint">{{ t('md.noComments') }}</p>
@@ -326,6 +331,10 @@ function timeAgo(ts) {
 .interest-row  { display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(0,0,0,0.02); border-radius: 10px; flex-wrap: wrap; }
 .i-user    { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .i-contact { font-size: 13px; color: #1d1d1f; background: rgba(0,0,0,0.05); padding: 4px 10px; border-radius: 6px; white-space: nowrap; }
+
+.login-prompt { display: flex; align-items: center; gap: 10px; background: #f5f5f7; border: 1px dashed rgba(0,0,0,0.12); border-radius: 12px; padding: 14px 18px; font-size: 14px; color: #6e6e73; cursor: pointer; transition: all 0.2s; margin-bottom: 20px; }
+.login-prompt:hover { border-color: rgba(0,0,0,0.22); color: #1d1d1f; }
+.prompt-arrow { margin-left: auto; color: #007aff; font-size: 15px; }
 
 /* Comments */
 .comment-box    { margin-bottom: 20px; }

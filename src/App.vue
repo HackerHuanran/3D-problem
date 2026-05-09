@@ -8,12 +8,15 @@ import ProblemDetailView from './components/ProblemDetailView.vue'
 import NewsView from './components/NewsView.vue'
 import MarketView from './components/MarketView.vue'
 import MyPostsView from './components/MyPostsView.vue'
+import MyProblemsView from './components/MyProblemsView.vue'
+import SubmitProblemView from './components/SubmitProblemView.vue'
 
 const { currentUser, checkUsername, requestPhoneCode, confirmCode, login, setupProfile, changePassword, logout, init } = useAuth()
 const { notifications, unreadCount, fetchNotifications, markAllRead } = useNotifications()
 const { lang, t } = useLocale()
 
-onMounted(() => init())
+const appReady = ref(false)
+onMounted(async () => { await init(); appReady.value = true })
 
 watch(currentUser, (user) => {
   if (user) fetchNotifications(user.id)
@@ -28,10 +31,16 @@ const activeTab       = ref('home')
 const goToDetail = (id) => { currentDetailId.value = id; currentPage.value = 'detail'; window.scrollTo(0, 0) }
 const goBackToList = () => { currentPage.value = 'list'; activeTab.value = 'home'; currentDetailId.value = null; window.scrollTo(0, 0) }
 const switchTab = (tab) => { activeTab.value = tab; currentPage.value = 'list'; window.scrollTo(0, 0) }
+const goToSubmit = () => { currentPage.value = 'submit'; window.scrollTo(0, 0) }
+const onSubmitted = () => { currentPage.value = 'list'; activeTab.value = 'home'; window.scrollTo(0, 0) }
 
 // ── 我发布的需求 ──
 const showMyPosts = ref(false)
 const openMyPosts = () => { showUserMenu.value = false; showMyPosts.value = true; window.scrollTo(0, 0) }
+
+// ── 我发布的问题 ──
+const showMyProblems = ref(false)
+const openMyProblems = () => { showUserMenu.value = false; showMyProblems.value = true; window.scrollTo(0, 0) }
 
 // ── 通知面板 ──
 const showNotifPanel = ref(false)
@@ -226,6 +235,19 @@ const submitEditUsername = async () => {
     @back="showMyPosts = false"
   />
 
+  <MyProblemsView
+    v-else-if="showMyProblems"
+    :current-user="currentUser"
+    @back="showMyProblems = false"
+  />
+
+  <SubmitProblemView
+    v-else-if="currentPage === 'submit'"
+    :current-user="currentUser"
+    @back="goBackToList"
+    @submitted="onSubmitted"
+  />
+
   <ProblemDetailView
     v-else-if="currentPage === 'detail'"
     :problem-id="currentDetailId"
@@ -333,6 +355,7 @@ const submitEditUsername = async () => {
               <Transition name="dropdown">
                 <div v-if="showUserMenu" class="user-dropdown">
                   <button class="dropdown-item" @click="openMyPosts">{{ t('user.myPosts') }}</button>
+                  <button class="dropdown-item" @click="openMyProblems">我发布的问题</button>
                   <div class="dropdown-divider"></div>
                   <button class="dropdown-item" @click="openEditUsername">{{ t('user.editUsername') }}</button>
                   <button class="dropdown-item" @click="openChangePwd">{{ t('user.changePwd') }}</button>
@@ -348,9 +371,14 @@ const submitEditUsername = async () => {
       </div>
     </nav>
 
-<ProblemsView v-if="activeTab === 'home'"   @go-detail="goToDetail" @open-auth="openAuth" />
-    <NewsView     v-else-if="activeTab === 'news'" />
-    <MarketView   v-else-if="activeTab === 'market'" :current-user="currentUser" @open-auth="openAuth" />
+    <template v-if="appReady">
+      <ProblemsView v-if="activeTab === 'home'" :current-user="currentUser" @go-detail="goToDetail" @open-auth="openAuth" @go-submit="goToSubmit" />
+      <NewsView     v-else-if="activeTab === 'news'" />
+      <MarketView   v-else-if="activeTab === 'market'" :current-user="currentUser" @open-auth="openAuth" />
+    </template>
+    <div v-else class="app-loading">
+      <span class="loading-spinner"></span>
+    </div>
   </div>
 
   <!-- 登录/注册弹窗 -->
@@ -713,4 +741,8 @@ body { background: #f5f5f7; font-family: -apple-system, 'PingFang SC', 'Helvetic
 .contact-label { font-size: 11px; color: #aeaeb2; letter-spacing: 0.04em; }
 .contact-value { font-size: 15px; font-weight: 600; color: #1d1d1f; letter-spacing: 0.01em; }
 .about-footer { font-size: 11px; color: #c7c7cc; text-align: center; }
+
+/* Auth init loading */
+.app-loading { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 52px); }
+.loading-spinner { width: 28px; height: 28px; border: 2.5px solid rgba(0,0,0,0.1); border-top-color: #1d1d1f; border-radius: 50%; animation: spin 0.75s linear infinite; }
 </style>

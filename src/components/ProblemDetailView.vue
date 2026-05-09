@@ -39,6 +39,7 @@
 
       <section class="section">
         <p class="desc-text">{{ problem.description }}</p>
+        <img v-if="problem.image_url || problem.images" :src="problem.image_url || problem.images" class="problem-img" alt="问题图片" />
       </section>
 
       <section class="section">
@@ -74,7 +75,10 @@
               </svg>
             </div>
             <Transition name="expand">
-              <div class="sol-detail" v-if="expandedSet.has(i)"><p>{{ sol.detail }}</p></div>
+              <div class="sol-detail" v-if="expandedSet.has(i)">
+                <p>{{ sol.detail }}</p>
+                <img v-if="sol.image_url" :src="sol.image_url" class="sol-img" alt="步骤图片" />
+              </div>
             </Transition>
           </div>
         </div>
@@ -218,6 +222,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { problems } from '@/data/problems.js'
+import { useUserProblems } from '@/composables/useUserProblems.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useCommunity } from '@/composables/useCommunity.js'
 import { useLocale } from '@/composables/useLocale.js'
@@ -226,10 +231,14 @@ const props = defineProps({ problemId: { type: String, required: true } })
 defineEmits(['back', 'go-detail', 'open-auth'])
 
 const { currentUser } = useAuth()
+const { userProblems } = useUserProblems()
 const { getComments, addComment, deleteComment, toggleCommentLike, getSolutions, addSolution, deleteSolution, toggleSolutionLike } = useCommunity()
 const { t } = useLocale()
 
-const problem = computed(() => problems.find(p => p.id === props.problemId))
+const problem = computed(() =>
+  problems.find(p => p.id === props.problemId) ||
+  userProblems.value.find(p => p.id === props.problemId)
+)
 
 // ── 步骤展开 ──
 const expandedSet = ref(new Set())
@@ -359,6 +368,8 @@ const diffClass = (d) => { if (d === '紧急') return 'urgent'; if (d === '需�
 .toggle-all-btn { margin-left: auto; background: transparent; border: 1px solid rgba(0,0,0,0.1); color: #6e6e73; padding: 4px 12px; border-radius: 100px; font-size: 12px; cursor: pointer; font-family: inherit; transition: all 0.18s; }
 .toggle-all-btn:hover { color: #1d1d1f; border-color: rgba(0,0,0,0.22); }
 .desc-text { font-size: 17px; color: #6e6e73; line-height: 1.75; }
+.problem-img { width: 100%; max-height: 320px; object-fit: cover; border-radius: 16px; margin-top: 16px; display: block; }
+.sol-img { max-width: 100%; max-height: 220px; object-fit: cover; border-radius: 10px; margin-top: 10px; display: block; }
 .causes-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 10px; }
 .cause-item { background: #fff; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(0,0,0,0.06); box-shadow: 0 2px 6px rgba(0,0,0,0.05); transition: box-shadow 0.2s; }
 .cause-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }

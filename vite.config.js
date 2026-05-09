@@ -18,4 +18,13 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  server: {
+    proxy: {
+      '/cos-proxy': {
+        target: 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.cos.ap-shanghai.myqcloud.com',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/cos-proxy/, ''),
+      },
+    },
+  },
 })
