@@ -17,6 +17,7 @@
     "vue-router": "^5.0.4"
   },
   "devDependencies": {
+    "@cloudbase/node-sdk": "^3.18.1",
     "@vitejs/plugin-vue": "^6.0.6",
     "@vitejs/plugin-vue-jsx": "^5.1.5",
     "autoprefixer": "^10.5.0",

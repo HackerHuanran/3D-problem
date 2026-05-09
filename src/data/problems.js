@@ -13,6 +13,22 @@ import penzui from '../../public/images/problems/penzui.png';
 import diyiceng from '../../public/images/problems/diyiceng.webp';
 import cuowei from '../../public/images/problems/cuowei.jpg';
 import du from '../../public/images/problems/du.webp';
+import ghosting from '../../public/images/problems/3D-Print-Ringing-and-Ghosting.jpg';
+import zWobble from '../../public/images/problems/z-wobble.png';
+import heatCreep from '../../public/images/problems/heat-creep.png';
+import striations from '../../public/images/problems/striations.jpg';
+import petgBed from '../../public/images/problems/petg-bed.jpg';
+import infillGaps from '../../public/images/problems/3D-Printing-Gaps-and-Holes.jpg';
+import absCracking from '../../public/images/problems/abs-cracking.jpg';
+import petgStringing from '../../public/images/problems/172631_mc5dj6xk7.jpg';
+import seamImg from '../../public/images/problems/seam.jpg';
+import topSurface from '../../public/images/problems/top-surface.jpg';
+import overhangsImg from '../../public/images/problems/overhangs.jpg';
+import bridgingImg from '../../public/images/problems/bridging.jpg';
+import resinWarp from '../../public/images/problems/resin-warp.png';
+import extruderClick from '../../public/images/problems/extruder-click.png';
+import filamentTangle from '../../public/images/problems/filament-tangle.jpg';
+import colorChange from '../../public/images/problems/color-change.jpg';
 export const problems = [
   // ─── 新手问题 ───
   {
@@ -285,6 +301,7 @@ export const problems = [
     title: '振纹 / 鬼影',
     subtitle: '表面出现波纹震动痕',
     emoji: '👻',
+    images: ghosting,
     color: '#FD79A8',
     bgGradient: 'linear-gradient(135deg, #1a000d 0%, #2d0018 100%)',
     difficulty: '进阶',
@@ -304,6 +321,7 @@ export const problems = [
     title: 'Z轴波纹',
     subtitle: '表面规律性起伏',
     emoji: '〰️',
+    images: zWobble,
     color: '#6C5CE7',
     bgGradient: 'linear-gradient(135deg, #08001a 0%, #10002d 100%)',
     difficulty: '进阶',
@@ -323,6 +341,7 @@ export const problems = [
     title: '热爬升（Heat Creep）',
     subtitle: '耗材在冷端熔化堵塞',
     emoji: '🌡️',
+    images: heatCreep,
     color: '#FF7675',
     bgGradient: 'linear-gradient(135deg, #1a0500 0%, #2d0a00 100%)',
     difficulty: '需处理',
@@ -361,6 +380,7 @@ export const problems = [
     title: '温度波动条纹',
     subtitle: '表面出现水平明暗条纹',
     emoji: '📊',
+    images: striations,
     color: '#FDCB6E',
     bgGradient: 'linear-gradient(135deg, #1a1000 0%, #2d1f00 100%)',
     difficulty: '进阶',
@@ -380,6 +400,7 @@ export const problems = [
     title: 'PETG粘床过紧',
     subtitle: '打印件难以取下',
     emoji: '😤',
+    images: petgBed,
     color: '#55EFC4',
     bgGradient: 'linear-gradient(135deg, #001a0f 0%, #002d1a 100%)',
     difficulty: '进阶',
@@ -399,6 +420,7 @@ export const problems = [
     title: '内部填充透出表面',
     subtitle: '表面能看到内部结构',
     emoji: '🫙',
+    images: infillGaps,
     color: '#E17055',
     bgGradient: 'linear-gradient(135deg, #1a0800 0%, #2d1200 100%)',
     difficulty: '进阶',
@@ -420,6 +442,7 @@ export const problems = [
     title: 'ABS 层间开裂',
     subtitle: 'ABS打印件脆裂',
     emoji: '💥',
+    images: absCracking,
     color: '#FF6B6B',
     bgGradient: 'linear-gradient(135deg, #1a0a0a 0%, #2d0f0f 100%)',
     difficulty: '中等',
@@ -439,6 +462,7 @@ export const problems = [
     title: 'PETG 严重拉丝',
     subtitle: 'PETG耗材拉丝难处理',
     emoji: '🍬',
+    images: petgStringing,
     color: '#74B9FF',
     bgGradient: 'linear-gradient(135deg, #000f1a 0%, #001a2d 100%)',
     difficulty: '中等',
@@ -498,6 +522,7 @@ export const problems = [
     title: '起始点接缝明显',
     subtitle: '外壁有明显接缝疤痕',
     emoji: '🔎',
+    images: seamImg,
     color: '#A29BFE',
     bgGradient: 'linear-gradient(135deg, #0d001a 0%, #1a002d 100%)',
     difficulty: '中等',
@@ -517,6 +542,7 @@ export const problems = [
     title: '顶面粗糙不平',
     subtitle: '顶层表面质量差',
     emoji: '🗻',
+    images: topSurface,
     color: '#E17055',
     bgGradient: 'linear-gradient(135deg, #1a0800 0%, #2d1200 100%)',
     difficulty: '中等',
@@ -536,6 +562,7 @@ export const problems = [
     title: '悬空下垂',
     subtitle: '悬空结构打印质量差',
     emoji: '🌉',
+    images: overhangsImg,
     color: '#00CEC9',
     bgGradient: 'linear-gradient(135deg, #001a1a 0%, #002d2d 100%)',
     difficulty: '中等',
@@ -555,6 +582,7 @@ export const problems = [
     title: '桥接质量差',
     subtitle: '两点间横向打印下垂',
     emoji: '🌁',
+    images: bridgingImg,
     color: '#81ECEC',
     bgGradient: 'linear-gradient(135deg, #001515 0%, #002020 100%)',
     difficulty: '中等',
@@ -652,6 +680,7 @@ export const problems = [
     title: '耗材打结缠绕',
     subtitle: '线盘中途卡料断丝',
     emoji: '🎣',
+    images: filamentTangle,
     color: '#FDCB6E',
     bgGradient: 'linear-gradient(135deg, #1a1000 0%, #2d1f00 100%)',
     difficulty: '紧急',
@@ -671,6 +700,7 @@ export const problems = [
     title: '换色 / 多色打印失败',
     subtitle: '颜色混合或换色不干净',
     emoji: '🎨',
+    images: colorChange,
     color: '#FF7675',
     bgGradient: 'linear-gradient(135deg, #1a0500 0%, #2d0a00 100%)',
     difficulty: '进阶',
@@ -690,6 +720,7 @@ export const problems = [
     title: '光固化树脂翘曲',
     subtitle: '树脂打印件固化后弯曲',
     emoji: '🌊',
+    images: resinWarp,
     color: '#00CEC9',
     bgGradient: 'linear-gradient(135deg, #001a1a 0%, #002d2d 100%)',
     difficulty: '中等',
@@ -740,6 +771,106 @@ export const problems = [
       { step: 4, title: '使用树形支撑', detail: '树形支撑（Tree Support）用料比标准格状支撑少50–80%，打印时间大幅缩短，且更易去除，推荐优先使用。' }
     ],
     tips: '支持Input Shaping共振补偿的打印机（Bambu Lab、Voron等）可在200–500mm/s下保持质量，是提速效果最明显的硬件升级方向。'
+  },
+
+  // ─── 新增问题 2 ───
+  {
+    id: 'extruder-clicking',
+    category: '新手',
+    title: '挤出机咔哒声 / 跳步',
+    subtitle: '进料时发出规律性弹响',
+    emoji: '🔧',
+    images: extruderClick,
+    color: '#FF6B6B',
+    bgGradient: 'linear-gradient(135deg, #1a0a0a 0%, #2d0f0f 100%)',
+    difficulty: '常见',
+    description: '挤出机齿轮无法推动耗材时，步进电机丢步并发出"咔哒"弹响声，耗材被反复磨损，送料中断。',
+    causes: ['喷嘴堵塞导致背压过高', '打印温度不足耗材太硬', '进料路径阻力过大', '挤出机张力弹簧过松'],
+    solutions: [
+      { step: 1, title: '提高打印温度', detail: '温度每提高5°C，耗材流动性增加，背压降低。先尝试提高10°C，观察咔哒声是否消失。' },
+      { step: 2, title: '降低打印速度', detail: '速度过快时挤出机来不及推送耗材。将速度降低20–30%，给挤出机足够时间输送。' },
+      { step: 3, title: '检查并清洁喷嘴', detail: '部分堵塞的喷嘴会造成背压升高。执行冷拔清洁（Atomic Pull）或更换新喷嘴。' },
+      { step: 4, title: '调整挤出机张力', detail: '检查挤出机弹簧压力，太松齿轮无法咬紧耗材，太紧会磨损耗材。调至齿轮刚好能咬住耗材不打滑。' },
+      { step: 5, title: '检查PTFE管路径', detail: '管道弯折或间隙会造成阻力增加。理顺管路，确保管子插入热端无间隙，弯曲角度不小于90°。' }
+    ],
+    tips: '挤出机持续咔哒通常是喷嘴堵塞的早期信号。处理越早越好，拖延会导致齿轮磨出沟槽，需要更换挤出机零件。'
+  },
+  {
+    id: 'warped-bed',
+    category: '新手',
+    title: '热床物理翘曲',
+    subtitle: '热床表面不平整',
+    emoji: '🏔️',
+    color: '#74B9FF',
+    bgGradient: 'linear-gradient(135deg, #000f1a 0%, #001a2d 100%)',
+    difficulty: '需处理',
+    description: '热床玻璃或金属板在高温下发生物理形变，中间凸起或四角翘起，导致调平后仍有区域第一层过高或过低。',
+    causes: ['热床材质热胀冷缩', '安装螺丝力矩不均', '热床长期高温使用疲劳', '玻璃板本身质量缺陷'],
+    solutions: [
+      { step: 1, title: '使用自动调平（ABL）', detail: '安装BLTouch、CR Touch或压力传感器等自动调平探针，通过固件补偿热床不平，是最彻底的解决方案。' },
+      { step: 2, title: '开启网格调平', detail: '在Marlin或Klipper固件中开启床网格补偿（Mesh Bed Leveling），探测多个点绘制床面地形图，打印时动态补偿Z高度。' },
+      { step: 3, title: '更换PEI弹簧钢板', detail: 'PEI弹簧钢板比玻璃板更不易翘曲，且可拆卸弯曲取件，是目前最推荐的热床表面材料。' },
+      { step: 4, title: '预热后再调平', detail: '热床完全加热到打印温度后再调平，而不是冷床调平。热膨胀会改变床面形态，冷床调平的参数在高温下会有偏差。' }
+    ],
+    tips: '轻微翘曲（<0.3mm）通过网格调平可以完全补偿，无需更换热床。严重翘曲（>0.5mm）建议直接换PEI钢板解决。'
+  },
+  {
+    id: 'blobs-zits',
+    category: '进阶',
+    title: '表面疙瘩 / 料珠',
+    subtitle: '外壁有小凸起和瑕疵',
+    emoji: '🫧',
+    color: '#A29BFE',
+    bgGradient: 'linear-gradient(135deg, #0d001a 0%, #1a002d 100%)',
+    difficulty: '中等',
+    description: '打印件外壁出现随机分布的小突起（料珠）或小坑，在光滑表面上尤其明显，影响外观质量。',
+    causes: ['回抽不足导致渗料', '接缝处溢料', '打印速度不均导致压力波动', '耗材受潮有气泡'],
+    solutions: [
+      { step: 1, title: '优化接缝位置', detail: '将接缝设置到模型最尖锐的角落，或选择"随机"模式，让料珠分散而不是集中在一处。' },
+      { step: 2, title: '调整回抽参数', detail: '适当增大回抽距离（0.5mm步进）或回抽速度，减少喷嘴在移动过程中的渗料量。' },
+      { step: 3, title: '开启Wipe擦拭', detail: '在接缝处开启Wipe（擦拭）功能，让喷嘴在封闭外壁后额外移动一小段，消耗多余压力中的耗材。' },
+      { step: 4, title: '降低打印温度', detail: '温度过高耗材流动性强，更容易渗漏。每次降低5°C并打测试件观察。' },
+      { step: 5, title: '检查耗材是否受潮', detail: '受潮耗材打印时有气泡爆裂，是造成随机料珠的重要原因之一。放入干燥箱烘干4小时后测试。' }
+    ],
+    tips: '料珠问题通常需要多参数联合调整，建议每次只改一个变量，打相同测试件对比，找到最优组合。'
+  },
+  {
+    id: 'resin-fep-failure',
+    category: '材料',
+    title: '光固化 FEP 膜损坏',
+    subtitle: '树脂漏入料槽下方',
+    emoji: '⚠️',
+    color: '#FDCB6E',
+    bgGradient: 'linear-gradient(135deg, #1a1000 0%, #2d1f00 100%)',
+    difficulty: '需处理',
+    description: '光固化打印机的料槽底部FEP（或nFEP）透明膜出现划痕、穿孔或雾化，导致光线散射、打印失败，严重时树脂泄漏进入光源模块。',
+    causes: ['打印件粘FEP时强行剥离', 'FEP膜张力不均造成局部应力', 'FEP使用过久自然老化', '支撑接触点反复拉扯'],
+    solutions: [
+      { step: 1, title: '检查FEP膜状态', detail: '清空料槽清洗后，对着光观察FEP是否有划痕、云雾状或小孔。任何明显损坏都应更换，不要带伤继续使用。' },
+      { step: 2, title: '更换FEP膜', detail: '更换FEP膜是常规维护，通常每3–6个月或打印时间超过200小时后更换。更换时注意拉力均匀，安装后用手指轻弹发出清脆声为正确张力。' },
+      { step: 3, title: '优化支撑设置减少剥离力', detail: '增大支撑接触直径（Contact Diameter）并减少支撑密度，让每次剥离的拉力分散，减少FEP单点受力。' },
+      { step: 4, title: '添加抗离型涂层', detail: '在FEP上薄涂一层硅油（Ease Release 200）或专用离型剂，可大幅降低剥离力，延长FEP寿命。' }
+    ],
+    tips: 'nFEP膜寿命比普通FEP长2–3倍，价格略高但值得。ACF膜是目前最新技术，剥离力更小，适合精细模型打印。'
+  },
+  {
+    id: 'inconsistent-extrusion',
+    category: '进阶',
+    title: '挤出量不稳定',
+    subtitle: '打印线条粗细不均匀',
+    emoji: '〽️',
+    color: '#FF7675',
+    bgGradient: 'linear-gradient(135deg, #1a0500 0%, #2d0a00 100%)',
+    difficulty: '进阶',
+    description: '打印线条出现周期性或随机性粗细变化，导致层面不均匀、表面有明显纹路或出现局部过挤和欠挤交替出现的现象。',
+    causes: ['耗材直径不均匀', '挤出机齿轮部分磨损', 'PTFE管内壁不平整', '送料路径阻力变化'],
+    solutions: [
+      { step: 1, title: '检测耗材直径', detail: '用游标卡尺测量耗材直径，每隔10cm测一次，共测10处。优质耗材直径公差应在±0.05mm内，超过±0.1mm会明显影响挤出均匀性。' },
+      { step: 2, title: '更换挤出机齿轮', detail: '齿轮磨损后咬合力不均，导致送料时多时少。更换新的挤出齿轮（BMG、Orbiter等高质量挤出机效果更稳定）。' },
+      { step: 3, title: '更换Capricorn PTFE管', detail: 'Capricorn管内径更精准（1.9mm vs 标准2mm），内壁更光滑，可显著改善送料均匀性，特别对小直径耗材效果明显。' },
+      { step: 4, title: '校准Linear Advance', detail: '开启Klipper的Pressure Advance或Marlin的Linear Advance，动态补偿加减速时的压力变化，显著改善转角处的挤出均匀性。' }
+    ],
+    tips: '挤出量不稳定问题最容易在打印单色大面积模型时发现。打一个校准方块并用游标卡尺测量壁厚，能快速定位问题根源。'
   }
 ]
 
