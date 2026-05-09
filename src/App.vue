@@ -7,6 +7,9 @@ import ProblemsView from './components/ProblemsView.vue'
 import ProblemDetailView from './components/ProblemDetailView.vue'
 import NewsView from './components/NewsView.vue'
 import MarketView from './components/MarketView.vue'
+import FilamentView from './components/FilamentView.vue'
+import ServicesView from './components/ServicesView.vue'
+import AdminView from './components/AdminView.vue'
 import MyPostsView from './components/MyPostsView.vue'
 import MyProblemsView from './components/MyProblemsView.vue'
 import SubmitProblemView from './components/SubmitProblemView.vue'
@@ -188,6 +191,20 @@ const submitChangePwd = async () => {
   }
 }
 
+// ── 管理后台 ──
+const showAdmin = ref(false)
+const openAdmin = () => { showUserMenu.value = false; showAdmin.value = true; window.scrollTo(0, 0) }
+
+// ── 服务商入驻 ──
+const autoOpenJoinService = ref(false)
+const openJoinService = () => {
+  showUserMenu.value = false
+  activeTab.value = 'services'
+  currentPage.value = 'list'
+  window.scrollTo(0, 0)
+  autoOpenJoinService.value = true
+}
+
 // ── 积分弹窗 ──
 const showPoints = ref(false)
 const openPoints = () => { showUserMenu.value = false; showPoints.value = true }
@@ -229,14 +246,20 @@ const submitEditUsername = async () => {
 </script>
 
 <template>
+  <AdminView
+    v-if="showAdmin"
+    :current-user="currentUser"
+    @back="showAdmin = false"
+  />
+
   <MyPostsView
-    v-if="showMyPosts"
+    v-else-if="showMyPosts"
     :current-user="currentUser"
     @back="showMyPosts = false"
   />
 
   <MyProblemsView
-    v-else-if="showMyProblems"
+    v-else-if="!showAdmin && showMyProblems"
     :current-user="currentUser"
     @back="showMyProblems = false"
   />
@@ -256,7 +279,7 @@ const submitEditUsername = async () => {
     @open-auth="openAuth"
   />
 
-  <div v-else-if="!showMyPosts" class="app-shell">
+  <div v-else-if="!showAdmin && !showMyPosts" class="app-shell">
     <nav class="app-nav">
       <div class="nav-inner">
         <div class="nav-logo" @click="goBackToList">
@@ -266,7 +289,9 @@ const submitEditUsername = async () => {
         <div class="nav-tabs">
           <button :class="['nav-tab', { active: activeTab === 'home' }]"   @click="switchTab('home')">{{ t('nav.home') }}</button>
           <button :class="['nav-tab', { active: activeTab === 'news' }]"   @click="switchTab('news')">{{ t('nav.news') }}</button>
-          <button :class="['nav-tab', { active: activeTab === 'market' }]" @click="switchTab('market')">{{ t('nav.market') }}</button>
+          <button :class="['nav-tab', { active: activeTab === 'market' }]"   @click="switchTab('market')">{{ t('nav.market') }}</button>
+          <button :class="['nav-tab', { active: activeTab === 'filament' }]"  @click="switchTab('filament')">耗材参数库</button>
+          <button :class="['nav-tab', { active: activeTab === 'services' }]" @click="switchTab('services')">服务商目录</button>
           <button class="nav-tab" @click="showAbout = true">{{ t('nav.about') }}</button>
         </div>
         <div class="nav-right">
@@ -354,8 +379,11 @@ const submitEditUsername = async () => {
               </div>
               <Transition name="dropdown">
                 <div v-if="showUserMenu" class="user-dropdown">
+                  <button v-if="currentUser.isAdmin" class="dropdown-item admin-item" @click="openAdmin">管理后台</button>
+                  <div v-if="currentUser.isAdmin" class="dropdown-divider"></div>
                   <button class="dropdown-item" @click="openMyPosts">{{ t('user.myPosts') }}</button>
                   <button class="dropdown-item" @click="openMyProblems">我发布的问题</button>
+                  <button class="dropdown-item" @click="openJoinService">服务商入驻</button>
                   <div class="dropdown-divider"></div>
                   <button class="dropdown-item" @click="openEditUsername">{{ t('user.editUsername') }}</button>
                   <button class="dropdown-item" @click="openChangePwd">{{ t('user.changePwd') }}</button>
@@ -372,9 +400,16 @@ const submitEditUsername = async () => {
     </nav>
 
     <template v-if="appReady">
-      <ProblemsView v-if="activeTab === 'home'" :current-user="currentUser" @go-detail="goToDetail" @open-auth="openAuth" @go-submit="goToSubmit" />
-      <NewsView     v-else-if="activeTab === 'news'" />
-      <MarketView   v-else-if="activeTab === 'market'" :current-user="currentUser" @open-auth="openAuth" />
+      <ProblemsView  v-if="activeTab === 'home'"     :current-user="currentUser" @go-detail="goToDetail" @open-auth="openAuth" @go-submit="goToSubmit" />
+      <NewsView      v-else-if="activeTab === 'news'" />
+      <MarketView    v-else-if="activeTab === 'market'"   :current-user="currentUser" @open-auth="openAuth" />
+      <FilamentView  v-else-if="activeTab === 'filament'" />
+      <ServicesView  v-else-if="activeTab === 'services'"
+        :current-user="currentUser"
+        :auto-open-join="autoOpenJoinService"
+        @open-auth="openAuth"
+        @join-opened="autoOpenJoinService = false"
+      />
     </template>
     <div v-else class="app-loading">
       <span class="loading-spinner"></span>
@@ -664,6 +699,7 @@ body { background: #f5f5f7; font-family: -apple-system, 'PingFang SC', 'Helvetic
 .dropdown-item { width: 100%; padding: 12px 16px; background: transparent; border: none; color: #1d1d1f; font-size: 14px; font-family: inherit; text-align: left; cursor: pointer; transition: background 0.15s; }
 .dropdown-item:hover { background: rgba(0,0,0,0.04); }
 .dropdown-item.danger { color: #ff3b30; }
+.dropdown-item.admin-item { color: #0f3460; font-weight: 600; }
 .dropdown-divider { height: 1px; background: rgba(0,0,0,0.06); margin: 2px 0; }
 .menu-backdrop { position: fixed; inset: 0; z-index: 250; }
 

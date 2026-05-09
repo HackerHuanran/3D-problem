@@ -20,6 +20,7 @@ async function loadProfile(uid) {
         avatar:   profile.avatar  || '?',
         phone:    profile.phone   || '',
         points:   profile.points  ?? 0,
+        isAdmin:  profile.isAdmin === true || profile.isAdmin === 'true' || profile.isAdmin === 1,
       }
     }
     // 没有 profile = 匿名用户，currentUser 保持 null
