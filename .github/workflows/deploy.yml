@@ -23,15 +23,10 @@ jobs:
         env:
           VITE_TCB_ENV_ID: ${{ secrets.VITE_TCB_ENV_ID }}
 
-      - name: Install CloudBase CLI
-        run: npm install -g @cloudbase/cli
-
       - name: Deploy to CloudBase Static Hosting
-        env:
-          SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
-          SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
-          ENV_ID: ${{ secrets.VITE_TCB_ENV_ID }}
-        run: |
-          cloudbase login --secretId $SECRET_ID --secretKey $SECRET_KEY
-          cd dist
-          cloudbase hosting deploy . / -e $ENV_ID
+        uses: TencentCloud/cloudbase-action@v3
+        with:
+          secretId: ${{ secrets.TENCENT_SECRET_ID }}
+          secretKey: ${{ secrets.TENCENT_SECRET_KEY }}
+          envId: ${{ secrets.VITE_TCB_ENV_ID }}
+          staticSrcPath: dist
