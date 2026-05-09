@@ -458,11 +458,11 @@ async function submitJoin() {
 
 /* Hero */
 .hero { background: linear-gradient(135deg, #0f3460 0%, #16213e 100%); padding: 56px 24px 48px; }
-.hero-inner { max-width: 860px; margin: 0 auto; }
+.hero-inner { max-width: 1280px; margin: 0 auto; }
 .hero-badge { display: inline-block; background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85); font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 100px; letter-spacing: 0.08em; margin-bottom: 16px; }
 .hero-title { font-size: clamp(24px, 4vw, 38px); font-weight: 800; color: #fff; letter-spacing: -0.03em; margin-bottom: 10px; }
 .hero-sub { font-size: 15px; color: rgba(255,255,255,0.55); margin-bottom: 28px; }
-.hero-actions { display: flex; align-items: center; gap: 12px; max-width: 600px; }
+.hero-actions { display: flex; align-items: center; gap: 12px; max-width: 700px; }
 .hero-search-wrap { position: relative; flex: 1; }
 .hero-join-btn { display: flex; align-items: center; gap: 6px; background: #fff; color: #0f3460; border: none; border-radius: 12px; padding: 12px 18px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background 0.15s; }
 .hero-join-btn:hover { background: rgba(255,255,255,0.88); }
@@ -472,7 +472,7 @@ async function submitJoin() {
 .search-input:focus { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); }
 
 /* Content */
-.content { max-width: 860px; margin: 0 auto; padding: 32px 24px 60px; }
+.content { max-width: 1280px; margin: 0 auto; padding: 32px 24px 60px; }
 
 /* Filters */
 .filters { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
@@ -490,7 +490,7 @@ async function submitJoin() {
 .reset-btn:hover { text-decoration: underline; }
 
 /* Cards */
-.cards { display: flex; flex-direction: column; gap: 10px; margin-bottom: 32px; }
+.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 32px; }
 .card { background: #fff; border-radius: 18px; overflow: hidden; border: 1px solid rgba(0,0,0,0.07); transition: box-shadow 0.2s; }
 .card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
 .card.expanded { box-shadow: 0 4px 24px rgba(0,0,0,0.1); }
@@ -606,6 +606,9 @@ async function submitJoin() {
 .modal-enter-active, .modal-leave-active { transition: all 0.25s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 
+@media (max-width: 900px) {
+  .cards { grid-template-columns: 1fr; }
+}
 @media (max-width: 600px) {
   .filter-label { display: none; }
   .form-row.two-col { flex-direction: column; }
@@ -613,6 +616,5 @@ async function submitJoin() {
   .join-modal-header, .join-form { padding-left: 20px; padding-right: 20px; }
   .card-head { flex-wrap: wrap; }
   .card-right { flex-direction: row; align-items: center; width: 100%; justify-content: flex-end; }
-  .rating-block { flex-direction: row; align-items: center; gap: 6px; }
 }
 </style>

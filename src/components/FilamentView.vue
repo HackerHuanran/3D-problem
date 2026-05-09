@@ -219,18 +219,18 @@ function diffStyle(d) {
 
 /* Hero */
 .hero { background: linear-gradient(135deg, #1d1d1f 0%, #3a3a3c 100%); padding: 56px 24px 48px; }
-.hero-inner { max-width: 860px; margin: 0 auto; }
+.hero-inner { max-width: 1280px; margin: 0 auto; }
 .hero-badge { display: inline-block; background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85); font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 100px; letter-spacing: 0.08em; margin-bottom: 16px; }
 .hero-title { font-size: clamp(26px, 4vw, 40px); font-weight: 800; color: #fff; letter-spacing: -0.03em; margin-bottom: 10px; }
 .hero-sub { font-size: 15px; color: rgba(255,255,255,0.55); margin-bottom: 28px; }
-.search-wrap { position: relative; max-width: 480px; }
+.search-wrap { position: relative; max-width: 600px; }
 .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.4); pointer-events: none; }
 .search-input { width: 100%; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 12px 16px 12px 40px; color: #fff; font-size: 15px; font-family: inherit; outline: none; transition: all 0.2s; }
 .search-input::placeholder { color: rgba(255,255,255,0.35); }
 .search-input:focus { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); }
 
 /* Content */
-.content { max-width: 860px; margin: 0 auto; padding: 32px 24px 60px; }
+.content { max-width: 1280px; margin: 0 auto; padding: 32px 24px 60px; }
 
 /* Filters */
 .filter-group { margin-bottom: 16px; display: flex; align-items: flex-start; gap: 12px; }
@@ -247,7 +247,7 @@ function diffStyle(d) {
 .reset-btn:hover { text-decoration: underline; }
 
 /* Cards */
-.cards { display: flex; flex-direction: column; gap: 8px; }
+.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .card { background: #fff; border-radius: 16px; overflow: hidden; border: 1px solid rgba(0,0,0,0.07); transition: box-shadow 0.2s; }
 .card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
 .card.expanded { box-shadow: 0 4px 24px rgba(0,0,0,0.1); }
@@ -297,6 +297,9 @@ function diffStyle(d) {
 .empty-title { font-size: 17px; font-weight: 600; color: #1d1d1f; margin-bottom: 8px; }
 .empty-sub { font-size: 14px; color: #aeaeb2; }
 
+@media (max-width: 900px) {
+  .cards { grid-template-columns: 1fr; }
+}
 @media (max-width: 600px) {
   .filter-group { gap: 8px; }
   .filter-label { display: none; }
