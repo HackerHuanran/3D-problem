@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useMarketDetail } from '@/composables/useMarketDetail.js'
 import { getImageURLs } from '@/composables/useStorage.js'
 import { useLocale } from '@/composables/useLocale.js'
+import { useReport } from '@/composables/useReport.js'
 
 const { t } = useLocale()
 
@@ -10,6 +11,28 @@ const props = defineProps({ post: Object, currentUser: Object })
 const emit  = defineEmits(['back', 'open-auth'])
 
 const { comments, interests, fetchComments, addComment, fetchInterests, addInterest, checkInterested } = useMarketDetail()
+const { submitReport } = useReport()
+
+const REPORT_REASONS = ['色情低俗', '赌博内容', '毒品违禁品', '虚假欺诈', '垃圾广告', '其他违规']
+const showReportModal  = ref(false)
+const reportReason     = ref('')
+const reportSubmitting = ref(false)
+const reportDone       = ref(false)
+
+async function handleReport() {
+  if (!reportReason.value || reportSubmitting.value || reportDone.value) return
+  reportSubmitting.value = true
+  try {
+    await submitReport(props.currentUser.id, {
+      type: 'market', targetId: props.post.id, targetTitle: props.post.title, reason: reportReason.value,
+    })
+    reportDone.value = true
+  } catch (e) {
+    console.error(e)
+  } finally {
+    reportSubmitting.value = false
+  }
+}
 
 const isOwner = computed(() => props.currentUser?.id === props.post?.userId)
 
@@ -141,9 +164,8 @@ function timeAgo(ts) {
           />
         </div>
 
-        <div class="meta-tags">
-          <span v-if="post.budget" class="meta-tag">💰 {{ t('md.budget', { v: post.budget }) }}</span>
-          <span class="meta-tag">📱 {{ t('md.contact', { v: post.contact }) }}</span>
+        <div v-if="post.budget" class="meta-tags">
+          <span class="meta-tag">💰 {{ t('md.budget', { v: post.budget }) }}</span>
         </div>
 
         <div class="post-footer">
@@ -152,6 +174,7 @@ function timeAgo(ts) {
             <span class="uname">{{ post.username }}</span>
           </div>
           <span class="time">{{ timeAgo(post.createdAt) }}</span>
+          <button v-if="currentUser && !isOwner" class="report-link" @click="showReportModal = true">举报</button>
         </div>
       </div>
 
@@ -252,6 +275,32 @@ function timeAgo(ts) {
       <img :src="lightboxUrl" class="lb-img" @click.stop />
     </div>
   </Transition>
+
+  <!-- 举报弹窗 -->
+  <Transition name="lb">
+    <div v-if="showReportModal" class="lightbox report-mask" @click.self="showReportModal = false">
+      <div class="report-box">
+        <div class="report-head">
+          <h3>举报内容</h3>
+          <button class="close-btn" @click="showReportModal = false">✕</button>
+        </div>
+        <p class="report-hint">请选择举报原因：</p>
+        <div class="reason-list">
+          <label v-for="r in REPORT_REASONS" :key="r" class="reason-item">
+            <input type="radio" :value="r" v-model="reportReason" />
+            <span>{{ r }}</span>
+          </label>
+        </div>
+        <div v-if="reportDone" class="report-success">举报已提交，我们将尽快处理。</div>
+        <div class="report-actions">
+          <button class="cancel-btn" @click="showReportModal = false">取消</button>
+          <button class="submit-btn" :disabled="!reportReason || reportSubmitting || reportDone" @click="handleReport">
+            {{ reportSubmitting ? '提交中…' : reportDone ? '已举报' : '提交举报' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Transition>
 </template>
 
 <style scoped>
@@ -348,4 +397,18 @@ function timeAgo(ts) {
 .comment-item { }
 .c-header  { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .c-content { font-size: 14px; color: #6e6e73; line-height: 1.65; padding-left: 32px; white-space: pre-wrap; }
+
+.report-link { background: transparent; border: none; color: #aeaeb2; font-size: 12px; font-family: inherit; cursor: pointer; padding: 0; margin-left: 8px; transition: color 0.15s; }
+.report-link:hover { color: #ff3b30; }
+
+.report-mask { align-items: center; justify-content: center; cursor: default; }
+.report-box  { background: #fff; border-radius: 20px; width: 100%; max-width: 400px; padding: 24px; box-shadow: 0 16px 48px rgba(0,0,0,0.18); cursor: default; }
+.report-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.report-head h3 { font-size: 16px; font-weight: 700; color: #1d1d1f; }
+.report-hint { font-size: 13px; color: #6e6e73; margin-bottom: 12px; }
+.reason-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.reason-item { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #1d1d1f; cursor: pointer; }
+.reason-item input[type=radio] { accent-color: #1d1d1f; width: 16px; height: 16px; cursor: pointer; }
+.report-success { font-size: 13px; color: #16a34a; background: rgba(34,197,94,0.08); padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
+.report-actions { display: flex; gap: 8px; justify-content: flex-end; }
 </style>

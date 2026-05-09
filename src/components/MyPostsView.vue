@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useMarket } from '@/composables/useMarket.js'
 import { uploadImages, getImageURLs } from '@/composables/useStorage.js'
 import { useLocale } from '@/composables/useLocale.js'
+import { checkContent, checkImage } from '@/lib/moderate.js'
 
 const { t } = useLocale()
 
@@ -59,27 +60,35 @@ function clearFiles(state) {
 
 // ── 发布弹窗 ──
 const showCreate   = ref(false)
-const createForm   = ref({ title: '', category: '代打服务', description: '', budget: '', contact: '' })
+const createForm   = ref({ title: '', category: '代打服务', description: '', budget: '' })
 const createError  = ref('')
 const creating     = ref(false)
 const createImg    = makeImgState()
 
 function openCreate() {
-  createForm.value  = { title: '', category: '代打服务', description: '', budget: '', contact: '' }
+  createForm.value  = { title: '', category: '代打服务', description: '', budget: '' }
   createError.value = ''
   clearFiles(createImg)
   showCreate.value  = true
 }
 
 async function submitCreate() {
-  const { title, description, contact } = createForm.value
-  if (!title.trim() || !description.trim() || !contact.trim()) {
+  const { title, description } = createForm.value
+  if (!title.trim() || !description.trim()) {
     createError.value = t('m.requiredErr')
     return
   }
   creating.value = true
   createError.value = ''
   try {
+    const { pass, msg } = await checkContent(`${createForm.value.title}\n${createForm.value.description}`)
+    if (!pass) { createError.value = msg; return }
+
+    for (const file of createImg.files.value) {
+      const { pass: imgPass, msg: imgMsg } = await checkImage(file)
+      if (!imgPass) { createError.value = imgMsg; return }
+    }
+
     const images = createImg.files.value.length
       ? await uploadImages(createImg.files.value, props.currentUser.id)
       : []
@@ -97,7 +106,7 @@ async function submitCreate() {
 // ── 编辑弹窗 ──
 const showEdit          = ref(false)
 const editingPost       = ref(null)
-const editForm          = ref({ title: '', category: '代打服务', description: '', budget: '', contact: '' })
+const editForm          = ref({ title: '', category: '代打服务', description: '', budget: '' })
 const editError         = ref('')
 const editing           = ref(false)
 const editImg           = makeImgState()
@@ -105,7 +114,7 @@ const editExistingImgs  = ref([]) // { id, url }[]
 
 async function openEdit(post) {
   editingPost.value      = post
-  editForm.value         = { title: post.title, category: post.category, description: post.description, budget: post.budget || '', contact: post.contact || '' }
+  editForm.value         = { title: post.title, category: post.category, description: post.description, budget: post.budget || '' }
   editError.value        = ''
   clearFiles(editImg)
   editExistingImgs.value = []
@@ -120,14 +129,22 @@ function removeExistingImg(i) {
 }
 
 async function submitEdit() {
-  const { title, description, contact } = editForm.value
-  if (!title.trim() || !description.trim() || !contact.trim()) {
+  const { title, description } = editForm.value
+  if (!title.trim() || !description.trim()) {
     editError.value = t('m.requiredErr')
     return
   }
   editing.value = true
   editError.value = ''
   try {
+    const { pass, msg } = await checkContent(`${editForm.value.title}\n${editForm.value.description}`)
+    if (!pass) { editError.value = msg; return }
+
+    for (const file of editImg.files.value) {
+      const { pass: imgPass, msg: imgMsg } = await checkImage(file)
+      if (!imgPass) { editError.value = imgMsg; return }
+    }
+
     const newFileIDs = editImg.files.value.length
       ? await uploadImages(editImg.files.value, props.currentUser.id)
       : []
@@ -266,10 +283,6 @@ function timeAgo(ts) {
             <input v-model="createForm.budget" :placeholder="t('m.budgetPh')" />
           </div>
           <div class="field">
-            <label>{{ t('m.contactLab') }} <span class="req">*</span></label>
-            <input v-model="createForm.contact" :placeholder="t('m.contactPh')" />
-          </div>
-          <div class="field">
             <label>{{ t('m.images') }}</label>
             <div class="img-grid">
               <div v-for="(url, i) in createImg.previews.value" :key="i" class="img-thumb">
@@ -322,10 +335,6 @@ function timeAgo(ts) {
           <div class="field">
             <label>{{ t('m.budgetLab') }}</label>
             <input v-model="editForm.budget" />
-          </div>
-          <div class="field">
-            <label>{{ t('m.contactLab') }} <span class="req">*</span></label>
-            <input v-model="editForm.contact" />
           </div>
           <div class="field">
             <label>{{ t('m.images') }}</label>

@@ -1,0 +1,9 @@
+{
+  "name": "moderate",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "tencentcloud-sdk-nodejs-tms": "^4.0.0",
+    "tencentcloud-sdk-nodejs-ims": "^4.0.0"
+  }
+}

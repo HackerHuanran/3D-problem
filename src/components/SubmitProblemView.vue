@@ -2,6 +2,8 @@
 import { ref, reactive, computed } from 'vue'
 import { useUserProblems } from '@/composables/useUserProblems.js'
 import { app } from '@/lib/tcb.js'
+import { compressImage } from '@/lib/imageUtils.js'
+import { checkContent, checkImage } from '@/lib/moderate.js'
 
 const props = defineProps({ currentUser: Object })
 const emit  = defineEmits(['back', 'submitted'])
@@ -97,11 +99,13 @@ function validate() {
   return Object.keys(e).length === 0
 }
 
-// ── 上传单张图片，返回 fileID（永久存储，取时再换临时 URL）──
+// ── 上传单张图片（压缩后），返回 fileID ──
 async function uploadOne(file, dir) {
-  const ext       = file.name.split('.').pop().toLowerCase() || 'jpg'
-  const cloudPath = `${dir}/${props.currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
-  const { fileID } = await app.uploadFile({ cloudPath, filePath: file })
+  const compressed = await compressImage(file)
+  const { pass, msg } = await checkImage(compressed)
+  if (!pass) throw new Error(msg)
+  const cloudPath  = `${dir}/${props.currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`
+  const { fileID } = await app.uploadFile({ cloudPath, filePath: compressed })
   return fileID
 }
 
@@ -109,6 +113,10 @@ async function submit() {
   if (!validate()) { window.scrollTo({ top: 0, behavior: 'smooth' }); return }
   submitting.value = true
   try {
+    const contentText = [form.title, form.subtitle, form.description, ...form.causes, form.tips].filter(Boolean).join('\n')
+    const { pass, msg } = await checkContent(contentText)
+    if (!pass) { errors.value.submit = msg; return }
+
     // 上传问题主图
     let image_url = null
     if (problemImageFile.value) {

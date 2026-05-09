@@ -4,6 +4,7 @@ import { useMarket } from '@/composables/useMarket.js'
 import { uploadImages } from '@/composables/useStorage.js'
 import MarketDetailView from './MarketDetailView.vue'
 import { useLocale } from '@/composables/useLocale.js'
+import { checkContent, checkImage } from '@/lib/moderate.js'
 
 const { t } = useLocale()
 
@@ -34,7 +35,7 @@ const showModal      = ref(false)
 const submitting     = ref(false)
 const submitError    = ref('')
 
-const emptyForm = () => ({ title: '', category: '代打服务', description: '', budget: '', contact: '' })
+const emptyForm = () => ({ title: '', category: '代打服务', description: '', budget: '' })
 const form = ref(emptyForm())
 
 // image upload
@@ -86,14 +87,22 @@ function catLabel(c) {
 }
 
 async function submit() {
-  const { title, description, contact } = form.value
-  if (!title.trim() || !description.trim() || !contact.trim()) {
+  const { title, description } = form.value
+  if (!title.trim() || !description.trim()) {
     submitError.value = t('m.requiredErr')
     return
   }
   submitting.value  = true
   submitError.value = ''
   try {
+    const { pass, msg } = await checkContent(`${form.value.title}\n${form.value.description}`)
+    if (!pass) { submitError.value = msg; return }
+
+    for (const file of formFiles.value) {
+      const { pass: imgPass, msg: imgMsg } = await checkImage(file)
+      if (!imgPass) { submitError.value = imgMsg; return }
+    }
+
     const images = formFiles.value.length
       ? await uploadImages(formFiles.value, props.currentUser.id)
       : []
@@ -193,14 +202,10 @@ function timeAgo(ts) {
           <h2 class="card-title">{{ post.title }}</h2>
           <p class="card-desc">{{ post.description }}</p>
 
-          <div class="card-tags">
-            <span v-if="post.budget" class="tag">
+          <div v-if="post.budget" class="card-tags">
+            <span class="tag">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/><path d="M6 3v6M4.5 4.5h2.25a.75.75 0 010 1.5H5.25a.75.75 0 000 1.5H7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
               {{ t('m.budget', { v: post.budget }) }}
-            </span>
-            <span class="tag">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M9 1H3a1 1 0 00-1 1v8a1 1 0 001 1h6a1 1 0 001-1V2a1 1 0 00-1-1z" stroke="currentColor" stroke-width="1.2"/><path d="M4 4h4M4 6.5h4M4 9h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-              {{ post.contact }}
             </span>
           </div>
 
@@ -261,11 +266,6 @@ function timeAgo(ts) {
             <div class="field">
               <label>{{ t('m.budgetLab') }}</label>
               <input v-model="form.budget" :placeholder="t('m.budgetPh')" />
-            </div>
-
-            <div class="field">
-              <label>{{ t('m.contactLab') }} <span class="req">*</span></label>
-              <input v-model="form.contact" :placeholder="t('m.contactPh')" />
             </div>
 
             <div class="field">

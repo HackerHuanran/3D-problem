@@ -210,6 +210,7 @@
         <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M10 3L5 7.5l5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         {{ t('pd.backList') }}
       </button>
+      <button v-if="currentUser" class="float-report-btn" @click="showReportModal = true">举报</button>
     </div>
   </div>
 
@@ -217,6 +218,32 @@
     <p>😵 找不到这个问题</p>
     <button @click="$emit('back')">返回列表</button>
   </div>
+
+  <!-- 举报弹窗 -->
+  <Transition name="report-fade">
+    <div v-if="showReportModal" class="report-mask" @click.self="showReportModal = false">
+      <div class="report-box">
+        <div class="report-head">
+          <h3>举报内容</h3>
+          <button class="pd-close-btn" @click="showReportModal = false">✕</button>
+        </div>
+        <p class="report-hint">请选择举报原因：</p>
+        <div class="reason-list">
+          <label v-for="r in REPORT_REASONS" :key="r" class="reason-item">
+            <input type="radio" :value="r" v-model="reportReason" />
+            <span>{{ r }}</span>
+          </label>
+        </div>
+        <div v-if="reportDone" class="report-success">举报已提交，我们将尽快处理。</div>
+        <div class="report-actions">
+          <button class="pd-cancel-btn" @click="showReportModal = false">取消</button>
+          <button class="pd-submit-btn" :disabled="!reportReason || reportSubmitting || reportDone" @click="handleReport">
+            {{ reportSubmitting ? '提交中…' : reportDone ? '已举报' : '提交举报' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Transition>
 </template>
 
 <script setup>
@@ -226,6 +253,7 @@ import { useUserProblems } from '@/composables/useUserProblems.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useCommunity } from '@/composables/useCommunity.js'
 import { useLocale } from '@/composables/useLocale.js'
+import { useReport } from '@/composables/useReport.js'
 
 const props = defineProps({ problemId: { type: String, required: true } })
 defineEmits(['back', 'go-detail', 'open-auth'])
@@ -234,6 +262,28 @@ const { currentUser } = useAuth()
 const { userProblems } = useUserProblems()
 const { getComments, addComment, deleteComment, toggleCommentLike, getSolutions, addSolution, deleteSolution, toggleSolutionLike } = useCommunity()
 const { t } = useLocale()
+const { submitReport } = useReport()
+
+const REPORT_REASONS = ['色情低俗', '赌博内容', '毒品违禁品', '虚假欺诈', '垃圾广告', '其他违规']
+const showReportModal  = ref(false)
+const reportReason     = ref('')
+const reportSubmitting = ref(false)
+const reportDone       = ref(false)
+
+async function handleReport() {
+  if (!reportReason.value || reportSubmitting.value || reportDone.value) return
+  reportSubmitting.value = true
+  try {
+    await submitReport(currentUser.value.id, {
+      type: 'problem', targetId: problem.value.id, targetTitle: problem.value.title, reason: reportReason.value,
+    })
+    reportDone.value = true
+  } catch (e) {
+    console.error(e)
+  } finally {
+    reportSubmitting.value = false
+  }
+}
 
 const problem = computed(() =>
   problems.find(p => p.id === props.problemId) ||
@@ -447,9 +497,28 @@ const diffClass = (d) => { if (d === '紧急') return 'urgent'; if (d === '需�
 .related-sub { font-size: 12px; color: #aeaeb2; }
 .related-arrow { color: #aeaeb2; flex-shrink: 0; margin-left: auto; transition: color 0.2s, transform 0.2s; }
 .related-card:hover .related-arrow { color: var(--color); transform: translateX(2px); }
-.float-back { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); z-index: 80; }
+.float-back { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); z-index: 80; display: flex; align-items: center; gap: 10px; }
 .float-back-btn { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.92); border: 1px solid rgba(0,0,0,0.12); color: #1d1d1f; padding: 11px 22px; border-radius: 100px; font-size: 14px; font-family: inherit; cursor: pointer; backdrop-filter: blur(16px); box-shadow: 0 4px 16px rgba(0,0,0,0.12); transition: all 0.2s; }
 .float-back-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.16); }
+.float-report-btn { background: rgba(255,255,255,0.7); border: 1px solid rgba(0,0,0,0.1); color: #aeaeb2; font-size: 12px; font-family: inherit; padding: 8px 14px; border-radius: 100px; cursor: pointer; backdrop-filter: blur(16px); transition: all 0.15s; }
+.float-report-btn:hover { color: #ff3b30; border-color: rgba(255,59,48,0.25); }
+
+.report-mask { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.5); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.report-box  { background: #fff; border-radius: 20px; width: 100%; max-width: 400px; padding: 24px; box-shadow: 0 16px 48px rgba(0,0,0,0.2); }
+.report-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.report-head h3 { font-size: 16px; font-weight: 700; color: #1d1d1f; }
+.pd-close-btn { background: rgba(0,0,0,0.06); border: none; color: #6e6e73; font-size: 13px; cursor: pointer; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.report-hint { font-size: 13px; color: #6e6e73; margin-bottom: 12px; }
+.reason-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.reason-item { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #1d1d1f; cursor: pointer; }
+.reason-item input[type=radio] { accent-color: #1d1d1f; width: 16px; height: 16px; cursor: pointer; }
+.report-success { font-size: 13px; color: #16a34a; background: rgba(34,197,94,0.08); padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
+.report-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.pd-cancel-btn { padding: 9px 18px; background: transparent; border: 1px solid rgba(0,0,0,0.1); border-radius: 8px; color: #6e6e73; font-size: 13px; font-family: inherit; cursor: pointer; }
+.pd-submit-btn { padding: 9px 20px; background: #1d1d1f; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
+.pd-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.report-fade-enter-active, .report-fade-leave-active { transition: opacity 0.2s; }
+.report-fade-enter-from, .report-fade-leave-to { opacity: 0; }
 .not-found { min-height: 100vh; background: #f5f5f7; color: #6e6e73; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; font-family: -apple-system,'PingFang SC',sans-serif; }
 .not-found button { background: #fff; border: 1px solid rgba(0,0,0,0.1); color: #007aff; padding: 10px 24px; border-radius: 100px; cursor: pointer; font-size: 15px; font-family: inherit; }
 @media (max-width: 600px) {

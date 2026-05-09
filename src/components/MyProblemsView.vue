@@ -2,6 +2,8 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useUserProblems } from '@/composables/useUserProblems.js'
 import { app } from '@/lib/tcb.js'
+import { compressImage } from '@/lib/imageUtils.js'
+import { checkContent, checkImage } from '@/lib/moderate.js'
 
 const props = defineProps({ currentUser: Object })
 const emit  = defineEmits(['back'])
@@ -123,9 +125,11 @@ function addSolution()    { editForm.solutions.push({ title: '', detail: '', ima
 function removeSolution(i){ if (editForm.solutions.length > 1) { removeSolImg(i); editForm.solutions.splice(i, 1) } }
 
 async function uploadOne(file, dir) {
-  const ext = file.name.split('.').pop().toLowerCase() || 'jpg'
-  const cloudPath = `${dir}/${props.currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
-  const { fileID } = await app.uploadFile({ cloudPath, filePath: file })
+  const compressed = await compressImage(file)
+  const { pass, msg } = await checkImage(compressed)
+  if (!pass) throw new Error(msg)
+  const cloudPath  = `${dir}/${props.currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`
+  const { fileID } = await app.uploadFile({ cloudPath, filePath: compressed })
   return fileID
 }
 
@@ -139,6 +143,10 @@ async function saveEdit() {
 
   saving.value = true
   try {
+    const contentText = [editForm.title, editForm.subtitle, editForm.description, ...editForm.causes, editForm.tips].filter(Boolean).join('\n')
+    const { pass, msg } = await checkContent(contentText)
+    if (!pass) { editErrors.value.submit = msg; return }
+
     let image_url = keepImg.value ? (editTarget.value.image_url || null) : null
     if (editImgFile.value) image_url = await uploadOne(editImgFile.value, 'problem-images')
 
