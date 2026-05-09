@@ -26,13 +26,26 @@ jobs:
       - name: Install CloudBase CLI
         run: npm install -g @cloudbase/cli
 
+      - name: Setup CloudBase Auth
+        env:
+          SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
+          SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
+        run: |
+          node -e "
+          const { mkdirSync, writeFileSync } = require('fs');
+          const { join } = require('path');
+          const dir = join(process.env.HOME, '.config', 'cloudbase_tool_config');
+          mkdirSync(dir, { recursive: true });
+          writeFileSync(join(dir, 'config.json'), JSON.stringify({
+            secretId: process.env.SECRET_ID,
+            secretKey: process.env.SECRET_KEY,
+            token: '',
+            isLogin: true
+          }));
+          console.log('Auth file written to', dir);
+          "
+
       - name: Deploy to CloudBase Static Hosting
         env:
-          CLOUDBASE_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
-          CLOUDBASE_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
-          TENCENTCLOUD_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
-          TENCENTCLOUD_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
           ENV_ID: ${{ secrets.VITE_TCB_ENV_ID }}
-        run: |
-          echo "SecretId length: ${#CLOUDBASE_SECRET_ID}  EnvId: $ENV_ID"
-          cloudbase hosting deploy dist / -e $ENV_ID
+        run: cloudbase hosting deploy dist / -e $ENV_ID
