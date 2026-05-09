@@ -30,5 +30,9 @@ jobs:
         env:
           CLOUDBASE_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
           CLOUDBASE_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
+          TENCENTCLOUD_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
+          TENCENTCLOUD_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
           ENV_ID: ${{ secrets.VITE_TCB_ENV_ID }}
-        run: cloudbase hosting deploy dist / -e $ENV_ID
+        run: |
+          echo "SecretId length: ${#CLOUDBASE_SECRET_ID}  EnvId: $ENV_ID"
+          cloudbase hosting deploy dist / -e $ENV_ID
