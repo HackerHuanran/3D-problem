@@ -300,7 +300,13 @@ function diffStyle(d) {
 @media (max-width: 900px) {
   .cards { grid-template-columns: 1fr; }
 }
+@media (max-width: 768px) {
+  .content { padding-top: 20px; }
+  .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .chips::-webkit-scrollbar { display: none; }
+}
 @media (max-width: 600px) {
+  .hero { padding: 36px 16px 32px; }
   .filter-group { gap: 8px; }
   .filter-label { display: none; }
   .card-params-peek { display: none; }

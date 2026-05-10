@@ -1,16 +1,22 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { marked } from 'marked'
 import { useMarketDetail } from '@/composables/useMarketDetail.js'
 import { getImageURLs } from '@/composables/useStorage.js'
 import { useLocale } from '@/composables/useLocale.js'
 import { useReport } from '@/composables/useReport.js'
+
+marked.setOptions({ breaks: true, gfm: true })
+const renderMd = (text) => marked.parse(text || '')
+
+const commentTab = ref('write')  // 'write' | 'preview'
 
 const { t } = useLocale()
 
 const props = defineProps({ post: Object, currentUser: Object })
 const emit  = defineEmits(['back', 'open-auth'])
 
-const { comments, interests, fetchComments, addComment, fetchInterests, addInterest, checkInterested } = useMarketDetail()
+const { comments, interests, likedCommentIds, fetchComments, addComment, fetchInterests, addInterest, checkInterested, acceptAnswer, toggleLike } = useMarketDetail()
 const { submitReport } = useReport()
 
 const REPORT_REASONS = ['色情低俗', '赌博内容', '毒品违禁品', '虚假欺诈', '垃圾广告', '其他违规']
@@ -38,12 +44,21 @@ const isOwner = computed(() => props.currentUser?.id === props.post?.userId)
 
 const postImages = ref([]) // { id, url }[]
 
-// interest
-const alreadyInterested = ref(false)
-const showInterestForm  = ref(false)
-const interestContact   = ref('')
-const interestError     = ref('')
-const interestLoading   = ref(false)
+// accept answer
+const acceptLoading = ref(false)
+async function handleAccept(commentId) {
+  if (acceptLoading.value) return
+  acceptLoading.value = true
+  try {
+    await acceptAnswer(commentId, props.post.id)
+    await fetchComments(props.post.id)
+    props.post.status = '已解决'
+  } catch (e) {
+    console.error('acceptAnswer:', e)
+  } finally {
+    acceptLoading.value = false
+  }
+}
 
 // comment
 const commentText    = ref('')
@@ -51,16 +66,19 @@ const commentError   = ref('')
 const commentLoading = ref(false)
 
 onMounted(async () => {
-  if (props.post.images?.length) {
-    postImages.value = await getImageURLs(props.post.images)
-  }
-  await fetchComments(props.post.id)
-  if (isOwner.value) {
-    await fetchInterests(props.post.id)
-  } else if (props.currentUser) {
-    alreadyInterested.value = await checkInterested(props.post.id, props.currentUser.id)
-  }
+  const [imageResults] = await Promise.all([
+    props.post.images?.length
+      ? getImageURLs(props.post.images)
+      : Promise.resolve([]),
+    fetchComments(props.post.id, props.currentUser?.id),
+  ])
+  postImages.value = imageResults
 })
+
+async function handleLike(commentId) {
+  if (!props.currentUser) { emit('open-auth', 'login'); return }
+  await toggleLike(commentId, props.post.id, props.currentUser.id)
+}
 
 async function submitInterest() {
   if (!props.currentUser) { emit('open-auth', 'login'); return }
@@ -89,9 +107,13 @@ async function submitComment() {
   commentError.value   = ''
   commentLoading.value = true
   try {
-    await addComment(props.post.id, props.currentUser.id, commentText.value)
+    await addComment(props.post.id, props.currentUser.id, commentText.value, {
+      postOwnerId:  props.post.userId,
+      postTitle:    props.post.title,
+      fromUsername: props.currentUser.username,
+    })
     commentText.value = ''
-    await fetchComments(props.post.id)
+    await fetchComments(props.post.id, props.currentUser?.id)
   } catch (e) {
     commentError.value = e.message
   } finally {
@@ -109,9 +131,6 @@ const CAT_STYLE = {
 
 function catLabel(c) {
   const map = {
-    '代打服务': t('mc.print'),
-    '求购耗材': t('mc.filament'),
-    '出售设备': t('mc.device'),
     '技术求助': t('mc.help'),
     '其他':     t('mc.other'),
   }
@@ -147,7 +166,7 @@ function timeAgo(ts) {
         <div class="post-top">
           <div class="badges">
             <span class="badge" :style="CAT_STYLE[post.category]">{{ catLabel(post.category) }}</span>
-            <span :class="['status-tag', post.status === '进行中' ? 'status-active' : 'status-done']">{{ post.status === '进行中' ? t('m.active') : t('m.done') }}</span>
+            <span :class="['status-tag', (post.status === '待解决' || post.status === '进行中') ? 'status-active' : 'status-done']">{{ (post.status === '待解决' || post.status === '进行中') ? t('m.active') : t('m.done') }}</span>
           </div>
         </div>
 
@@ -159,13 +178,10 @@ function timeAgo(ts) {
             v-for="img in postImages"
             :key="img.id"
             :src="img.url"
+            loading="lazy"
             class="post-img"
             @click="openImg(img.url)"
           />
-        </div>
-
-        <div v-if="post.budget" class="meta-tags">
-          <span class="meta-tag">💰 {{ t('md.budget', { v: post.budget }) }}</span>
         </div>
 
         <div class="post-footer">
@@ -178,66 +194,28 @@ function timeAgo(ts) {
         </div>
       </div>
 
-      <!-- 我感兴趣（非发布者 + 进行中） -->
-      <div v-if="!isOwner && post.status === '进行中'" class="section">
-        <h2 class="sec-title">{{ t('md.interested') }}</h2>
-        <div v-if="alreadyInterested" class="already-tag">
-          {{ t('md.alreadyInterested') }}
-        </div>
-        <template v-else>
-          <button v-if="!showInterestForm" class="interest-btn" @click="props.currentUser ? (showInterestForm = true) : emit('open-auth', 'login')">
-            {{ t('md.interestBtn') }}
-          </button>
-          <div v-else class="interest-form">
-            <p class="form-hint">{{ t('md.interestHint') }}</p>
-            <input
-              v-model="interestContact"
-              class="form-input"
-              :placeholder="t('md.interestPh')"
-              @keyup.enter="submitInterest"
-            />
-            <div v-if="interestError" class="form-error">{{ interestError }}</div>
-            <div class="form-row">
-              <button class="cancel-btn" @click="showInterestForm = false; interestContact = ''">{{ t('md.cancel') }}</button>
-              <button class="submit-btn" :disabled="interestLoading || !interestContact.trim()" @click="submitInterest">
-                {{ interestLoading ? t('md.submitting') : t('md.submit') }}
-              </button>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <!-- 感兴趣列表（仅发布者可见） -->
-      <div v-if="isOwner" class="section">
-        <h2 class="sec-title">{{ t('md.interestedList') }} <span class="sec-count">{{ interests.length }}</span></h2>
-        <p v-if="interests.length === 0" class="empty-hint">{{ t('md.noInterested') }}</p>
-        <div v-else class="interest-list">
-          <div v-for="item in interests" :key="item.id" class="interest-row">
-            <div class="i-user">
-              <div class="avatar sm">{{ item.avatar }}</div>
-              <span class="uname">{{ item.username }}</span>
-            </div>
-            <span class="i-contact">{{ item.contact }}</span>
-            <span class="time">{{ timeAgo(item.createdAt) }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 评论 -->
+      <!-- 回答 -->
       <div class="section">
         <h2 class="sec-title">{{ t('md.comments') }} <span class="sec-count">{{ comments.length }}</span></h2>
 
         <div v-if="props.currentUser" class="comment-box">
+          <div class="editor-tabs">
+            <button :class="['editor-tab', { active: commentTab === 'write' }]" @click="commentTab = 'write'">写作</button>
+            <button :class="['editor-tab', { active: commentTab === 'preview' }]" @click="commentTab = 'preview'">预览</button>
+            <span class="md-hint">支持 Markdown</span>
+          </div>
           <textarea
+            v-if="commentTab === 'write'"
             v-model="commentText"
             class="comment-input"
             :placeholder="t('md.cmtPh')"
-            rows="3"
-            maxlength="500"
+            rows="5"
+            maxlength="2000"
             @keydown.ctrl.enter="submitComment"
           ></textarea>
+          <div v-else class="md-preview" v-html="renderMd(commentText) || '<p class=\'preview-empty\'>暂无内容</p>'"></div>
           <div class="comment-footer">
-            <span class="char-hint">{{ commentText.length }}/500</span>
+            <span class="char-hint">{{ commentText.length }}/2000 · Ctrl+Enter 发送</span>
             <button
               class="submit-btn small"
               :disabled="commentLoading || !commentText.trim()"
@@ -254,13 +232,36 @@ function timeAgo(ts) {
 
         <p v-if="comments.length === 0" class="empty-hint">{{ t('md.noComments') }}</p>
         <div v-else class="comment-list">
-          <div v-for="c in comments" :key="c.id" class="comment-item">
+          <div v-for="c in comments" :key="c.id" :class="['comment-item', { accepted: c.isAccepted }]">
+            <div v-if="c.isAccepted" class="accepted-tag">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                <path d="M2 7l3 3 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              已采纳
+            </div>
             <div class="c-header">
               <div class="avatar sm">{{ c.avatar }}</div>
               <span class="uname">{{ c.username }}</span>
               <span class="time">{{ timeAgo(c.createdAt) }}</span>
+              <button
+                v-if="isOwner && !c.isAccepted && (post.status === '待解决' || post.status === '进行中')"
+                class="accept-btn"
+                :disabled="acceptLoading"
+                @click="handleAccept(c.id)"
+              >采纳此答案</button>
             </div>
-            <p class="c-content">{{ c.content }}</p>
+            <div class="c-content md-body" v-html="renderMd(c.content)"></div>
+            <div class="c-actions">
+              <button :class="['like-btn', { liked: likedCommentIds.has(c.id) }]" @click="handleLike(c.id)">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 13.5C5 12 1 9 1 5.5a3.5 3.5 0 0 1 7 0 3.5 3.5 0 0 1 7 0c0 3.5-4.5 6.5-7 8z"
+                    :fill="likedCommentIds.has(c.id) ? '#ff6b6b' : 'none'"
+                    :stroke="likedCommentIds.has(c.id) ? '#ff6b6b' : 'currentColor'"
+                    stroke-width="1.4" stroke-linejoin="round"/>
+                </svg>
+                <span>{{ c.likeCount || 0 }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -387,16 +388,47 @@ function timeAgo(ts) {
 
 /* Comments */
 .comment-box    { margin-bottom: 20px; }
-.comment-input  { width: 100%; background: #f5f5f7; border: 1px solid rgba(0,0,0,0.1); border-radius: 12px; padding: 12px 14px; color: #1d1d1f; font-size: 14px; font-family: inherit; outline: none; resize: none; transition: border-color 0.2s; display: block; }
+.editor-tabs    { display: flex; align-items: center; gap: 2px; margin-bottom: 8px; }
+.editor-tab     { padding: 5px 14px; border-radius: 8px; border: none; background: transparent; font-size: 13px; color: #6e6e73; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.editor-tab.active { background: #1d1d1f; color: #fff; font-weight: 500; }
+.editor-tab:hover:not(.active) { background: rgba(0,0,0,0.06); color: #1d1d1f; }
+.md-hint        { font-size: 11px; color: #aeaeb2; margin-left: auto; }
+.comment-input  { width: 100%; background: #f5f5f7; border: 1px solid rgba(0,0,0,0.1); border-radius: 12px; padding: 12px 14px; color: #1d1d1f; font-size: 14px; font-family: 'SF Mono','Menlo',monospace; outline: none; resize: vertical; transition: border-color 0.2s; display: block; }
 .comment-input:focus { border-color: rgba(0,0,0,0.22); }
-.comment-input::placeholder { color: #c7c7cc; }
+.comment-input::placeholder { color: #c7c7cc; font-family: inherit; }
+.md-preview     { min-height: 110px; background: #f5f5f7; border: 1px solid rgba(0,0,0,0.1); border-radius: 12px; padding: 12px 14px; font-size: 14px; color: #1d1d1f; line-height: 1.7; }
 .comment-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
 .char-hint      { font-size: 11px; color: #aeaeb2; }
 
-.comment-list { display: flex; flex-direction: column; gap: 16px; }
-.comment-item { }
-.c-header  { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.c-content { font-size: 14px; color: #6e6e73; line-height: 1.65; padding-left: 32px; white-space: pre-wrap; }
+/* Markdown 渲染样式 */
+.md-body :deep(p)          { margin: 0 0 8px; line-height: 1.7; }
+.md-body :deep(p:last-child) { margin-bottom: 0; }
+.md-body :deep(code)       { background: rgba(0,0,0,0.06); border-radius: 4px; padding: 1px 5px; font-size: 12px; font-family: 'SF Mono','Menlo',monospace; }
+.md-body :deep(pre)        { background: #1d1d1f; border-radius: 10px; padding: 14px 16px; overflow-x: auto; margin: 8px 0; }
+.md-body :deep(pre code)   { background: none; color: #e2e8f0; font-size: 13px; padding: 0; }
+.md-body :deep(ul),.md-body :deep(ol) { padding-left: 20px; margin: 6px 0; }
+.md-body :deep(li)         { margin: 3px 0; }
+.md-body :deep(strong)     { font-weight: 600; color: #1d1d1f; }
+.md-body :deep(em)         { font-style: italic; }
+.md-body :deep(blockquote) { border-left: 3px solid rgba(0,0,0,0.15); margin: 8px 0; padding: 4px 12px; color: #6e6e73; }
+.md-body :deep(a)          { color: #007aff; text-decoration: none; }
+.md-body :deep(a:hover)    { text-decoration: underline; }
+.md-body :deep(hr)         { border: none; border-top: 1px solid rgba(0,0,0,0.08); margin: 10px 0; }
+.md-preview :deep(.preview-empty) { color: #aeaeb2; font-style: italic; }
+
+.comment-list { display: flex; flex-direction: column; gap: 12px; }
+.comment-item { border-radius: 14px; padding: 16px; background: rgba(0,0,0,0.02); border: 1.5px solid transparent; }
+.comment-item.accepted { background: rgba(52,199,89,0.05); border-color: rgba(52,199,89,0.3); }
+.accepted-tag { display: inline-flex; align-items: center; gap: 5px; background: rgba(52,199,89,0.12); color: #16a34a; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 100px; margin-bottom: 10px; }
+.c-header  { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.c-content { font-size: 14px; color: #6e6e73; line-height: 1.65; white-space: pre-wrap; }
+.c-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.like-btn { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 1px solid rgba(0,0,0,0.1); border-radius: 100px; padding: 4px 12px; font-size: 12px; color: #6e6e73; cursor: pointer; font-family: inherit; transition: all 0.18s; }
+.like-btn:hover { border-color: #ff6b6b; color: #ff6b6b; }
+.like-btn.liked { border-color: rgba(255,107,107,0.3); color: #ff6b6b; background: rgba(255,107,107,0.06); }
+.accept-btn { margin-left: auto; padding: 4px 12px; background: transparent; border: 1px solid rgba(52,199,89,0.4); border-radius: 100px; color: #16a34a; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.accept-btn:hover:not(:disabled) { background: rgba(52,199,89,0.08); }
+.accept-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .report-link { background: transparent; border: none; color: #aeaeb2; font-size: 12px; font-family: inherit; cursor: pointer; padding: 0; margin-left: 8px; transition: color 0.15s; }
 .report-link:hover { color: #ff3b30; }
@@ -411,4 +443,15 @@ function timeAgo(ts) {
 .reason-item input[type=radio] { accent-color: #1d1d1f; width: 16px; height: 16px; cursor: pointer; }
 .report-success { font-size: 13px; color: #16a34a; background: rgba(34,197,94,0.08); padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
 .report-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+@media (max-width: 600px) {
+  .detail-inner { padding: 20px 16px 60px; }
+  .post-card { padding: 20px 18px; }
+  .post-title { font-size: 18px; }
+  .section { padding: 18px 16px; }
+  .post-images { gap: 6px; }
+  .post-img { width: 90px; height: 90px; }
+  .c-header { flex-wrap: wrap; gap: 6px; }
+  .accept-btn { margin-left: 0; }
+}
 </style>

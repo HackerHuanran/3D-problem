@@ -144,8 +144,51 @@ export function useCommunity() {
     }
   }
 
+  // ── 我也遇到了 ──
+  const getEncounterData = async (problemId, userId) => {
+    try {
+      const [countRes, userRes] = await Promise.all([
+        db.collection('encounters').where({ problem_id: problemId }).count(),
+        userId
+          ? db.collection('encounters').where({ problem_id: problemId, user_id: userId }).limit(1).get()
+          : Promise.resolve({ data: [] }),
+      ])
+      return { count: countRes.total || 0, hasEncountered: (userRes.data?.length || 0) > 0 }
+    } catch { return { count: 0, hasEncountered: false } }
+  }
+
+  const toggleEncounter = async (problemId, userId) => {
+    try {
+      const { data } = await db.collection('encounters')
+        .where({ problem_id: problemId, user_id: userId }).limit(1).get()
+      if (data.length > 0) {
+        await db.collection('encounters').doc(data[0]._id).remove()
+        return false
+      } else {
+        await db.collection('encounters').add({ problem_id: problemId, user_id: userId, created_at: db.serverDate() })
+        return true
+      }
+    } catch (e) {
+      console.error('toggleEncounter:', e?.message)
+      throw e
+    }
+  }
+
+  // 批量获取多个问题的遇到人数（首页卡片用）
+  const getEncounterCounts = async (problemIds) => {
+    try {
+      const { data } = await db.collection('encounters')
+        .where({ problem_id: cmd.in(problemIds) })
+        .limit(2000).get()
+      const counts = {}
+      data.forEach(e => { counts[e.problem_id] = (counts[e.problem_id] || 0) + 1 })
+      return counts
+    } catch { return {} }
+  }
+
   return {
     getComments, addComment, deleteComment, toggleCommentLike,
     getSolutions, addSolution, deleteSolution, toggleSolutionLike,
+    getEncounterData, toggleEncounter, getEncounterCounts,
   }
 }

@@ -1,7 +1,7 @@
 <template>
   <div class="detail-page" v-if="problem">
 
-    <nav class="back-nav">
+    <nav class="back-nav" :class="{ scrolled: navScrolled }">
       <button class="back-btn" @click="$emit('back')">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path d="M11 4L6 9l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -31,6 +31,33 @@
             <span class="stat-badge neutral">{{ t('pd.comments', { n: comments.length }) }}</span>
             <span class="stat-badge neutral">{{ t('pd.solutions', { n: solutions.length }) }}</span>
           </div>
+          <div class="hero-actions">
+            <button
+              class="encounter-btn"
+              :class="{ active: hasEncountered, loading: encounterLoading }"
+              @click="handleEncounter"
+              :disabled="encounterLoading"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 2C5.8 2 4 3.8 4 6c0 3.5 4 8 4 8s4-4.5 4-8c0-2.2-1.8-4-4-4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" :fill="hasEncountered ? 'currentColor' : 'none'"/>
+              </svg>
+              <span>{{ hasEncountered ? '我遇到过 ✓' : '我也遇到了' }}</span>
+              <span v-if="encounterCount > 0" class="encounter-count">{{ encounterCount }}</span>
+            </button>
+            <button
+              class="fav-btn"
+              :class="{ faved: isFav }"
+              :disabled="favLoading"
+              @click="handleFavorite"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 13.5S2 9.5 2 5.5A3.5 3.5 0 018 3a3.5 3.5 0 016 2c0 4-6 8.5-6 8.5z"
+                  stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"
+                  :fill="isFav ? 'currentColor' : 'none'" />
+              </svg>
+              {{ isFav ? '已收藏' : '收藏' }}
+            </button>
+          </div>
         </div>
       </div>
     </header>
@@ -39,7 +66,7 @@
 
       <section class="section">
         <p class="desc-text">{{ problem.description }}</p>
-        <img v-if="problem.image_url || problem.images" :src="problem.image_url || problem.images" class="problem-img" alt="问题图片" />
+        <img v-if="problem.image_url || problem.images" :src="problem.image_url || problem.images" class="problem-img" alt="问题图片" loading="lazy" />
       </section>
 
       <section class="section">
@@ -77,7 +104,7 @@
             <Transition name="expand">
               <div class="sol-detail" v-if="expandedSet.has(i)">
                 <p>{{ sol.detail }}</p>
-                <img v-if="sol.image_url" :src="sol.image_url" class="sol-img" alt="步骤图片" />
+                <img v-if="sol.image_url" :src="sol.image_url" class="sol-img" alt="步骤图片" loading="lazy" />
               </div>
             </Transition>
           </div>
@@ -247,20 +274,22 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { problems } from '@/data/problems.js'
 import { useUserProblems } from '@/composables/useUserProblems.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useCommunity } from '@/composables/useCommunity.js'
 import { useLocale } from '@/composables/useLocale.js'
 import { useReport } from '@/composables/useReport.js'
+import { useFavorites } from '@/composables/useFavorites.js'
 
 const props = defineProps({ problemId: { type: String, required: true } })
-defineEmits(['back', 'go-detail', 'open-auth'])
+const emit = defineEmits(['back', 'go-detail', 'open-auth'])
 
 const { currentUser } = useAuth()
 const { userProblems } = useUserProblems()
-const { getComments, addComment, deleteComment, toggleCommentLike, getSolutions, addSolution, deleteSolution, toggleSolutionLike } = useCommunity()
+const { favorites, fetchFavorites, toggleFavorite } = useFavorites()
+const { getComments, addComment, deleteComment, toggleCommentLike, getSolutions, addSolution, deleteSolution, toggleSolutionLike, getEncounterData, toggleEncounter } = useCommunity()
 const { t } = useLocale()
 const { submitReport } = useReport()
 
@@ -299,7 +328,44 @@ const toggleSol = (i) => { const s = new Set(expandedSet.value); s.has(i) ? s.de
 const allExpanded = computed(() => problem.value && expandedSet.value.size === problem.value.solutions.length)
 const toggleAll = () => { allExpanded.value ? (expandedSet.value = new Set()) : (expandedSet.value = new Set(problem.value.solutions.map((_, i) => i))) }
 
-// ── 社区数据（异步从 Supabase 加载）──
+// ── 我也遇到了 ──
+const encounterCount   = ref(0)
+const hasEncountered   = ref(false)
+const encounterLoading = ref(false)
+
+const loadEncounter = async () => {
+  const { count, hasEncountered: has } = await getEncounterData(props.problemId, currentUser.value?.id)
+  encounterCount.value = count
+  hasEncountered.value = has
+}
+
+const handleEncounter = async () => {
+  if (!currentUser.value) { emit('open-auth', 'login'); return }
+  encounterLoading.value = true
+  try {
+    const added = await toggleEncounter(props.problemId, currentUser.value.id)
+    hasEncountered.value = added
+    encounterCount.value += added ? 1 : -1
+  } catch (e) {
+    console.error('encounter failed:', e?.message)
+  } finally {
+    encounterLoading.value = false
+  }
+}
+
+// ── 收藏 ──
+const isFav     = computed(() => favorites.value.has(props.problemId))
+const favLoading = ref(false)
+
+const handleFavorite = async () => {
+  if (!currentUser.value) { emit('open-auth', 'login'); return }
+  favLoading.value = true
+  try { await toggleFavorite(props.problemId, currentUser.value.id) }
+  catch (e) { console.error('favorite failed:', e?.message) }
+  finally { favLoading.value = false }
+}
+
+// ── 社区数据 ──
 const comments = ref([])
 const solutions = ref([])
 const loadingComments = ref(true)
@@ -308,7 +374,7 @@ const loadingSolutions = ref(true)
 const loadData = async () => {
   loadingComments.value = true
   loadingSolutions.value = true
-  const [c, s] = await Promise.all([getComments(props.problemId), getSolutions(props.problemId)])
+  const [c, s] = await Promise.all([getComments(props.problemId), getSolutions(props.problemId), loadEncounter()])
   comments.value = c
   solutions.value = s
   loadingComments.value = false
@@ -381,18 +447,59 @@ const formatTime = (ts) => {
   return new Date(ts).toLocaleDateString('zh-CN')
 }
 const diffClass = (d) => { if (d === '紧急') return 'urgent'; if (d === '需处理') return 'warn'; if (d === '进阶') return 'advanced'; return 'normal' }
+
+// ── JSON-LD HowTo 结构化数据 ──
+let _jsonLdEl = null
+const injectJsonLd = (p) => {
+  if (_jsonLdEl) { _jsonLdEl.remove(); _jsonLdEl = null }
+  if (!p) return
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name: `如何解决3D打印${p.title}`,
+    description: p.description || p.subtitle || '',
+    step: (p.solutions || []).map((sol, i) => ({
+      '@type': 'HowToStep',
+      position: i + 1,
+      name: sol.title,
+      text: sol.detail,
+    })),
+  }
+  _jsonLdEl = document.createElement('script')
+  _jsonLdEl.type = 'application/ld+json'
+  _jsonLdEl.textContent = JSON.stringify(schema)
+  document.head.appendChild(_jsonLdEl)
+}
+watch(problem, (p) => injectJsonLd(p), { immediate: true })
+
+// ── 滚动导航栏毛玻璃 ──
+const navScrolled = ref(false)
+const onScroll = () => { navScrolled.value = window.scrollY > 260 }
+onMounted(() => {
+  window.addEventListener('scroll', onScroll, { passive: true })
+  if (currentUser.value) fetchFavorites(currentUser.value.id)
+})
+onUnmounted(() => {
+  window.removeEventListener('scroll', onScroll)
+  if (_jsonLdEl) { _jsonLdEl.remove(); _jsonLdEl = null }
+})
 </script>
 
 <style scoped>
 .detail-page { min-height: 100vh; background: #f5f5f7; color: #1d1d1f; font-family: -apple-system,'PingFang SC','Helvetica Neue',sans-serif; padding-bottom: 120px; }
-.back-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 12px 24px; background: rgba(255,255,255,0.88); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: space-between; }
-.back-btn { display: flex; align-items: center; gap: 4px; background: transparent; border: none; color: #007aff; font-size: 15px; cursor: pointer; font-family: inherit; padding: 0; transition: opacity 0.15s; }
-.back-btn:hover { opacity: 0.7; }
+.back-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 12px 24px; background: transparent; display: flex; align-items: center; justify-content: space-between; transition: background 0.3s, backdrop-filter 0.3s, border-color 0.3s; border-bottom: 1px solid transparent; }
+.back-nav.scrolled { background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); border-bottom-color: rgba(0,0,0,0.08); }
+.back-nav.scrolled .back-btn { background: transparent; color: #007aff; }
+.back-nav.scrolled .back-btn:hover { background: rgba(0,122,255,0.08); }
+.back-nav.scrolled .nav-login-btn { background: transparent; color: #6e6e73; border: 1px solid rgba(0,0,0,0.15); }
+.back-nav.scrolled .nav-user { color: #1d1d1f; }
+.back-btn { display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.28); backdrop-filter: blur(12px); border: none; color: #fff; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; padding: 6px 14px; border-radius: 100px; transition: background 0.18s, color 0.3s; }
+.back-btn:hover { background: rgba(0,0,0,0.42); }
 .nav-right { display: flex; align-items: center; gap: 8px; }
-.nav-user { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #6e6e73; }
+.nav-user { display: flex; align-items: center; gap: 8px; font-size: 14px; color: rgba(255,255,255,0.9); }
 .user-avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg,#ff6b6b,#ffb347); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-.nav-login-btn { background: transparent; border: 1px solid rgba(0,0,0,0.15); color: #6e6e73; padding: 5px 14px; border-radius: 100px; font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.18s; }
-.nav-login-btn:hover { border-color: rgba(0,0,0,0.3); color: #1d1d1f; }
+.nav-login-btn { background: rgba(0,0,0,0.28); backdrop-filter: blur(12px); border: none; color: #fff; padding: 6px 14px; border-radius: 100px; font-size: 13px; cursor: pointer; font-family: inherit; transition: background 0.18s; }
+.nav-login-btn:hover { background: rgba(0,0,0,0.42); }
 .detail-hero { padding-top: 52px; min-height: 280px; position: relative; display: flex; align-items: flex-end; overflow: hidden; }
 .hero-content { width: 100%; max-width: 800px; margin: 0 auto; padding: 48px 24px 36px; display: flex; align-items: flex-end; gap: 28px; position: relative; z-index: 2; }
 .hero-emoji { font-size: 80px; line-height: 1; flex-shrink: 0; filter: drop-shadow(0 12px 32px rgba(0,0,0,0.5)); animation: floatIn 0.6s cubic-bezier(0.34,1.56,0.64,1) both; font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif; }
@@ -402,9 +509,31 @@ const diffClass = (d) => { if (d === '紧急') return 'urgent'; if (d === '需�
 .hero-category { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-bottom: 8px; }
 .hero-title { font-size: clamp(1.8rem,5vw,2.8rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; color: #f5f5f7; margin-bottom: 8px; }
 .hero-subtitle { font-size: 15px; color: rgba(255,255,255,0.6); margin-bottom: 14px; }
-.hero-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+.hero-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .stat-badge { display: inline-block; font-size: 11px; padding: 4px 10px; border-radius: 100px; letter-spacing: 0.04em; }
 .stat-badge.neutral { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); }
+.hero-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.encounter-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.85); border-radius: 100px;
+  padding: 8px 18px; font-size: 13px; font-weight: 600; font-family: inherit;
+  cursor: pointer; transition: all 0.2s; backdrop-filter: blur(8px);
+}
+.encounter-btn:hover:not(:disabled) { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.4); }
+.encounter-btn.active { background: rgba(255,100,100,0.25); border-color: rgba(255,120,120,0.5); color: #ffb3b3; }
+.encounter-btn.loading { opacity: 0.6; cursor: not-allowed; }
+.encounter-count { background: rgba(255,255,255,0.2); border-radius: 100px; padding: 1px 8px; font-size: 12px; }
+.fav-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.85); border-radius: 100px;
+  padding: 8px 18px; font-size: 13px; font-weight: 600; font-family: inherit;
+  cursor: pointer; transition: all 0.2s; backdrop-filter: blur(8px);
+}
+.fav-btn:hover:not(:disabled) { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.4); }
+.fav-btn.faved { background: rgba(255,59,48,0.28); border-color: rgba(255,100,90,0.55); color: #ffb3b3; }
+.fav-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .diff-normal { background:rgba(255,255,255,0.12); color:rgba(255,255,255,0.7); }
 .diff-urgent { background:rgba(232,92,92,0.22); color:#ff6b6b; }
 .diff-warn { background:rgba(162,155,254,0.18); color:#a29bfe; }
@@ -528,5 +657,16 @@ const diffClass = (d) => { if (d === '紧急') return 'urgent'; if (d === '需�
   .causes-grid { grid-template-columns: 1fr 1fr; }
   .sol-detail { padding: 0 14px 14px 48px; }
   .float-back { bottom: 20px; }
+  .float-report-btn { display: none; }
+}
+@media (max-width: 480px) {
+  .section { padding: 24px 0; }
+  .section-title { font-size: 17px; gap: 8px; }
+  .desc-text { font-size: 15px; }
+  .sol-head { padding: 13px 14px; gap: 10px; }
+  .sol-step { width: 24px; height: 24px; font-size: 11px; }
+  .sol-title { font-size: 14px; }
+  .sol-detail { padding: 0 12px 12px 44px; }
+  .comment-input-wrap { gap: 8px; }
 }
 </style>

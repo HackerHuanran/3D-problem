@@ -327,8 +327,8 @@ async function submitJoin() {
 
   <!-- ── 入驻弹窗 ─────────────────────────────────────────────────────────── -->
   <Transition name="modal">
-    <div v-if="showJoin" class="modal-mask" @click.self="closeJoin">
-      <div class="join-modal">
+    <div v-if="showJoin" class="modal-mask" @click="closeJoin">
+      <div class="join-modal" @click.stop>
         <div class="join-modal-header">
           <h2 class="join-modal-title">服务商免费入驻</h2>
           <p class="join-modal-sub">提交后我们将在1–3个工作日内完成审核并上线</p>
@@ -490,7 +490,7 @@ async function submitJoin() {
 .reset-btn:hover { text-decoration: underline; }
 
 /* Cards */
-.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 32px; }
+.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 32px; align-items: start; }
 .card { background: #fff; border-radius: 18px; overflow: hidden; border: 1px solid rgba(0,0,0,0.07); transition: box-shadow 0.2s; }
 .card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
 .card.expanded { box-shadow: 0 4px 24px rgba(0,0,0,0.1); }
@@ -555,7 +555,7 @@ async function submitJoin() {
 
 /* Modal */
 .modal-mask { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.45); backdrop-filter: blur(8px); display: flex; align-items: flex-start; justify-content: center; padding: 20px; overflow-y: auto; }
-.join-modal { background: #fff; border-radius: 24px; width: 100%; max-width: 600px; position: relative; margin: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.join-modal { background: #fff; border-radius: 24px; width: 100%; max-width: 680px; position: relative; margin: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
 .join-modal-header { padding: 28px 28px 20px; border-bottom: 1px solid rgba(0,0,0,0.07); }
 .join-modal-title { font-size: 22px; font-weight: 800; color: #1d1d1f; letter-spacing: -0.02em; margin-bottom: 4px; }
 .join-modal-sub { font-size: 13px; color: #6e6e73; }
@@ -575,7 +575,7 @@ async function submitJoin() {
 .field input, .field select, .field textarea {
   background: #f5f5f7; border: 1px solid rgba(0,0,0,0.1); border-radius: 10px;
   padding: 10px 12px; color: #1d1d1f; font-size: 14px; font-family: inherit;
-  outline: none; transition: border-color 0.2s; width: 100%;
+  outline: none; transition: border-color 0.2s; width: 100%; box-sizing: border-box;
 }
 .field input:focus, .field select:focus, .field textarea:focus { border-color: rgba(0,0,0,0.25); background: #fff; }
 .field textarea { resize: vertical; min-height: 72px; }
@@ -609,12 +609,19 @@ async function submitJoin() {
 @media (max-width: 900px) {
   .cards { grid-template-columns: 1fr; }
 }
+@media (max-width: 768px) {
+  .content { padding-top: 20px; }
+  .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .chips::-webkit-scrollbar { display: none; }
+}
 @media (max-width: 600px) {
+  .hero { padding: 36px 16px 32px; }
   .filter-label { display: none; }
   .form-row.two-col { flex-direction: column; }
   .join-modal { border-radius: 16px; }
   .join-modal-header, .join-form { padding-left: 20px; padding-right: 20px; }
   .card-head { flex-wrap: wrap; }
   .card-right { flex-direction: row; align-items: center; width: 100%; justify-content: flex-end; }
+  .field input, .field select, .field textarea { font-size: 16px; }
 }
 </style>

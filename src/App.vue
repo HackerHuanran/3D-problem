@@ -1,25 +1,55 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, defineAsyncComponent } from 'vue'
 import { useAuth } from './composables/useAuth.js'
 import { useNotifications } from './composables/useNotifications.js'
 import { useLocale } from './composables/useLocale.js'
-import ProblemsView from './components/ProblemsView.vue'
-import ProblemDetailView from './components/ProblemDetailView.vue'
-import NewsView from './components/NewsView.vue'
-import MarketView from './components/MarketView.vue'
-import FilamentView from './components/FilamentView.vue'
-import ServicesView from './components/ServicesView.vue'
-import AdminView from './components/AdminView.vue'
-import MyPostsView from './components/MyPostsView.vue'
-import MyProblemsView from './components/MyProblemsView.vue'
-import SubmitProblemView from './components/SubmitProblemView.vue'
 
-const { currentUser, checkUsername, requestPhoneCode, confirmCode, login, setupProfile, changePassword, logout, init } = useAuth()
+const ProblemsView      = defineAsyncComponent(() => import('./components/ProblemsView.vue'))
+const ProblemDetailView = defineAsyncComponent(() => import('./components/ProblemDetailView.vue'))
+const NewsView          = defineAsyncComponent(() => import('./components/NewsView.vue'))
+const MarketView        = defineAsyncComponent(() => import('./components/MarketView.vue'))
+const FilamentView      = defineAsyncComponent(() => import('./components/FilamentView.vue'))
+const ServicesView      = defineAsyncComponent(() => import('./components/ServicesView.vue'))
+const AdminView         = defineAsyncComponent(() => import('./components/AdminView.vue'))
+const SubmitProblemView = defineAsyncComponent(() => import('./components/SubmitProblemView.vue'))
+const ProfileView       = defineAsyncComponent(() => import('./components/ProfileView.vue'))
+
+let _problemsCache = null
+const getProblems = async () => {
+  if (!_problemsCache) {
+    const mod = await import('./data/problems.js')
+    _problemsCache = mod.problems
+  }
+  return _problemsCache
+}
+
+const { currentUser, checkUsername, requestPhoneCode, confirmCode, login, logout, init } = useAuth()
 const { notifications, unreadCount, fetchNotifications, markAllRead } = useNotifications()
 const { lang, t } = useLocale()
 
 const appReady = ref(false)
-onMounted(async () => { await init(); appReady.value = true })
+onMounted(async () => {
+  // 从 URL 恢复状态（直接访问 /p/warping 这类链接）
+  const path = location.pathname
+  if (path.startsWith('/p/')) {
+    const id = path.slice(3)
+    const probs = await getProblems()
+    const p = probs.find(x => x.id === id)
+    if (p) {
+      currentDetailId.value = id
+      currentPage.value = 'detail'
+      setMeta(`${p.title} - 3D打印故障解决方案 | 3D故障库`, p.description || BASE_DESC, path)
+    }
+  } else if (path === '/filament') {
+    activeTab.value = 'filament'
+    setMeta('耗材参数库 | 3D故障库', BASE_DESC, path)
+  } else if (path === '/services') {
+    activeTab.value = 'services'
+    setMeta('服务商目录 | 3D故障库', BASE_DESC, path)
+  }
+  await init()
+  appReady.value = true
+})
 
 watch(currentUser, (user) => {
   if (user) fetchNotifications(user.id)
@@ -31,19 +61,44 @@ const currentPage     = ref('list')
 const currentDetailId = ref(null)
 const activeTab       = ref('home')
 
-const goToDetail = (id) => { currentDetailId.value = id; currentPage.value = 'detail'; window.scrollTo(0, 0) }
-const goBackToList = () => { currentPage.value = 'list'; activeTab.value = 'home'; currentDetailId.value = null; window.scrollTo(0, 0) }
-const switchTab = (tab) => { activeTab.value = tab; currentPage.value = 'list'; window.scrollTo(0, 0) }
+// ── SEO 辅助 ──
+const BASE_TITLE = '3D打印故障排查 · 3D故障库'
+const BASE_DESC  = '3D打印故障排查指南，收录翘边、拉丝、堵嘴等30+常见问题的分步解决方案'
+
+function setMeta(title, description, path) {
+  document.title = title
+  document.querySelector('meta[name="description"]')?.setAttribute('content', description)
+  if (path) history.replaceState(null, '', path)
+}
+
+const goToDetail = async (id) => {
+  currentDetailId.value = id
+  currentPage.value = 'detail'
+  window.scrollTo(0, 0)
+  const probs = await getProblems()
+  const p = probs.find(x => x.id === id)
+  if (p) setMeta(`${p.title} - 3D打印故障解决方案 | 3D故障库`, p.description || BASE_DESC, `/p/${id}`)
+}
+const goBackToList = () => {
+  currentPage.value = 'list'
+  activeTab.value = 'home'
+  currentDetailId.value = null
+  window.scrollTo(0, 0)
+  setMeta(BASE_TITLE, BASE_DESC, '/')
+}
+const switchTab = (tab) => {
+  activeTab.value = tab
+  currentPage.value = 'list'
+  window.scrollTo(0, 0)
+  const tabTitles = { filament: '耗材参数库 | 3D故障库', services: '服务商目录 | 3D故障库', market: '零件市场 | 3D故障库' }
+  setMeta(tabTitles[tab] || BASE_TITLE, BASE_DESC, tab === 'home' ? '/' : `/${tab}`)
+}
 const goToSubmit = () => { currentPage.value = 'submit'; window.scrollTo(0, 0) }
 const onSubmitted = () => { currentPage.value = 'list'; activeTab.value = 'home'; window.scrollTo(0, 0) }
 
-// ── 我发布的需求 ──
-const showMyPosts = ref(false)
-const openMyPosts = () => { showUserMenu.value = false; showMyPosts.value = true; window.scrollTo(0, 0) }
-
-// ── 我发布的问题 ──
-const showMyProblems = ref(false)
-const openMyProblems = () => { showUserMenu.value = false; showMyProblems.value = true; window.scrollTo(0, 0) }
+// ── 个人主页 ──
+const showProfile = ref(false)
+const openProfile = () => { showUserMenu.value = false; showProfile.value = true; window.scrollTo(0, 0) }
 
 // ── 通知面板 ──
 const showNotifPanel = ref(false)
@@ -160,37 +215,6 @@ const submitAuth = async () => {
   }
 }
 
-// ── 修改密码弹窗 ──
-const showChangePwd   = ref(false)
-const changePwdForm   = ref({ oldPassword: '', newPassword: '', confirmPassword: '' })
-const changePwdError  = ref('')
-const changePwdLoading = ref(false)
-
-const openChangePwd = () => {
-  showUserMenu.value    = false
-  changePwdForm.value   = { oldPassword: '', newPassword: '', confirmPassword: '' }
-  changePwdError.value  = ''
-  showChangePwd.value   = true
-}
-const closeChangePwd = () => { showChangePwd.value = false }
-
-const submitChangePwd = async () => {
-  changePwdError.value = ''
-  const { oldPassword, newPassword, confirmPassword } = changePwdForm.value
-  if (!oldPassword)                           { changePwdError.value = '请输入原密码'; return }
-  if (newPassword.length < 6)                 { changePwdError.value = '新密码至少6位'; return }
-  if (newPassword !== confirmPassword)        { changePwdError.value = '两次密码不一致'; return }
-  changePwdLoading.value = true
-  try {
-    await changePassword(oldPassword, newPassword)
-    closeChangePwd()
-  } catch (e) {
-    changePwdError.value = e.message || String(e)
-  } finally {
-    changePwdLoading.value = false
-  }
-}
-
 // ── 管理后台 ──
 const showAdmin = ref(false)
 const openAdmin = () => { showUserMenu.value = false; showAdmin.value = true; window.scrollTo(0, 0) }
@@ -217,32 +241,7 @@ const showLangMenu = ref(false)
 
 const handleLogout = async () => { showUserMenu.value = false; await logout() }
 
-// ── 修改用户名弹窗 ──
-const showEditUsername   = ref(false)
-const editUsernameForm   = ref({ username: '' })
-const editUsernameError  = ref('')
-const editUsernameLoading = ref(false)
 
-const openEditUsername = () => {
-  showUserMenu.value       = false
-  editUsernameForm.value   = { username: currentUser.value?.username || '' }
-  editUsernameError.value  = ''
-  showEditUsername.value   = true
-}
-
-const submitEditUsername = async () => {
-  editUsernameError.value = ''
-  if (!editUsernameForm.value.username.trim()) { editUsernameError.value = '请输入用户名'; return }
-  editUsernameLoading.value = true
-  try {
-    await setupProfile(editUsernameForm.value.username.trim())
-    showEditUsername.value = false
-  } catch (e) {
-    editUsernameError.value = e.message || String(e)
-  } finally {
-    editUsernameLoading.value = false
-  }
-}
 </script>
 
 <template>
@@ -252,16 +251,11 @@ const submitEditUsername = async () => {
     @back="showAdmin = false"
   />
 
-  <MyPostsView
-    v-else-if="showMyPosts"
+  <ProfileView
+    v-else-if="showProfile && currentUser"
     :current-user="currentUser"
-    @back="showMyPosts = false"
-  />
-
-  <MyProblemsView
-    v-else-if="!showAdmin && showMyProblems"
-    :current-user="currentUser"
-    @back="showMyProblems = false"
+    @back="showProfile = false"
+    @go-detail="(id) => { showProfile = false; goToDetail(id) }"
   />
 
   <SubmitProblemView
@@ -279,7 +273,8 @@ const submitEditUsername = async () => {
     @open-auth="openAuth"
   />
 
-  <div v-else-if="!showAdmin && !showMyPosts" class="app-shell">
+
+  <div v-else-if="!showAdmin" class="app-shell">
     <nav class="app-nav">
       <div class="nav-inner">
         <div class="nav-logo" @click="goBackToList">
@@ -381,12 +376,8 @@ const submitEditUsername = async () => {
                 <div v-if="showUserMenu" class="user-dropdown">
                   <button v-if="currentUser.isAdmin" class="dropdown-item admin-item" @click="openAdmin">管理后台</button>
                   <div v-if="currentUser.isAdmin" class="dropdown-divider"></div>
-                  <button class="dropdown-item" @click="openMyPosts">{{ t('user.myPosts') }}</button>
-                  <button class="dropdown-item" @click="openMyProblems">我发布的问题</button>
+                  <button class="dropdown-item" @click="openProfile">个人主页</button>
                   <button class="dropdown-item" @click="openJoinService">服务商入驻</button>
-                  <div class="dropdown-divider"></div>
-                  <button class="dropdown-item" @click="openEditUsername">{{ t('user.editUsername') }}</button>
-                  <button class="dropdown-item" @click="openChangePwd">{{ t('user.changePwd') }}</button>
                   <button class="dropdown-item" @click="openPoints">{{ t('user.points') }}</button>
                   <div class="dropdown-divider"></div>
                   <button class="dropdown-item danger" @click="handleLogout">{{ t('nav.logout') }}</button>
@@ -521,62 +512,6 @@ const submitEditUsername = async () => {
           </button>
         </div>
         <button class="modal-close" @click="closeAuth">✕</button>
-      </div>
-    </div>
-  </Transition>
-
-  <!-- 修改密码弹窗 -->
-  <Transition name="modal">
-    <div v-if="showChangePwd" class="modal-mask">
-      <div class="modal-box">
-        <div class="modal-body" style="padding-top:32px">
-          <h2 class="modal-title">{{ t('pwd.title') }}</h2>
-          <p class="modal-sub">{{ t('pwd.sub') }}</p>
-          <div class="form-fields">
-            <div class="field">
-              <label>{{ t('pwd.old') }}</label>
-              <input v-model="changePwdForm.oldPassword" type="password" :placeholder="t('pwd.oldPh')" required @keyup.enter="submitChangePwd" />
-            </div>
-            <div class="field">
-              <label>{{ t('pwd.new') }}</label>
-              <input v-model="changePwdForm.newPassword" type="password" :placeholder="t('pwd.newPh')" required @keyup.enter="submitChangePwd" />
-            </div>
-            <div class="field">
-              <label>{{ t('pwd.confirm') }}</label>
-              <input v-model="changePwdForm.confirmPassword" type="password" :placeholder="t('pwd.confirmPh')" required @keyup.enter="submitChangePwd" />
-            </div>
-          </div>
-          <div v-if="changePwdError" class="auth-error">{{ changePwdError }}</div>
-          <button class="submit-btn" :class="{ loading: changePwdLoading }" @click="submitChangePwd" :disabled="changePwdLoading">
-            <span v-if="changePwdLoading" class="btn-spinner"></span>
-            {{ changePwdLoading ? t('auth.loading') : t('pwd.submit') }}
-          </button>
-        </div>
-        <button class="modal-close" @click="closeChangePwd">✕</button>
-      </div>
-    </div>
-  </Transition>
-
-  <!-- 修改用户名弹窗 -->
-  <Transition name="modal">
-    <div v-if="showEditUsername" class="modal-mask">
-      <div class="modal-box">
-        <div class="modal-body" style="padding-top:32px">
-          <h2 class="modal-title">{{ t('eu.title') }}</h2>
-          <p class="modal-sub">{{ t('eu.sub') }}</p>
-          <div class="form-fields">
-            <div class="field">
-              <label>{{ t('auth.username') }}</label>
-              <input v-model="editUsernameForm.username" :placeholder="t('eu.ph')" @keyup.enter="submitEditUsername" autofocus />
-            </div>
-          </div>
-          <div v-if="editUsernameError" class="auth-error">{{ editUsernameError }}</div>
-          <button class="submit-btn" :class="{ loading: editUsernameLoading }" @click="submitEditUsername" :disabled="editUsernameLoading">
-            <span v-if="editUsernameLoading" class="btn-spinner"></span>
-            {{ editUsernameLoading ? t('auth.loading') : t('eu.submit') }}
-          </button>
-        </div>
-        <button class="modal-close" @click="showEditUsername = false">✕</button>
       </div>
     </div>
   </Transition>
@@ -781,4 +716,35 @@ body { background: #f5f5f7; font-family: -apple-system, 'PingFang SC', 'Helvetic
 /* Auth init loading */
 .app-loading { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 52px); }
 .loading-spinner { width: 28px; height: 28px; border: 2.5px solid rgba(0,0,0,0.1); border-top-color: #1d1d1f; border-radius: 50%; animation: spin 0.75s linear infinite; }
+
+/* ── 移动端导航：上栏(logo+操作) + 下栏(可横滑 tabs) ── */
+@media (max-width: 768px) {
+  /* 防止 iOS 输入框自动缩放 */
+  .field input, .phone-input { font-size: 16px; }
+  .app-nav { height: auto; }
+  .nav-inner { flex-wrap: wrap; padding: 0; height: auto; max-width: 100%; align-items: stretch; }
+  .nav-logo { padding: 10px 16px; margin-right: 0; flex: 1; align-self: center; }
+  .nav-right { padding: 8px 12px; gap: 4px; align-self: center; }
+  .nav-tabs {
+    width: 100%; flex: none; height: 40px;
+    border-top: 1px solid rgba(0,0,0,0.07);
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    padding: 0 8px; gap: 0;
+  }
+  .nav-tabs::-webkit-scrollbar { display: none; }
+  .nav-tab { height: 40px; padding: 0 11px; font-size: 13px; }
+  .user-name { display: none; }
+  .menu-caret { display: none; }
+  .nav-btn { padding: 5px 11px; font-size: 12px; }
+  .app-loading { min-height: calc(100vh - 84px); }
+  /* 下拉面板位置微调 */
+  .notif-panel { width: 290px; }
+  .user-dropdown { right: 0; }
+}
+@media (max-width: 400px) {
+  .nav-logo { padding: 10px 12px; }
+  .logo-text { display: none; }
+  .nav-right { padding: 8px 10px; }
+}
 </style>

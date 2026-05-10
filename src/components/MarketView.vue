@@ -17,13 +17,10 @@ function openDetail(post) { currentPost.value = post; window.scrollTo(0, 0); inc
 async function handleDeleted() { currentPost.value = null; await fetchPosts() }
 async function goBack() { currentPost.value = null; await fetchPosts() }
 
-const CATEGORIES     = ['全部', '代打服务', '求购耗材', '出售设备', '技术求助', '其他']
-const FORM_CATEGORIES = ['代打服务', '求购耗材', '出售设备', '技术求助', '其他']
+const CATEGORIES     = ['全部', '技术求助', '其他']
+const FORM_CATEGORIES = ['技术求助', '其他']
 
 const CAT_STYLE = {
-  '代打服务': { background: 'rgba(249,115,22,.18)',  color: '#fb923c' },
-  '求购耗材': { background: 'rgba(99,102,241,.18)',  color: '#818cf8' },
-  '出售设备': { background: 'rgba(168,85,247,.18)',  color: '#c084fc' },
   '技术求助': { background: 'rgba(6,182,212,.18)',   color: '#22d3ee' },
   '其他':     { background: 'rgba(107,114,128,.18)', color: '#9ca3af' },
 }
@@ -35,7 +32,7 @@ const showModal      = ref(false)
 const submitting     = ref(false)
 const submitError    = ref('')
 
-const emptyForm = () => ({ title: '', category: '代打服务', description: '', budget: '' })
+const emptyForm = () => ({ title: '', category: '技术求助', description: '', budget: '' })
 const form = ref(emptyForm())
 
 // image upload
@@ -77,9 +74,6 @@ function openModal() {
 
 function catLabel(c) {
   const map = {
-    '代打服务': t('mc.print'),
-    '求购耗材': t('mc.filament'),
-    '出售设备': t('mc.device'),
     '技术求助': t('mc.help'),
     '其他':     t('mc.other'),
   }
@@ -196,18 +190,11 @@ function timeAgo(ts) {
         <article v-for="post in filtered" :key="post.id" class="card" @click="openDetail(post)" style="cursor:pointer">
           <div class="card-top">
             <span class="badge" :style="CAT_STYLE[post.category]">{{ catLabel(post.category) }}</span>
-            <span :class="['status', post.status === '进行中' ? 'status-active' : 'status-done']">{{ post.status === '进行中' ? t('m.active') : t('m.done') }}</span>
+            <span :class="['status', (post.status === '待解决' || post.status === '进行中') ? 'status-active' : 'status-done']">{{ (post.status === '待解决' || post.status === '进行中') ? t('m.active') : t('m.done') }}</span>
           </div>
 
           <h2 class="card-title">{{ post.title }}</h2>
           <p class="card-desc">{{ post.description }}</p>
-
-          <div v-if="post.budget" class="card-tags">
-            <span class="tag">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/><path d="M6 3v6M4.5 4.5h2.25a.75.75 0 010 1.5H5.25a.75.75 0 000 1.5H7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-              {{ t('m.budget', { v: post.budget }) }}
-            </span>
-          </div>
 
           <div class="card-stats">
             <span class="stat-item">
@@ -261,11 +248,6 @@ function timeAgo(ts) {
               <label>{{ t('m.descLab') }} <span class="req">*</span></label>
               <textarea v-model="form.description" :placeholder="t('m.descPh')" rows="4" maxlength="500"></textarea>
               <span class="char-count">{{ form.description.length }}/500</span>
-            </div>
-
-            <div class="field">
-              <label>{{ t('m.budgetLab') }}</label>
-              <input v-model="form.budget" :placeholder="t('m.budgetPh')" />
             </div>
 
             <div class="field">
@@ -327,7 +309,7 @@ function timeAgo(ts) {
 
 /* Grid */
 .grid-wrap { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 16px; }
 
 .card { background: #fff; border: 1px solid rgba(0,0,0,0.06); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px; transition: box-shadow 0.2s, transform 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 .card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.1); transform: translateY(-2px); }
@@ -386,6 +368,24 @@ function timeAgo(ts) {
 
 .modal-enter-active, .modal-leave-active { transition: all 0.22s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
+
+@media (max-width: 768px) {
+  .bar { position: sticky; top: 84px; z-index: 50; background: rgba(255,255,255,0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+  .cats { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .cats::-webkit-scrollbar { display: none; }
+  .cat-btn { flex-shrink: 0; }
+}
+@media (max-width: 480px) {
+  .hero { padding: 36px 20px 28px; }
+  .bar-inner { padding: 10px 16px; }
+  .grid-wrap { padding: 20px 16px 60px; }
+  .grid { gap: 10px; }
+  .card { padding: 16px; gap: 10px; }
+  .modal-box { border-radius: 20px; }
+  .modal-body { padding: 16px 18px 24px; }
+  .radio-group { gap: 6px; }
+  .field input, .field textarea { font-size: 16px; }
+}
 
 /* Image upload */
 .img-grid  { display: flex; flex-wrap: wrap; gap: 8px; }

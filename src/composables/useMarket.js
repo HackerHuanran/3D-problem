@@ -6,6 +6,25 @@ export function useMarket() {
   const loading = ref(false)
   const dbError = ref(null)
 
+  const mapPost = (p, profileMap) => ({
+    id:            p._id,
+    userId:        p.user_id,
+    title:         p.title,
+    description:   p.description,
+    category:      p.category,
+    budget:        p.budget,
+    contact:       p.contact,
+    status:        p.status,
+    images:        p.images        || [],
+    viewCount:     p.view_count     || 0,
+    interestCount: p.interest_count || 0,
+    createdAt:     p.created_at instanceof Date
+                     ? p.created_at.getTime()
+                     : new Date(p.created_at).getTime(),
+    username:      profileMap[p.user_id]?.username || '匿名用户',
+    avatar:        profileMap[p.user_id]?.avatar   || '?',
+  })
+
   const fetchPosts = async (category = null) => {
     loading.value = true
     dbError.value = null
@@ -23,37 +42,27 @@ export function useMarket() {
 
       const { data: rows } = await Promise.race([q.get(), timeout])
 
-      const userIds = [...new Set(rows.map(p => p.user_id).filter(Boolean))]
-      let profileMap = {}
-      if (userIds.length) {
-        const { data: profileRows } = await db.collection('profiles')
-          .where({ uid: cmd.in(userIds) })
-          .limit(userIds.length)
-          .get()
-        profileRows.forEach(p => { profileMap[p.uid] = p })
-      }
+      // Show posts immediately with placeholder names
+      posts.value = rows.map(p => mapPost(p, {}))
+      loading.value = false
 
-      posts.value = rows.map(p => ({
-        id:             p._id,
-        userId:         p.user_id,
-        title:          p.title,
-        description:    p.description,
-        category:       p.category,
-        budget:         p.budget,
-        contact:        p.contact,
-        status:         p.status,
-        images:         p.images         || [],
-        viewCount:      p.view_count      || 0,
-        interestCount:  p.interest_count  || 0,
-        createdAt:      p.created_at instanceof Date
-                          ? p.created_at.getTime()
-                          : new Date(p.created_at).getTime(),
-        username:       profileMap[p.user_id]?.username || '匿名用户',
-        avatar:         profileMap[p.user_id]?.avatar   || '?',
-      }))
+      // Load profiles in background without blocking the list
+      const userIds = [...new Set(rows.map(p => p.user_id).filter(Boolean))]
+      if (userIds.length) {
+        try {
+          const { data: profileRows } = await db.collection('profiles')
+            .where({ uid: cmd.in(userIds) })
+            .limit(userIds.length)
+            .get()
+          const profileMap = {}
+          profileRows.forEach(p => { profileMap[p.uid] = p })
+          posts.value = rows.map(p => mapPost(p, profileMap))
+        } catch {
+          // profiles failed — leave placeholder names, posts already visible
+        }
+      }
     } catch (e) {
       dbError.value = e.message
-    } finally {
       loading.value = false
     }
   }
@@ -68,7 +77,7 @@ export function useMarket() {
         budget,
         contact,
         images,
-        status:     '进行中',
+        status:     '待解决',
         created_at: db.serverDate(),
       })
     } catch (e) {

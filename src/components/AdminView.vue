@@ -1,14 +1,76 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { db } from '@/lib/tcb.js'
+import { db, cmd } from '@/lib/tcb.js'
 
 const props = defineProps({ currentUser: Object })
 const emit  = defineEmits(['back'])
 
+// ── 顶层切换 ──
+const adminSection = ref('providers') // 'providers' | 'stats'
+
+// ── 服务商审核 ──
 const activeTab  = ref('pending')   // pending | approved | rejected
 const items      = ref([])
 const loading    = ref(false)
 const actioningId = ref(null)
+
+// ── 数据统计 ──
+const stats = ref({ users: '–', posts: '–', comments: '–', favorites: '–' })
+const trend = ref([])
+const statsLoading = ref(false)
+
+async function loadStats() {
+  statsLoading.value = true
+  try {
+    const [uR, pR, cR, fR] = await Promise.allSettled([
+      db.collection('profiles').count(),
+      db.collection('market_posts').count(),
+      db.collection('market_comments').count(),
+      db.collection('problem_favorites').count(),
+    ])
+    stats.value = {
+      users:     uR.status === 'fulfilled' ? uR.value.total : '?',
+      posts:     pR.status === 'fulfilled' ? pR.value.total : '?',
+      comments:  cR.status === 'fulfilled' ? cR.value.total : '?',
+      favorites: fR.status === 'fulfilled' ? fR.value.total : '?',
+    }
+
+    // 近 7 天帖子趋势
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    let recent = []
+    try {
+      const { data } = await db.collection('market_posts')
+        .where({ created_at: cmd.gte(since) })
+        .orderBy('created_at', 'asc')
+        .limit(200)
+        .get()
+      recent = data
+    } catch {}
+
+    const buckets = {}, labels = []
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i)
+      const k = `${d.getMonth() + 1}/${d.getDate()}`
+      buckets[k] = 0; labels.push(k)
+    }
+    recent.forEach(p => {
+      const d = p.created_at instanceof Date ? p.created_at : new Date(p.created_at)
+      const k = `${d.getMonth() + 1}/${d.getDate()}`
+      if (k in buckets) buckets[k]++
+    })
+    const maxVal = Math.max(...Object.values(buckets), 1)
+    trend.value = labels.map(day => ({ day, count: buckets[day], pct: Math.round(buckets[day] / maxVal * 100) }))
+  } catch (e) {
+    console.warn('[Admin stats]', e?.message)
+  } finally {
+    statsLoading.value = false
+  }
+}
+
+function switchSection(s) {
+  adminSection.value = s
+  if (s === 'stats' && statsLoading.value === false && stats.value.users === '–') loadStats()
+}
 
 const pending  = computed(() => items.value.filter(i => i.status === 'pending'))
 const approved = computed(() => items.value.filter(i => i.status === 'approved'))
@@ -84,8 +146,12 @@ onMounted(load)
         返回
       </button>
       <span class="admin-title">管理后台</span>
-      <button class="refresh-btn" @click="load" :disabled="loading">
-        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" :class="{ spinning: loading }">
+      <div class="nav-section-tabs">
+        <button :class="['nsec-btn', { active: adminSection === 'providers' }]" @click="switchSection('providers')">服务商审核</button>
+        <button :class="['nsec-btn', { active: adminSection === 'stats' }]" @click="switchSection('stats')">数据统计</button>
+      </div>
+      <button class="refresh-btn" @click="adminSection === 'stats' ? loadStats() : load()" :disabled="loading || statsLoading">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" :class="{ spinning: loading || statsLoading }">
           <path d="M13 7.5A5.5 5.5 0 112 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
           <path d="M13 4v3.5h-3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -93,7 +159,47 @@ onMounted(load)
       </button>
     </div>
 
-    <div class="admin-content">
+    <!-- ══ 数据统计 ══ -->
+    <div v-if="adminSection === 'stats'" class="admin-content">
+      <div v-if="statsLoading" class="loading-state"><span class="spinner"></span><span>加载中…</span></div>
+      <template v-else>
+        <!-- 四格数据卡 -->
+        <div class="data-cards">
+          <div class="data-card">
+            <div class="data-num">{{ stats.users }}</div>
+            <div class="data-label">注册用户</div>
+          </div>
+          <div class="data-card">
+            <div class="data-num">{{ stats.posts }}</div>
+            <div class="data-label">求助帖总数</div>
+          </div>
+          <div class="data-card">
+            <div class="data-num">{{ stats.comments }}</div>
+            <div class="data-label">回答总数</div>
+          </div>
+          <div class="data-card">
+            <div class="data-num">{{ stats.favorites }}</div>
+            <div class="data-label">收藏总数</div>
+          </div>
+        </div>
+
+        <!-- 7 天趋势 -->
+        <div class="trend-block">
+          <div class="trend-head">近 7 天求助帖发帖量</div>
+          <div class="trend-chart">
+            <div v-for="item in trend" :key="item.day" class="bar-col">
+              <span class="bar-num">{{ item.count > 0 ? item.count : '' }}</span>
+              <div class="bar-track">
+                <div class="bar-fill" :style="{ height: Math.max(item.pct, item.count > 0 ? 4 : 0) + '%' }"></div>
+              </div>
+              <span class="bar-day">{{ item.day }}</span>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <div v-else class="admin-content">
       <!-- 概览卡片 -->
       <div class="stat-cards">
         <div class="stat-card">
@@ -239,7 +345,10 @@ onMounted(load)
   font-family: inherit; cursor: pointer; padding: 4px 0; transition: color 0.15s;
 }
 .back-btn:hover { color: #1d1d1f; }
-.admin-title { font-size: 15px; font-weight: 700; color: #1d1d1f; flex: 1; }
+.admin-title { font-size: 15px; font-weight: 700; color: #1d1d1f; }
+.nav-section-tabs { display: flex; gap: 2px; background: rgba(0,0,0,0.06); border-radius: 8px; padding: 3px; flex: 1; max-width: 240px; }
+.nsec-btn { flex: 1; padding: 4px 10px; border-radius: 6px; border: none; background: transparent; font-size: 13px; color: #6e6e73; cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap; }
+.nsec-btn.active { background: #fff; color: #1d1d1f; font-weight: 500; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
 .refresh-btn {
   display: flex; align-items: center; gap: 5px;
   background: transparent; border: none; color: #6e6e73; font-size: 13px;
@@ -250,7 +359,22 @@ onMounted(load)
 
 .admin-content { max-width: 900px; margin: 0 auto; padding: 24px 24px 60px; }
 
-/* Stat cards */
+/* ── 数据统计 ── */
+.data-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.data-card  { background: #fff; border-radius: 16px; padding: 20px; border: 1px solid rgba(0,0,0,0.06); box-shadow: 0 2px 8px rgba(0,0,0,0.05); text-align: center; }
+.data-num   { font-size: 36px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.03em; }
+.data-label { font-size: 12px; color: #aeaeb2; margin-top: 4px; }
+
+.trend-block { background: #fff; border-radius: 16px; padding: 20px 24px; border: 1px solid rgba(0,0,0,0.06); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.trend-head  { font-size: 14px; font-weight: 600; color: #1d1d1f; margin-bottom: 20px; }
+.trend-chart { display: flex; align-items: flex-end; gap: 10px; height: 140px; }
+.bar-col     { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; }
+.bar-num     { font-size: 11px; color: #6e6e73; min-height: 16px; }
+.bar-track   { flex: 1; width: 100%; background: rgba(0,0,0,0.05); border-radius: 6px; display: flex; align-items: flex-end; overflow: hidden; }
+.bar-fill    { width: 100%; background: linear-gradient(180deg, #1d1d1f 0%, #6e6e73 100%); border-radius: 6px; transition: height 0.6s ease; min-height: 0; }
+.bar-day     { font-size: 11px; color: #aeaeb2; white-space: nowrap; }
+
+/* Stat cards (service provider section) */
 .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
 .stat-card { background: #fff; border-radius: 14px; padding: 16px 20px; border: 1px solid rgba(0,0,0,0.07); }
 .stat-num { font-size: 30px; font-weight: 800; color: #1d1d1f; letter-spacing: -0.03em; line-height: 1; margin-bottom: 4px; }
