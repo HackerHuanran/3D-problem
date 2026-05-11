@@ -2,6 +2,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { problems as staticProblems } from '@/data/problems.js'
 import { useFavorites } from '@/composables/useFavorites.js'
+import { useProblemMeta } from '@/composables/useProblemMeta.js'
 import { useUserProblems } from '@/composables/useUserProblems.js'
 import { useMarket } from '@/composables/useMarket.js'
 import { useAuth } from '@/composables/useAuth.js'
@@ -15,6 +16,7 @@ defineEmits(['back', 'go-detail'])
 
 // ── composables ──
 const { favorites, fetchFavorites } = useFavorites()
+const { metaMap, fetchProblemMeta } = useProblemMeta()
 const { fetchMyProblems, deleteUserProblem, updateUserProblem, fetchUserProblems } = useUserProblems()
 const { posts: myPosts, fetchMyPosts, createPost, deletePost, updatePostStatus, updatePost } = useMarket()
 const { setupProfile, changePassword } = useAuth()
@@ -31,7 +33,7 @@ const subView     = ref('tabs')
 const TABS = [
   { id: 'fav',       label: '我的收藏' },
   { id: 'submitted', label: '我的投稿' },
-  { id: 'market',    label: '求助帖' },
+  { id: 'market',    label: '需求发布' },
   { id: 'account',   label: '账号设置' },
 ]
 
@@ -50,6 +52,7 @@ onMounted(async () => {
   const uid = props.currentUser.id
   await Promise.all([
     fetchFavorites(uid),
+    fetchProblemMeta(),
     fetchMyProblems(uid).then(r => { myProblems.value = r }),
     fetchMyPosts(uid),
   ])
@@ -303,7 +306,7 @@ async function toggleStatus(post) {
   finally { delete actionLoading.value[post.id + '_s'] }
 }
 async function removePost(post) {
-  if (!confirm('确定删除这条求助帖？')) return
+  if (!confirm('确定删除这条需求？')) return
   actionLoading.value[post.id + '_d'] = true
   try { await deletePost(post.id); await fetchMyPosts(props.currentUser.id) } catch {}
   finally { delete actionLoading.value[post.id + '_d'] }
@@ -534,7 +537,7 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
             <div class="stat-divider"></div>
             <div class="stat-item">
               <span class="stat-num">{{ myPosts.length }}</span>
-              <span class="stat-lbl">求助帖</span>
+              <span class="stat-lbl">需求</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
@@ -571,7 +574,7 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
           <div v-else class="fav-grid">
             <div v-for="p in favProblems" :key="p.id" class="fav-card" :style="{ '--c': p.color }" @click="$emit('go-detail', p.id)">
               <div class="fav-img" :style="{ background: p.bgGradient }">
-                <img v-if="p.images" :src="p.images" :alt="p.title" loading="lazy" />
+                <img v-if="metaMap[p.id]?.image_url" :src="metaMap[p.id].image_url" :alt="p.title" loading="lazy" />
                 <span v-else class="fav-emoji">{{ p.emoji }}</span>
               </div>
               <div class="fav-body">
@@ -588,7 +591,7 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
           <div v-if="myProblems.length === 0" class="empty">
             <span class="empty-icon">📝</span>
             <p class="empty-title">还没有投稿</p>
-            <p class="empty-sub">在首页点击「分享你遇到的问题」来发布</p>
+            <p class="empty-sub">在首页点击「提交打印问题」来发布</p>
           </div>
           <div v-else class="problem-list">
             <div v-for="p in myProblems" :key="p.id" class="problem-item">
@@ -623,15 +626,15 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
         <!-- ── 求助帖 ── -->
         <div v-else-if="activeTab === 'market'" class="tab-body">
           <div class="tab-header-row">
-            <span class="tab-header-title">我的求助帖</span>
+            <span class="tab-header-title">我的需求</span>
             <button class="create-btn" @click="openCreate">
               <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-              发布求助
+              发布需求
             </button>
           </div>
           <div v-if="myPosts.length === 0" class="empty" style="padding-top:40px">
             <span class="empty-icon">🛒</span>
-            <p class="empty-title">还没有求助帖</p>
+            <p class="empty-title">还没有需求记录</p>
             <p class="empty-sub">发布你的打印需求或技术问题</p>
           </div>
           <div v-else class="post-list">
@@ -702,7 +705,7 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
     <Transition name="modal">
       <div v-if="showCreate" class="modal-mask">
         <div class="modal-box">
-          <div class="modal-head"><h2>发布求助帖</h2><button class="close-btn" @click="showCreate = false">✕</button></div>
+          <div class="modal-head"><h2>发布需求</h2><button class="close-btn" @click="showCreate = false">✕</button></div>
           <div class="modal-body">
             <div class="field"><label>类型 <span class="req">*</span></label>
               <div class="radio-group">
@@ -733,7 +736,7 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
     <Transition name="modal">
       <div v-if="showEdit" class="modal-mask">
         <div class="modal-box">
-          <div class="modal-head"><h2>编辑求助帖</h2><button class="close-btn" @click="showEdit = false">✕</button></div>
+          <div class="modal-head"><h2>编辑需求</h2><button class="close-btn" @click="showEdit = false">✕</button></div>
           <div class="modal-body">
             <div class="field"><label>类型 <span class="req">*</span></label>
               <div class="radio-group">

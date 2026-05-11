@@ -283,10 +283,10 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
         </div>
         <div class="nav-tabs">
           <button :class="['nav-tab', { active: activeTab === 'home' }]"   @click="switchTab('home')">{{ t('nav.home') }}</button>
-          <button :class="['nav-tab', { active: activeTab === 'news' }]"   @click="switchTab('news')">{{ t('nav.news') }}</button>
-          <button :class="['nav-tab', { active: activeTab === 'market' }]"   @click="switchTab('market')">{{ t('nav.market') }}</button>
           <button :class="['nav-tab', { active: activeTab === 'filament' }]"  @click="switchTab('filament')">耗材参数库</button>
+          <button :class="['nav-tab', { active: activeTab === 'market' }]"   @click="switchTab('market')">{{ t('nav.market') }}</button>
           <button :class="['nav-tab', { active: activeTab === 'services' }]" @click="switchTab('services')">服务商目录</button>
+          <button :class="['nav-tab', { active: activeTab === 'news' }]"   @click="switchTab('news')">{{ t('nav.news') }}</button>
           <button class="nav-tab" @click="showAbout = true">{{ t('nav.about') }}</button>
         </div>
         <div class="nav-right">

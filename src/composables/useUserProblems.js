@@ -17,22 +17,24 @@ const CAT_META = {
   '固件设置':   { color: '#55efc4', bg: 'linear-gradient(135deg,#0a1a14 0%,#0f2d1e 100%)', emoji: '⚡' },
 }
 
-// 通用：把一批原始 doc 列表里的 cloud:// fileID 批量换成临时 URL
-async function resolveTempURLs(data) {
-  const fileIDs = []
-  data.forEach(p => {
-    if (p.image_url?.startsWith('cloud://')) fileIDs.push(p.image_url)
-    p.solutions?.forEach(s => { if (s.image_url?.startsWith('cloud://')) fileIDs.push(s.image_url) })
-  })
-  const urlMap = {}
-  if (fileIDs.length > 0) {
-    const { fileList } = await app.getTempFileURL({ fileList: [...new Set(fileIDs)] })
-    fileList.forEach(f => { urlMap[f.fileID] = f.tempFileURL })
+const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
+
+// cloud:// fileID 转永久 CDN URL
+function toCdnUrl(val) {
+  if (!val) return null
+  if (val.startsWith('cloud://')) {
+    const m = val.match(/^cloud:\/\/[^/]+\/(.+)$/)
+    return m ? `${CDN_BASE}/${m[1]}` : val
   }
+  return val  // 已经是 HTTP URL，直接用
+}
+
+// 兼容旧数据：把 cloud:// fileID 转为永久 CDN URL（新数据已直接存 HTTP URL）
+function resolveTempURLs(data) {
   return data.map(p => ({
     ...p,
-    image_url: urlMap[p.image_url] ?? p.image_url ?? null,
-    solutions: (p.solutions || []).map(s => ({ ...s, image_url: urlMap[s.image_url] ?? s.image_url ?? null })),
+    image_url: toCdnUrl(p.image_url),
+    solutions: (p.solutions || []).map(s => ({ ...s, image_url: toCdnUrl(s.image_url) })),
   }))
 }
 
@@ -70,7 +72,7 @@ export function useUserProblems() {
         .limit(200)
         .get()
 
-      const resolved = await resolveTempURLs(data)
+      const resolved = resolveTempURLs(data)
       userProblems.value = resolved.map(mapDoc)
     } catch (e) {
       error.value = e.message
@@ -102,7 +104,7 @@ export function useUserProblems() {
         .orderBy('created_at', 'desc')
         .limit(200)
         .get()
-      const resolved = await resolveTempURLs(data)
+      const resolved = resolveTempURLs(data)
       return resolved.map(p => ({ ...mapDoc(p), _rawCreatedAt: p.created_at }))
     } catch (e) {
       error.value = e.message

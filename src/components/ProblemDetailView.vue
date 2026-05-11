@@ -66,7 +66,9 @@
 
       <section class="section">
         <p class="desc-text">{{ problem.description }}</p>
-        <img v-if="problem.image_url || problem.images" :src="problem.image_url || problem.images" class="problem-img" alt="问题图片" loading="lazy" />
+        <img v-if="metaMap[problem?.id]?.image_url || problem.image_url"
+          :src="metaMap[problem?.id]?.image_url || problem.image_url"
+          class="problem-img" alt="问题图片" loading="lazy" />
       </section>
 
       <section class="section">
@@ -108,6 +110,23 @@
               </div>
             </Transition>
           </div>
+        </div>
+      </section>
+
+      <!-- 视频教程 -->
+      <section v-if="problem.video" class="section video-section">
+        <h2 class="section-title">
+          <span class="section-icon" :style="{ background: problem.color + '22', color: problem.color }">▶</span>
+          视频教程
+        </h2>
+        <div class="bili-wrap">
+          <iframe
+            :src="`https://player.bilibili.com/player.html?bvid=${problem.video}&page=1&high_quality=1&danmaku=0&autoplay=0`"
+            class="bili-player"
+            scrolling="no"
+            frameborder="0"
+            allowfullscreen
+          ></iframe>
         </div>
       </section>
 
@@ -205,7 +224,7 @@
               </div>
               <p class="comment-text">{{ comment.content }}</p>
               <div class="comment-actions">
-                <button class="like-btn small" :class="{ liked: comment.likes.includes(currentUser?.id) }" @click="handleCommentLike(comment.id, comment.likes)">
+                <button class="like-btn small" :class="{ liked: comment.likes.includes(currentUser?.id) }" @click="handleCommentLike(comment.id)">
                   👍 {{ comment.likes.length > 0 ? comment.likes.length : '' }}
                 </button>
                 <button v-if="currentUser?.id === comment.userId" class="delete-btn" @click="handleDeleteComment(comment.id)">{{ t('pd.delete') }}</button>
@@ -282,6 +301,7 @@ import { useCommunity } from '@/composables/useCommunity.js'
 import { useLocale } from '@/composables/useLocale.js'
 import { useReport } from '@/composables/useReport.js'
 import { useFavorites } from '@/composables/useFavorites.js'
+import { useProblemMeta } from '@/composables/useProblemMeta.js'
 
 const props = defineProps({ problemId: { type: String, required: true } })
 const emit = defineEmits(['back', 'go-detail', 'open-auth'])
@@ -289,6 +309,7 @@ const emit = defineEmits(['back', 'go-detail', 'open-auth'])
 const { currentUser } = useAuth()
 const { userProblems } = useUserProblems()
 const { favorites, fetchFavorites, toggleFavorite } = useFavorites()
+const { metaMap, fetchProblemMeta } = useProblemMeta()
 const { getComments, addComment, deleteComment, toggleCommentLike, getSolutions, addSolution, deleteSolution, toggleSolutionLike, getEncounterData, toggleEncounter } = useCommunity()
 const { t } = useLocale()
 const { submitReport } = useReport()
@@ -395,7 +416,7 @@ const submitComment = async () => {
   } catch (e) { alert(e.message) }
   finally { submittingComment.value = false }
 }
-const handleCommentLike = async (id, currentLikes) => {
+const handleCommentLike = async (id) => {
   if (!currentUser.value) return
   await toggleCommentLike(id, currentUser.value.id)
   comments.value = await getComments(props.problemId)
@@ -478,6 +499,7 @@ const onScroll = () => { navScrolled.value = window.scrollY > 260 }
 onMounted(() => {
   window.addEventListener('scroll', onScroll, { passive: true })
   if (currentUser.value) fetchFavorites(currentUser.value.id)
+  fetchProblemMeta()
 })
 onUnmounted(() => {
   window.removeEventListener('scroll', onScroll)
@@ -548,6 +570,8 @@ onUnmounted(() => {
 .toggle-all-btn:hover { color: #1d1d1f; border-color: rgba(0,0,0,0.22); }
 .desc-text { font-size: 17px; color: #6e6e73; line-height: 1.75; }
 .problem-img { width: 100%; max-height: 320px; object-fit: cover; border-radius: 16px; margin-top: 16px; display: block; }
+.bili-wrap { position: relative; width: 100%; padding-top: 56.25%; border-radius: 16px; overflow: hidden; background: #000; }
+.bili-player { position: absolute; inset: 0; width: 100%; height: 100%; border: none; border-radius: 16px; }
 .sol-img { max-width: 100%; max-height: 220px; object-fit: cover; border-radius: 10px; margin-top: 10px; display: block; }
 .causes-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 10px; }
 .cause-item { background: #fff; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(0,0,0,0.06); box-shadow: 0 2px 6px rgba(0,0,0,0.05); transition: box-shadow 0.2s; }

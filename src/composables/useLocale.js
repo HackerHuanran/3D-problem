@@ -5,17 +5,17 @@ const lang = ref('zh')
 const M = {
   zh: {
     // nav
-    'nav.home': '首页', 'nav.news': '新闻资讯', 'nav.market': '求助社区',
+    'nav.home': '首页', 'nav.news': '新闻资讯', 'nav.market': '需求广场',
     'nav.about': '关于我们', 'nav.login': '登录', 'nav.register': '注册',
     'nav.logout': '退出登录',
     // notifications
     'notif.title': '通知', 'notif.markRead': '全部已读', 'notif.empty': '暂无通知',
     // user menu
-    'user.myPosts': '我的求助', 'user.editUsername': '修改用户名',
+    'user.myPosts': '我的需求', 'user.editUsername': '修改用户名',
     'user.changePwd': '修改密码', 'user.points': '积分',
     // auth
     'auth.loginTitle': '欢迎回来', 'auth.loginSub': '用手机号和密码登录',
-    'auth.regTitle': '加入社区', 'auth.regSub': '填写信息后获取短信验证码完成注册',
+    'auth.regTitle': '创建账号', 'auth.regSub': '填写信息后获取短信验证码完成注册',
     'auth.phone': '手机号', 'auth.password': '密码', 'auth.username': '用户名',
     'auth.phonePh': '注册时的手机号', 'auth.pwdPh': '登录密码',
     'auth.usernamePh': '2-20个字符', 'auth.regPwdPh': '至少6位，含字母和数字',
@@ -33,7 +33,7 @@ const M = {
     // points
     'pts.title': '我的积分', 'pts.unit': '积分', 'pts.sub': '发布内容和参与互动可获得积分',
     // about
-    'about.desc': '专注于 3D 打印故障排查与创客社区，帮助每一位打印爱好者解决问题、共享经验。',
+    'about.desc': '专注于 3D 打印故障排查与工具资源，帮助每一位打印爱好者解决问题、共享经验。',
     'about.wechat': '合作微信', 'about.phone': '联系电话',
     'about.copy': '© 2026 3D 故障库 · 版权所有',
     // lang
@@ -58,10 +58,10 @@ const M = {
     'pd.comments': '{n} 条评论', 'pd.solutions': '{n} 个方案',
     'pd.causes': '常见原因', 'pd.steps': '解决步骤',
     'pd.expandAll': '全部展开', 'pd.collapseAll': '全部折叠',
-    'pd.tip': '小提示', 'pd.community': '社区方案', 'pd.discussion': '讨论',
+    'pd.tip': '小提示', 'pd.community': '用户方案', 'pd.discussion': '讨论',
     'pd.related': '相关问题',
-    'pd.loadingSol': '加载社区方案…', 'pd.loadingCmt': '加载评论…',
-    'pd.noSol': '还没有社区方案，成为第一个分享的人！',
+    'pd.loadingSol': '加载用户方案…', 'pd.loadingCmt': '加载评论…',
+    'pd.noSol': '还没有用户方案，成为第一个分享的人！',
     'pd.noCmt': '还没有评论，说说你的想法吧',
     'pd.shareLabel': '📝 分享你的解决方案',
     'pd.solTitlePh': '方案标题，如「调低热床温度5°C有效解决」',
@@ -80,15 +80,15 @@ const M = {
     'n.c.release': '产品发布', 'n.c.industry': '行业动态', 'n.c.tech': '技术前沿',
     'n.c.maker': '创客故事', 'n.c.tutorial': '教程指南',
     // market
-    'm.eyebrow': '3D 打印 · 求助社区',
-    'm.h1a': '遇到问题了？', 'm.h1b': '来这里提问。',
-    'm.desc': '描述你的打印问题，社区里的高手会来帮你解决。',
-    'm.postBtn': '发起求助', 'm.all': '全部', 'm.results': '{n} 条',
+    'm.eyebrow': '3D 打印 · 需求广场',
+    'm.h1a': '遇到问题了？', 'm.h1b': '来这里发布。',
+    'm.desc': '发布打印需求，寻找代打服务、技术支持或零件交易。',
+    'm.postBtn': '发布需求', 'm.all': '全部', 'm.results': '{n} 条',
     'm.loading': '加载中…', 'm.loadFail': '加载失败', 'm.retry': '重试',
-    'm.emptyTitle': '暂无{cat}内容', 'm.emptyDesc': '成为第一个提问的人吧！',
+    'm.emptyTitle': '暂无{cat}内容', 'm.emptyDesc': '成为第一个发布需求的人吧！',
     'm.budget': '预算：{v}', 'm.active': '待解决', 'm.done': '已解决',
-    'm.formTitle': '发起求助', 'm.type': '分类', 'm.title': '标题',
-    'm.titlePh': '用一句话描述你遇到的问题',
+    'm.formTitle': '发布需求', 'm.type': '分类', 'm.title': '标题',
+    'm.titlePh': '用一句话描述你的需求',
     'm.descLab': '详细描述', 'm.descPh': '描述问题细节：打印机型号、耗材、切片参数、已尝试的方法…',
     'm.budgetLab': '预算范围', 'm.budgetPh': '如：50–200 元，或填「面议」',
     'm.contactLab': '联系方式', 'm.contactPh': '微信号 / QQ / 邮箱 / 电话',
@@ -98,7 +98,7 @@ const M = {
     'mc.print': '代打服务', 'mc.filament': '求购耗材', 'mc.device': '出售设备',
     'mc.help': '技术求助', 'mc.other': '其他',
     // market detail
-    'md.back': '求助社区', 'md.budget': '预算：{v}', 'md.contact': '联系方式：{v}',
+    'md.back': '需求广场', 'md.budget': '预算：{v}', 'md.contact': '联系方式：{v}',
     'md.interested': '对这个需求感兴趣？',
     'md.alreadyInterested': '✓ 你已表示感兴趣，等待发布者联系你',
     'md.interestBtn': '我感兴趣',
@@ -111,14 +111,14 @@ const M = {
     'md.noComments': '暂无回答，来第一个帮帮他吧',
     'md.sending': '发送中…', 'md.send': '提交回答',
     // my posts
-    'mp.title': '我的求助', 'mp.create': '发起求助',
-    'mp.loading': '加载中…', 'mp.noPost': '你还没有发布过求助',
-    'mp.firstPost': '发起第一条', 'mp.edit': '编辑',
+    'mp.title': '我的需求', 'mp.create': '发布需求',
+    'mp.loading': '加载中…', 'mp.noPost': '你还没有发布过需求',
+    'mp.firstPost': '发布第一条', 'mp.edit': '编辑',
     'mp.markDone': '标记已解决', 'mp.reopen': '重新开放', 'mp.delete': '删除',
-    'mp.editTitle': '编辑求助', 'mp.saving': '保存中…', 'mp.save': '保存修改',
+    'mp.editTitle': '编辑需求', 'mp.saving': '保存中…', 'mp.save': '保存修改',
     'mp.budgetLab': '预算范围', 'mp.descLab': '详细描述',
     'mp.descPh': '描述问题细节…',
-    'mp.confirmDelete': '确定删除这条求助吗？',
+    'mp.confirmDelete': '确定删除这条需求吗？',
   },
   en: {
     // nav

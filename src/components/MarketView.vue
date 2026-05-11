@@ -25,7 +25,7 @@ const CAT_STYLE = {
   '其他':     { background: 'rgba(107,114,128,.18)', color: '#9ca3af' },
 }
 
-const { posts, loading, dbError, fetchPosts, createPost, incrementViewCount } = useMarket()
+const { posts, loading, dbError, fetchPosts, createPost, deletePost, incrementViewCount } = useMarket()
 
 const activeCategory = ref('全部')
 const showModal      = ref(false)

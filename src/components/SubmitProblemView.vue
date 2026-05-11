@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useUserProblems } from '@/composables/useUserProblems.js'
 import { app } from '@/lib/tcb.js'
 import { compressImage } from '@/lib/imageUtils.js'
@@ -9,6 +9,8 @@ const props = defineProps({ currentUser: Object })
 const emit  = defineEmits(['back', 'submitted'])
 
 const { submitProblem } = useUserProblems()
+
+const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
 
 const CATEGORIES   = ['打印机整机', '喷头热端', '挤出机', '热床', 'AMS送料', '耗材材料', '切片软件', '校准调平', '打印质量', '固件设置']
 const DIFFICULTIES = ['常见', '需处理', '紧急', '进阶']
@@ -40,7 +42,7 @@ const form = reactive({
   tips:        '',
 })
 
-const heroBg    = computed(() => CAT_META[form.category]?.bg || CAT_META['新手'].bg)
+const heroBg    = computed(() => CAT_META[form.category]?.bg || CAT_META['打印机整机'].bg)
 const heroColor = computed(() => CAT_META[form.category]?.color || '#5cba7a')
 const heroEmoji = computed(() => CAT_META[form.category]?.emoji || '🖨️')
 
@@ -99,14 +101,20 @@ function validate() {
   return Object.keys(e).length === 0
 }
 
+// ── 滚动检测（nav 样式）──
+const navScrolled = ref(false)
+const onScroll = () => { navScrolled.value = window.scrollY > 20 }
+onMounted(() => window.addEventListener('scroll', onScroll, { passive: true }))
+onUnmounted(() => window.removeEventListener('scroll', onScroll))
+
 // ── 上传单张图片（压缩后），返回 fileID ──
 async function uploadOne(file, dir) {
   const compressed = await compressImage(file)
   const { pass, msg } = await checkImage(compressed)
   if (!pass) throw new Error(msg)
-  const cloudPath  = `${dir}/${props.currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`
-  const { fileID } = await app.uploadFile({ cloudPath, filePath: compressed })
-  return fileID
+  const cloudPath = `${dir}/${props.currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`
+  await app.uploadFile({ cloudPath, filePath: compressed })
+  return `${CDN_BASE}/${cloudPath}`
 }
 
 async function submit() {
@@ -160,7 +168,7 @@ async function submit() {
   <div class="submit-page">
 
     <!-- 顶部导航 -->
-    <nav class="back-nav">
+    <nav class="back-nav" :class="{ scrolled: navScrolled }">
       <button class="back-btn" @click="emit('back')">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path d="M11 4L6 9l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -418,9 +426,11 @@ async function submit() {
 .submit-page { min-height: 100vh; background: #f5f5f7; color: #1d1d1f; font-family: -apple-system,'PingFang SC','Helvetica Neue',sans-serif; padding-bottom: 120px; }
 
 /* 顶部导航（与详情页一致） */
-.back-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 0 24px; height: 52px; background: rgba(255,255,255,0.88); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(0,0,0,0.08); display: flex; align-items: center; }
-.back-btn { display: flex; align-items: center; gap: 4px; background: transparent; border: none; color: #007aff; font-size: 15px; cursor: pointer; font-family: inherit; padding: 0; transition: opacity 0.15s; }
-.back-btn:hover { opacity: 0.7; }
+.back-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 12px 24px; background: transparent; display: flex; align-items: center; transition: background 0.3s, backdrop-filter 0.3s, border-color 0.3s; border-bottom: 1px solid transparent; }
+.back-nav.scrolled { background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); border-bottom-color: rgba(0,0,0,0.08); }
+.back-btn { display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.28); backdrop-filter: blur(12px); border: none; color: #fff; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; padding: 6px 14px; border-radius: 100px; transition: background 0.18s, color 0.18s; }
+.back-btn:hover { background: rgba(0,0,0,0.42); }
+.back-nav.scrolled .back-btn { background: transparent; color: #007aff; padding: 6px 0; }
 
 /* Hero 编辑区 */
 .detail-hero { padding-top: 52px; min-height: 280px; position: relative; display: flex; align-items: flex-end; overflow: hidden; }

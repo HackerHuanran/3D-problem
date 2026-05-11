@@ -24,7 +24,7 @@
         <p class="hero-desc">{{ t('p.desc', { n: allProblems.length }) }}</p>
         <button class="share-btn" @click="$emit(currentUser ? 'go-submit' : 'open-auth', currentUser ? undefined : 'login')">
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 1v9M3.5 6l4-5 4 5M2 12h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          分享你遇到的问题
+          提交打印问题
         </button>
       </div>
     </section>
@@ -125,7 +125,7 @@
           >
             <div class="hot-rank" :class="i < 3 ? 'rank-top' : ''">{{ i + 1 }}</div>
             <div class="hot-emoji" :style="{ background: p.bgGradient }">
-              <img v-if="p.images" :src="p.images" style="width:100%;height:100%;object-fit:cover;border-radius:12px" loading="lazy" />
+              <img v-if="metaMap[p.id]?.image_url || p.image_url" :src="metaMap[p.id]?.image_url || p.image_url" style="width:100%;height:100%;object-fit:cover;border-radius:12px" loading="lazy" />
               <span v-else>{{ p.emoji }}</span>
             </div>
             <div class="hot-info">
@@ -165,7 +165,7 @@
         >
           <div class="card-image" :style="{ background: problem.bgGradient }">
             <span class="card-emoji">
-              <img v-if="problem.images" :src="problem.images" alt="" style="width:100%;height:100%;object-fit:cover;" loading="lazy" />
+              <img v-if="metaMap[problem.id]?.image_url || problem.image_url" :src="metaMap[problem.id]?.image_url || problem.image_url" alt="" style="width:100%;height:100%;object-fit:cover;" loading="lazy" />
               <span v-else class="card-emoji-icon">{{ problem.emoji }}</span>
             </span>
             <div class="card-glow" :style="{ background: problem.color }"></div>
@@ -229,6 +229,7 @@ import { useLocale } from '@/composables/useLocale.js'
 import { useUserProblems } from '@/composables/useUserProblems.js'
 import { useCommunity } from '@/composables/useCommunity.js'
 import { useFavorites } from '@/composables/useFavorites.js'
+import { useProblemMeta } from '@/composables/useProblemMeta.js'
 
 const props = defineProps({ currentUser: Object })
 const emit = defineEmits(['go-detail', 'open-auth', 'go-submit'])
@@ -236,6 +237,7 @@ const emit = defineEmits(['go-detail', 'open-auth', 'go-submit'])
 const { userProblems, fetchUserProblems } = useUserProblems()
 const { getEncounterCounts } = useCommunity()
 const { favorites, fetchFavorites, toggleFavorite } = useFavorites()
+const { metaMap, fetchProblemMeta } = useProblemMeta()
 
 const showFavOnly = ref(false)
 
@@ -255,6 +257,7 @@ const encounterReady  = ref(false)
 
 onMounted(async () => {
   fetchUserProblems()
+  fetchProblemMeta()
   const ids = problems.map(p => p.id)
   encounterCounts.value = await getEncounterCounts(ids)
   encounterReady.value = true

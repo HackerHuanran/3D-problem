@@ -1,12 +1,44 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { db, cmd } from '@/lib/tcb.js'
+import { problems as allProblems } from '@/data/problems.js'
+import { useProblemMeta } from '@/composables/useProblemMeta.js'
 
 const props = defineProps({ currentUser: Object })
 const emit  = defineEmits(['back'])
 
 // ── 顶层切换 ──
-const adminSection = ref('providers') // 'providers' | 'stats'
+const adminSection = ref('providers') // 'providers' | 'stats' | 'problems'
+
+// ── 故障图片管理 ──
+const { metaMap, fetchProblemMeta, uploadProblemImage, removeProblemImage } = useProblemMeta()
+const imgUploading = ref({})  // { [problemId]: true }
+const imgSearch    = ref('')
+
+const filteredProblems = computed(() => {
+  const q = imgSearch.value.trim().toLowerCase()
+  if (!q) return allProblems
+  return allProblems.filter(p => p.title.includes(q) || p.id.includes(q) || p.category?.includes(q))
+})
+
+async function handleImgUpload(problem, e) {
+  const file = e.target.files[0]; if (!file) return
+  e.target.value = ''
+  imgUploading.value = { ...imgUploading.value, [problem.id]: true }
+  try {
+    await uploadProblemImage(problem.id, file)
+  } catch (err) {
+    alert('上传失败：' + (err.message || err))
+  } finally {
+    const next = { ...imgUploading.value }; delete next[problem.id]
+    imgUploading.value = next
+  }
+}
+
+async function handleImgRemove(problem) {
+  if (!confirm(`确定删除「${problem.title}」的图片吗？`)) return
+  await removeProblemImage(problem.id)
+}
 
 // ── 服务商审核 ──
 const activeTab  = ref('pending')   // pending | approved | rejected
@@ -70,6 +102,7 @@ async function loadStats() {
 function switchSection(s) {
   adminSection.value = s
   if (s === 'stats' && statsLoading.value === false && stats.value.users === '–') loadStats()
+  if (s === 'problems') fetchProblemMeta(true)
 }
 
 const pending  = computed(() => items.value.filter(i => i.status === 'pending'))
@@ -149,6 +182,7 @@ onMounted(load)
       <div class="nav-section-tabs">
         <button :class="['nsec-btn', { active: adminSection === 'providers' }]" @click="switchSection('providers')">服务商审核</button>
         <button :class="['nsec-btn', { active: adminSection === 'stats' }]" @click="switchSection('stats')">数据统计</button>
+        <button :class="['nsec-btn', { active: adminSection === 'problems' }]" @click="switchSection('problems')">故障图片</button>
       </div>
       <button class="refresh-btn" @click="adminSection === 'stats' ? loadStats() : load()" :disabled="loading || statsLoading">
         <svg width="15" height="15" viewBox="0 0 15 15" fill="none" :class="{ spinning: loading || statsLoading }">
@@ -197,6 +231,36 @@ onMounted(load)
           </div>
         </div>
       </template>
+    </div>
+
+    <!-- ══ 故障图片管理 ══ -->
+    <div v-else-if="adminSection === 'problems'" class="admin-content">
+      <div class="pi-toolbar">
+        <input v-model="imgSearch" class="pi-search" placeholder="搜索问题名称…" />
+        <span class="pi-count">{{ filteredProblems.length }} / {{ allProblems.length }} 个问题，{{ Object.keys(metaMap).length }} 张已上传</span>
+      </div>
+      <div class="pi-grid">
+        <div v-for="p in filteredProblems" :key="p.id" class="pi-card">
+          <div class="pi-thumb" :style="{ background: p.bgGradient }">
+            <img v-if="metaMap[p.id]?.image_url" :src="metaMap[p.id].image_url" class="pi-img" />
+            <span v-else class="pi-emoji">{{ p.emoji }}</span>
+            <div v-if="imgUploading[p.id]" class="pi-loading">
+              <span class="pi-spinner"></span>
+            </div>
+          </div>
+          <div class="pi-info">
+            <p class="pi-title">{{ p.title }}</p>
+            <p class="pi-cat">{{ p.category }}</p>
+          </div>
+          <div class="pi-actions">
+            <label class="pi-upload-btn" :class="{ disabled: imgUploading[p.id] }">
+              <input type="file" accept="image/*" style="display:none" :disabled="imgUploading[p.id]" @change="handleImgUpload(p, $event)" />
+              {{ metaMap[p.id]?.image_url ? '更换' : '上传' }}
+            </label>
+            <button v-if="metaMap[p.id]?.image_url" class="pi-del-btn" @click="handleImgRemove(p)">删除</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-else class="admin-content">
@@ -444,4 +508,27 @@ onMounted(load)
   .app-actions { width: 100%; }
   .action-btn { flex: 1; justify-content: center; }
 }
+
+/* ── 故障图片管理 ── */
+.pi-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.pi-search { flex: 1; min-width: 160px; background: #f5f5f7; border: 1px solid rgba(0,0,0,.1); border-radius: 10px; padding: 9px 14px; font-size: 14px; font-family: inherit; outline: none; color: #1d1d1f; }
+.pi-search:focus { border-color: rgba(0,0,0,.25); }
+.pi-count { font-size: 12px; color: #aeaeb2; white-space: nowrap; }
+.pi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.pi-card { background: #fff; border: 1px solid rgba(0,0,0,.07); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+.pi-thumb { position: relative; height: 110px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.pi-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pi-emoji { font-size: 40px; line-height: 1; }
+.pi-loading { position: absolute; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; }
+.pi-spinner { width: 22px; height: 22px; border: 2.5px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+.pi-info { padding: 8px 10px 4px; flex: 1; }
+.pi-title { font-size: 12px; font-weight: 600; color: #1d1d1f; line-height: 1.3; margin-bottom: 2px; }
+.pi-cat { font-size: 11px; color: #aeaeb2; }
+.pi-actions { display: flex; gap: 6px; padding: 8px 10px 10px; }
+.pi-upload-btn { flex: 1; text-align: center; padding: 6px 0; background: #1d1d1f; color: #fff; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s; }
+.pi-upload-btn:hover:not(.disabled) { background: #3a3a3c; }
+.pi-upload-btn.disabled { opacity: .5; cursor: not-allowed; }
+.pi-del-btn { padding: 6px 10px; background: rgba(255,59,48,.1); color: #ff3b30; border: none; border-radius: 8px; font-size: 12px; font-family: inherit; cursor: pointer; transition: background .15s; }
+.pi-del-btn:hover { background: rgba(255,59,48,.18); }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>

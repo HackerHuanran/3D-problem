@@ -97,7 +97,7 @@ const NEWS = [
     id: 14, category: '教程指南', hot: false,
     title: 'Klipper 固件入门：从刷机到 Input Shaping 的完整流程',
     summary: '本教程面向有一定动手能力的打印机爱好者，涵盖 Klipper 在 Raspberry Pi 上的安装配置、printer.cfg 基础调试、PID 校准，以及 Input Shaping 共振补偿实测，配合视频演示。',
-    source: '3D打印爱好者社区', date: '2026-04-22', readMin: 15,
+    source: '3D打印爱好者平台', date: '2026-04-22', readMin: 15,
   },
   {
     id: 15, category: '技术前沿', hot: true,

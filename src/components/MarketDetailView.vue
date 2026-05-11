@@ -16,7 +16,7 @@ const { t } = useLocale()
 const props = defineProps({ post: Object, currentUser: Object })
 const emit  = defineEmits(['back', 'open-auth'])
 
-const { comments, interests, likedCommentIds, fetchComments, addComment, fetchInterests, addInterest, checkInterested, acceptAnswer, toggleLike } = useMarketDetail()
+const { comments, likedCommentIds, fetchComments, addComment, acceptAnswer, toggleLike } = useMarketDetail()
 const { submitReport } = useReport()
 
 const REPORT_REASONS = ['色情低俗', '赌博内容', '毒品违禁品', '虚假欺诈', '垃圾广告', '其他违规']
@@ -78,27 +78,6 @@ onMounted(async () => {
 async function handleLike(commentId) {
   if (!props.currentUser) { emit('open-auth', 'login'); return }
   await toggleLike(commentId, props.post.id, props.currentUser.id)
-}
-
-async function submitInterest() {
-  if (!props.currentUser) { emit('open-auth', 'login'); return }
-  if (!interestContact.value.trim()) { interestError.value = '请填写联系方式'; return }
-  interestError.value   = ''
-  interestLoading.value = true
-  try {
-    await addInterest(props.post.id, props.currentUser.id, interestContact.value, {
-      postOwnerId:  props.post.userId,
-      postTitle:    props.post.title,
-      fromUsername: props.currentUser.username,
-    })
-    alreadyInterested.value = true
-    showInterestForm.value  = false
-    interestContact.value   = ''
-  } catch (e) {
-    interestError.value = e.message
-  } finally {
-    interestLoading.value = false
-  }
 }
 
 async function submitComment() {
