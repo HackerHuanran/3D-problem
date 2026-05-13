@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useMarket } from '@/composables/useMarket.js'
+import { useUserGuard } from '@/composables/useUserGuard.js'
 import { uploadImages } from '@/composables/useStorage.js'
 import MarketDetailView from './MarketDetailView.vue'
 import { useLocale } from '@/composables/useLocale.js'
@@ -26,6 +27,7 @@ const CAT_STYLE = {
 }
 
 const { posts, loading, dbError, fetchPosts, createPost, deletePost, incrementViewCount } = useMarket()
+const { ensureUserCanInteract } = useUserGuard()
 
 const activeCategory = ref('全部')
 const showModal      = ref(false)
@@ -89,6 +91,7 @@ async function submit() {
   submitting.value  = true
   submitError.value = ''
   try {
+    await ensureUserCanInteract(props.currentUser.id, '发布需求')
     const { pass, msg } = await checkContent(`${form.value.title}\n${form.value.description}`)
     if (!pass) { submitError.value = msg; return }
 
@@ -278,7 +281,7 @@ function timeAgo(ts) {
 </template>
 
 <style scoped>
-.market-page { min-height: 100vh; background: #f5f5f7; }
+.market-page { min-height: 100vh; background: transparent; }
 
 .hero { padding: 64px 24px 44px; text-align: center; }
 .hero-inner { max-width: 600px; margin: 0 auto; }
@@ -286,16 +289,16 @@ function timeAgo(ts) {
 .h1 { font-size: clamp(32px, 5vw, 52px); font-weight: 700; color: #1d1d1f; line-height: 1.1; letter-spacing: -0.03em; margin-bottom: 16px; }
 .h1 em { font-style: normal; color: #ff6b6b; }
 .desc { font-size: 15px; color: #6e6e73; line-height: 1.6; margin-bottom: 28px; }
-.post-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: #1d1d1f; color: #fff; border: none; border-radius: 100px; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; transition: background 0.15s; }
-.post-btn:hover { background: #3a3a3c; }
+.post-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: linear-gradient(135deg, var(--lab-accent) 0%, var(--lab-accent-2) 100%); color: #fff; border: none; border-radius: 100px; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; transition: filter 0.15s, box-shadow 0.15s; box-shadow: 0 12px 24px rgba(37, 104, 232, 0.18); }
+.post-btn:hover { filter: brightness(1.03); }
 .post-btn.small { padding: 10px 20px; font-size: 14px; }
 
 .bar { border-bottom: 1px solid rgba(0,0,0,0.08); background: rgba(255,255,255,0.6); }
 .bar-inner { max-width: 1200px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .cats { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
-.cat-btn { padding: 6px 14px; border-radius: 100px; border: 1px solid rgba(0,0,0,0.12); background: transparent; color: #6e6e73; font-size: 13px; font-family: inherit; cursor: pointer; transition: all 0.15s; }
-.cat-btn:hover { border-color: rgba(0,0,0,0.22); color: #1d1d1f; }
-.cat-btn.active { background: #1d1d1f; color: #fff; border-color: #1d1d1f; font-weight: 500; }
+.cat-btn { padding: 6px 14px; border-radius: 100px; border: 1px solid var(--lab-line); background: rgba(246, 249, 253, 0.96); color: var(--lab-text-soft); font-size: 13px; font-family: inherit; cursor: pointer; transition: all 0.15s; }
+.cat-btn:hover { border-color: var(--lab-line-strong); color: var(--lab-text); }
+.cat-btn.active { background: linear-gradient(135deg, var(--lab-accent) 0%, var(--lab-accent-2) 100%); color: #fff; border-color: transparent; font-weight: 600; box-shadow: 0 10px 22px rgba(37, 104, 232, 0.16); }
 .result-count { font-size: 12px; color: #aeaeb2; white-space: nowrap; }
 
 /* State boxes */
@@ -311,8 +314,8 @@ function timeAgo(ts) {
 .grid-wrap { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 16px; }
 
-.card { background: #fff; border: 1px solid rgba(0,0,0,0.06); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px; transition: box-shadow 0.2s, transform 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-.card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.1); transform: translateY(-2px); }
+.card { background: var(--lab-surface-strong); border: 1px solid var(--lab-line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px; transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s; box-shadow: var(--lab-shadow-sm); }
+.card:hover { box-shadow: var(--lab-shadow); transform: translateY(-2px); border-color: rgba(37, 104, 232, 0.2); }
 
 .card-top { display: flex; align-items: center; gap: 8px; }
 .badge { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 100px; }
@@ -337,8 +340,8 @@ function timeAgo(ts) {
 .del-btn:hover { color: #ff3b30; background: rgba(255,59,48,0.08); }
 
 /* Modal */
-.modal-mask { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 20px; }
-.modal-box { background: #fff; border: 1px solid rgba(0,0,0,0.1); border-radius: 24px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: 0 16px 48px rgba(0,0,0,0.18); }
+.modal-mask { position: fixed; inset: 0; z-index: 500; background: rgba(12,20,32,0.42); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.modal-box { background: rgba(252, 253, 255, 0.98); border: 1px solid var(--lab-line); border-radius: 24px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: var(--lab-shadow-lg); }
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 22px 24px 0; }
 .modal-head h2 { font-size: 18px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.02em; }
 .close-btn { background: rgba(0,0,0,0.06); border: none; color: #6e6e73; font-size: 13px; cursor: pointer; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
@@ -360,8 +363,8 @@ function timeAgo(ts) {
 .radio-item input:checked + .radio-label { outline: 2px solid rgba(0,0,0,0.3); }
 
 .submit-error { background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.2); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #ff3b30; }
-.submit-btn { width: 100%; padding: 13px; background: #1d1d1f; color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.18s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.submit-btn:hover:not(:disabled) { background: #3a3a3c; }
+.submit-btn { width: 100%; padding: 13px; background: linear-gradient(135deg, var(--lab-accent) 0%, var(--lab-accent-2) 100%); color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.18s; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 12px 24px rgba(37, 104, 232, 0.18); }
+.submit-btn:hover:not(:disabled) { filter: brightness(1.03); }
 .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .submit-btn.loading { background: #aeaeb2; color: #fff; }
 .btn-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }

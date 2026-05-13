@@ -143,5 +143,29 @@ export function useMarket() {
     }
   }
 
-  return { posts, loading, dbError, fetchPosts, fetchMyPosts, createPost, deletePost, updatePostStatus, updatePost, incrementViewCount }
+  const fetchMyPostsCount = async (userId) => {
+    try {
+      const { total } = await db.collection('market_posts')
+        .where({ user_id: userId })
+        .count()
+      return total || 0
+    } catch (e) {
+      dbError.value = e.message
+      return 0
+    }
+  }
+
+  return {
+    posts,
+    loading,
+    dbError,
+    fetchPosts,
+    fetchMyPosts,
+    fetchMyPostsCount,
+    createPost,
+    deletePost,
+    updatePostStatus,
+    updatePost,
+    incrementViewCount,
+  }
 }

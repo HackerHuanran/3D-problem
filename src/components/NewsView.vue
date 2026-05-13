@@ -143,9 +143,9 @@ const catLabel = (c) => {
 
 function timeAgo(dateStr) {
   const days = Math.floor((Date.now() - new Date(dateStr)) / 86400000)
-  if (days === 0) return '今天'
-  if (days === 1) return '昨天'
-  if (days < 30) return `${days} 天前`
+  if (days === 0) return t('time.today')
+  if (days === 1) return t('time.yesterday')
+  if (days < 30) return t('time.dayAgo', { n: days })
   return dateStr
 }
 </script>

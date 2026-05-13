@@ -2,6 +2,9 @@ import { ref } from 'vue'
 import { db } from '@/lib/tcb.js'
 
 const lsKey = (uid) => `fav_${uid}`
+const favorites = ref(new Set())
+let fetchedUserId = null
+let fetchPromise = null
 
 const saveLocal = (uid, set) => {
   try { localStorage.setItem(lsKey(uid), JSON.stringify([...set])) } catch {}
@@ -11,24 +14,33 @@ const loadLocal = (uid) => {
 }
 
 export function useFavorites() {
-  const favorites = ref(new Set())
-
-  const fetchFavorites = async (userId) => {
+  const fetchFavorites = async (userId, { force = false } = {}) => {
     if (!userId) return
-    // 先从本地缓存恢复，让 UI 即时显示
+    if (!force && fetchedUserId === userId) return favorites.value
+    if (fetchPromise && !force) return fetchPromise
+
     favorites.value = loadLocal(userId)
-    // 再同步数据库
-    try {
-      const { data } = await db.collection('problem_favorites')
-        .where({ user_id: userId })
-        .limit(200)
-        .get()
-      const ids = data.map(r => r.problem_id)
-      favorites.value = new Set(ids)
-      saveLocal(userId, favorites.value)
-    } catch (e) {
-      console.warn('[favorites] fetch failed, using local cache:', e?.message)
-    }
+
+    fetchPromise = (async () => {
+      try {
+        const { data } = await db.collection('problem_favorites')
+          .where({ user_id: userId })
+          .limit(200)
+          .get()
+        const ids = data.map(r => r.problem_id)
+        favorites.value = new Set(ids)
+        saveLocal(userId, favorites.value)
+        fetchedUserId = userId
+        return favorites.value
+      } catch (e) {
+        console.warn('[favorites] fetch failed, using local cache:', e?.message)
+        return favorites.value
+      } finally {
+        fetchPromise = null
+      }
+    })()
+
+    return fetchPromise
   }
 
   const toggleFavorite = async (problemId, userId) => {
@@ -60,5 +72,30 @@ export function useFavorites() {
     }
   }
 
-  return { favorites, fetchFavorites, toggleFavorite }
+  const removeFavorites = async (problemIds, userId) => {
+    if (!userId) return
+    const ids = [...new Set((problemIds || []).filter(Boolean))]
+    if (!ids.length) return
+
+    const next = new Set(favorites.value)
+    ids.forEach((id) => next.delete(id))
+    favorites.value = next
+    saveLocal(userId, next)
+
+    try {
+      await Promise.all(ids.map(async (problemId) => {
+        const { data } = await db.collection('problem_favorites')
+          .where({ user_id: userId, problem_id: problemId })
+          .limit(1)
+          .get()
+        if (data?.length) {
+          await db.collection('problem_favorites').doc(data[0]._id).remove()
+        }
+      }))
+    } catch (e) {
+      console.warn('[favorites] cleanup failed:', e?.message)
+    }
+  }
+
+  return { favorites, fetchFavorites, toggleFavorite, removeFavorites }
 }

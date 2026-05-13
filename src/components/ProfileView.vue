@@ -1,64 +1,227 @@
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import { problems as staticProblems } from '@/data/problems.js'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useFavorites } from '@/composables/useFavorites.js'
 import { useProblemMeta } from '@/composables/useProblemMeta.js'
 import { useUserProblems } from '@/composables/useUserProblems.js'
 import { useMarket } from '@/composables/useMarket.js'
+import { useCommunity } from '@/composables/useCommunity.js'
 import { useAuth } from '@/composables/useAuth.js'
+import { getProblemDetailsBatch } from '@/composables/useProblemLibrary.js'
 import { uploadImages, getImageURLs } from '@/composables/useStorage.js'
 import { app } from '@/lib/tcb.js'
 import { compressImage } from '@/lib/imageUtils.js'
 import { checkContent, checkImage } from '@/lib/moderate.js'
 
-const props = defineProps({ currentUser: { type: Object, required: true } })
-defineEmits(['back', 'go-detail'])
+const props = defineProps({
+  currentUser: { type: Object, required: true },
+  initialTab: { type: String, default: 'fav' },
+})
+const emit = defineEmits(['back', 'go-detail', 'go-submit', 'go-home', 'go-market'])
 
 // ── composables ──
-const { favorites, fetchFavorites } = useFavorites()
+const { favorites, fetchFavorites, removeFavorites } = useFavorites()
 const { metaMap, fetchProblemMeta } = useProblemMeta()
-const { fetchMyProblems, deleteUserProblem, updateUserProblem, fetchUserProblems } = useUserProblems()
-const { posts: myPosts, fetchMyPosts, createPost, deletePost, updatePostStatus, updatePost } = useMarket()
+const { userProblems, fetchMyProblems, fetchMyProblemsCount, deleteUserProblem, updateUserProblem, fetchUserProblems } = useUserProblems()
+const { posts: myPosts, fetchMyPosts, fetchMyPostsCount, createPost, deletePost, updatePostStatus, updatePost } = useMarket()
+const { getUserActivity } = useCommunity()
 const { setupProfile, changePassword } = useAuth()
 
 // ── 全局状态 ──
 const loading     = ref(true)
 const myProblems  = ref([])
-const activeTab   = ref('fav')
+const myProblemCount = ref(0)
+const myPostCount = ref(0)
+const activeTab   = ref(props.initialTab || 'fav')
 const navScrolled = ref(false)
 // subView: 'tabs' | 'edit-problem'
 const subView     = ref('tabs')
+const favoriteProblems = ref([])
+const favoriteQuery = ref('')
+const favoriteCategory = ref('全部')
+const favoritesLoaded = ref(false)
+const submissionsLoaded = ref(false)
+const marketLoaded = ref(false)
+const activityLoaded = ref(false)
+const communityActivity = ref({
+  comments: [],
+  solutions: [],
+  encounters: [],
+  timeline: [],
+  stats: { commentCount: 0, solutionCount: 0, encounterCount: 0, receivedLikes: 0 },
+})
 
 // ── Tab 定义 ──
 const TABS = [
   { id: 'fav',       label: '我的收藏' },
   { id: 'submitted', label: '我的投稿' },
   { id: 'market',    label: '需求发布' },
+  { id: 'achievements', label: '成就中心' },
   { id: 'account',   label: '账号设置' },
 ]
 
-const favProblems = computed(() => staticProblems.filter(p => favorites.value.has(p.id)))
+const favTotal = computed(() => favoriteProblems.value.length)
+const favoriteCategories = computed(() => ['全部', ...new Set(favoriteProblems.value.map(p => p.category).filter(Boolean))])
+const favProblems = computed(() => {
+  const q = favoriteQuery.value.trim().toLowerCase()
+  return favoriteProblems.value.filter((problem) => {
+    if (favoriteCategory.value !== '全部' && problem.category !== favoriteCategory.value) return false
+    if (!q) return true
+    return [
+      problem.title,
+      problem.subtitle,
+      problem.category,
+      problem.description,
+    ].filter(Boolean).some((field) => field.toLowerCase().includes(q))
+  })
+})
+
+const contributionStats = computed(() => ({
+  favorites: favTotal.value,
+  submissions: myProblems.value.length,
+  marketPosts: myPosts.value.length,
+  solutions: communityActivity.value.stats.solutionCount,
+  comments: communityActivity.value.stats.commentCount,
+  encounters: communityActivity.value.stats.encounterCount,
+  receivedLikes: communityActivity.value.stats.receivedLikes,
+  points: props.currentUser.points ?? 0,
+}))
+
+const achievementBadges = computed(() => {
+  const stats = contributionStats.value
+  return [
+    { key: 'first-fav', label: '收藏起步', desc: '收藏 1 个问题', unlocked: stats.favorites >= 1 },
+    { key: 'collector', label: '问题收藏家', desc: '收藏 10 个问题', unlocked: stats.favorites >= 10 },
+    { key: 'contributor', label: '经验投稿者', desc: '投稿 1 个问题', unlocked: stats.submissions >= 1 },
+    { key: 'builder', label: '题库建设者', desc: '投稿 5 个问题', unlocked: stats.submissions >= 5 },
+    { key: 'helper', label: '热心解答者', desc: '发布 3 条社区方案', unlocked: stats.solutions >= 3 },
+    { key: 'speaker', label: '交流达人', desc: '发表评论 5 条', unlocked: stats.comments >= 5 },
+    { key: 'resonance', label: '同路人', desc: '标记“我也遇到过” 5 次', unlocked: stats.encounters >= 5 },
+    { key: 'trusted', label: '被认可', desc: '累计获得 10 个点赞', unlocked: stats.receivedLikes >= 10 },
+  ]
+})
+
+const unlockedBadgeCount = computed(() => achievementBadges.value.filter(b => b.unlocked).length)
+
+const activityTimeline = computed(() =>
+  [...communityActivity.value.timeline].sort((a, b) => b.createdAt - a.createdAt)
+)
+
 const tabCount = (id) => {
-  if (id === 'fav')       return favProblems.value.length
-  if (id === 'submitted') return myProblems.value.length
-  if (id === 'market')    return myPosts.value.length
+  if (id === 'fav')       return favTotal.value
+  if (id === 'submitted') return submissionsLoaded.value ? myProblems.value.length : myProblemCount.value
+  if (id === 'market')    return marketLoaded.value ? myPosts.value.length : myPostCount.value
+  if (id === 'achievements') return unlockedBadgeCount.value
   return 0
+}
+
+watch(() => props.initialTab, (tab) => {
+  if (tab && tab !== activeTab.value) activeTab.value = tab
+})
+
+function openProblemDetail(id) {
+  emit('go-detail', { id, tab: activeTab.value })
 }
 
 // ── 初始化 ──
 const onScroll = () => { navScrolled.value = window.scrollY > 20 }
+
+async function hydrateProblemsByIds(problemIds) {
+  const uniqueIds = [...new Set((problemIds || []).filter(Boolean))]
+  const details = await getProblemDetailsBatch(uniqueIds, { extraItems: userProblems.value })
+  return new Map(details.filter(Boolean).map((problem) => [problem.id, problem]))
+}
+
+async function loadFavoriteProblems() {
+  if (favoritesLoaded.value) return
+  const ids = [...favorites.value]
+  if (!ids.length) {
+    favoriteProblems.value = []
+    favoritesLoaded.value = true
+    return
+  }
+  const details = await getProblemDetailsBatch(ids, { extraItems: userProblems.value })
+  const missingIds = ids.filter((id) => !details.some((problem) => problem.id === id))
+  if (missingIds.length) {
+    await removeFavorites(missingIds, props.currentUser.id)
+  }
+  favoriteProblems.value = details
+    .filter(Boolean)
+    .sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
+  favoritesLoaded.value = true
+}
+
+async function loadCommunityActivity(uid) {
+  if (activityLoaded.value) return
+  const raw = await getUserActivity(uid)
+  const problemMap = await hydrateProblemsByIds([
+    ...raw.comments.map(item => item.problemId),
+    ...raw.solutions.map(item => item.problemId),
+    ...raw.encounters.map(item => item.problemId),
+  ])
+
+  const comments = raw.comments.map((item) => ({ ...item, problem: problemMap.get(item.problemId) || null }))
+  const solutions = raw.solutions.map((item) => ({ ...item, problem: problemMap.get(item.problemId) || null }))
+  const encounters = raw.encounters.map((item) => ({ ...item, problem: problemMap.get(item.problemId) || null }))
+
+  communityActivity.value = {
+    comments,
+    solutions,
+    encounters,
+    stats: raw.stats,
+    timeline: [
+      ...solutions.map(item => ({ ...item, type: 'solution' })),
+      ...comments.map(item => ({ ...item, type: 'comment' })),
+      ...encounters.map(item => ({ ...item, type: 'encounter' })),
+    ],
+  }
+  activityLoaded.value = true
+}
+
+async function loadSubmittedProblems(uid) {
+  if (submissionsLoaded.value) return
+  myProblems.value = await fetchMyProblems(uid)
+  myProblemCount.value = myProblems.value.length
+  submissionsLoaded.value = true
+}
+
+async function loadMarketPosts(uid) {
+  if (marketLoaded.value) return
+  await fetchMyPosts(uid)
+  myPostCount.value = myPosts.value.length
+  marketLoaded.value = true
+}
+
+async function loadInitialProfileData(uid) {
+  await Promise.all([
+    fetchFavorites(uid),
+    fetchUserProblems(),
+    fetchMyProblemsCount(uid).then((count) => { myProblemCount.value = count }),
+    fetchMyPostsCount(uid).then((count) => { myPostCount.value = count }),
+  ])
+  fetchProblemMeta()
+  await loadFavoriteProblems()
+}
+
+async function ensureTabData(tab) {
+  const uid = props.currentUser.id
+  if (tab === 'fav') return loadFavoriteProblems()
+  if (tab === 'submitted') return loadSubmittedProblems(uid)
+  if (tab === 'market') return loadMarketPosts(uid)
+  if (tab === 'achievements') return loadCommunityActivity(uid)
+}
+
 onMounted(async () => {
   window.addEventListener('scroll', onScroll, { passive: true })
   const uid = props.currentUser.id
-  await Promise.all([
-    fetchFavorites(uid),
-    fetchProblemMeta(),
-    fetchMyProblems(uid).then(r => { myProblems.value = r }),
-    fetchMyPosts(uid),
-  ])
+  await loadInitialProfileData(uid)
+  await ensureTabData(activeTab.value)
   loading.value = false
 })
 onUnmounted(() => window.removeEventListener('scroll', onScroll))
+
+watch(activeTab, (tab) => {
+  ensureTabData(tab)
+})
 
 // ════════════════════════════════════════════════════
 // 一、我的投稿（原 MyProblemsView）
@@ -90,6 +253,9 @@ async function handleDeleteProblem(p) {
   try {
     await deleteUserProblem(p.id)
     myProblems.value = myProblems.value.filter(x => x.id !== p.id)
+    myProblemCount.value = Math.max(0, myProblemCount.value - 1)
+    favoriteProblems.value = favoriteProblems.value.filter(x => x.id !== p.problemId && x.id !== p.id)
+    await removeFavorites([p.problemId, p.id], props.currentUser.id)
   } finally { deletingProblem.value = null }
 }
 
@@ -196,7 +362,8 @@ async function saveEditProblem() {
       causes: editForm.causes.filter(c => c.trim()),
       solutions, tips: editForm.tips.trim(), image_url,
     })
-    myProblems.value = await fetchMyProblems(props.currentUser.id)
+    submissionsLoaded.value = false
+    await loadSubmittedProblems(props.currentUser.id)
     fetchUserProblems()
     cancelEditProblem()
   } catch (err) {
@@ -257,7 +424,8 @@ async function submitCreate() {
     const images = createImg.files.value.length ? await uploadImages(createImg.files.value, props.currentUser.id) : []
     await createPost(props.currentUser.id, { ...createForm.value, images })
     clearFiles(createImg); showCreate.value = false
-    await fetchMyPosts(props.currentUser.id)
+    marketLoaded.value = false
+    await loadMarketPosts(props.currentUser.id)
   } catch (e) { createError.value = e.message } finally { creating.value = false }
 }
 
@@ -293,7 +461,8 @@ async function submitEditPost() {
     const images = [...editExistingImgs.value.map(i => i.id), ...newFileIDs]
     await updatePost(editingPost.value.id, { ...editPostForm.value, images })
     clearFiles(editImg); showEdit.value = false
-    await fetchMyPosts(props.currentUser.id)
+    marketLoaded.value = false
+    await loadMarketPosts(props.currentUser.id)
   } catch (e) { editPostError.value = e.message } finally { editingPost_.value = false }
 }
 
@@ -308,7 +477,11 @@ async function toggleStatus(post) {
 async function removePost(post) {
   if (!confirm('确定删除这条需求？')) return
   actionLoading.value[post.id + '_d'] = true
-  try { await deletePost(post.id); await fetchMyPosts(props.currentUser.id) } catch {}
+  try {
+    await deletePost(post.id)
+    marketLoaded.value = false
+    await loadMarketPosts(props.currentUser.id)
+  } catch {}
   finally { delete actionLoading.value[post.id + '_d'] }
 }
 
@@ -518,37 +691,42 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
     <!-- ══════════ 正常 Tabs 视图 ══════════ -->
     <template v-else>
 
-      <!-- 个人信息头 -->
       <header class="profile-header">
         <div class="header-bg"></div>
         <div class="header-content">
           <div class="avatar-circle">{{ currentUser.avatar }}</div>
           <h1 class="profile-username">{{ currentUser.username }}</h1>
+          <p class="profile-subtitle">管理你的收藏、投稿、需求记录和社区互动</p>
           <div class="stats-bar">
             <div class="stat-item">
-              <span class="stat-num">{{ favProblems.length }}</span>
+              <span class="stat-num">{{ contributionStats.favorites }}</span>
               <span class="stat-lbl">收藏</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
-              <span class="stat-num">{{ myProblems.length }}</span>
+              <span class="stat-num">{{ contributionStats.submissions }}</span>
               <span class="stat-lbl">投稿</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
-              <span class="stat-num">{{ myPosts.length }}</span>
+              <span class="stat-num">{{ marketLoaded ? myPosts.length : myPostCount }}</span>
               <span class="stat-lbl">需求</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
-              <span class="stat-num">{{ currentUser.points ?? 0 }}</span>
-              <span class="stat-lbl">积分</span>
+              <span class="stat-num">{{ contributionStats.receivedLikes }}</span>
+              <span class="stat-lbl">获赞</span>
             </div>
+          </div>
+          <div class="profile-summary-strip">
+            <span class="summary-chip">投稿 {{ submissionsLoaded ? myProblems.length : myProblemCount }}</span>
+            <span class="summary-chip">需求 {{ marketLoaded ? myPosts.length : myPostCount }}</span>
+            <span class="summary-chip">评论 {{ contributionStats.comments }}</span>
+            <span class="summary-chip">方案 {{ contributionStats.solutions }}</span>
           </div>
         </div>
       </header>
 
-      <!-- Tab 导航 -->
       <div class="ptabs">
         <button v-for="tab in TABS" :key="tab.id" :class="['ptab', { active: activeTab === tab.id }]" @click="activeTab = tab.id">
           {{ tab.label }}
@@ -556,42 +734,75 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
         </button>
       </div>
 
-      <!-- Loading -->
       <div v-if="loading" class="state-box">
         <div class="spinner"></div>
         <span>加载中…</span>
       </div>
 
       <template v-else>
-
-        <!-- ── 我的收藏 ── -->
         <div v-if="activeTab === 'fav'" class="tab-body">
-          <div v-if="favProblems.length === 0" class="empty">
+          <div class="tab-header-row">
+            <div>
+              <span class="tab-header-title">我的收藏</span>
+              <span class="tab-header-sub block">支持按分类和关键词快速找回</span>
+            </div>
+          </div>
+          <div v-if="favTotal > 0" class="fav-toolbar">
+            <div class="fav-search">
+              <input v-model="favoriteQuery" placeholder="搜索收藏的问题标题、描述或分类" />
+            </div>
+            <div class="fav-filters">
+              <button
+                v-for="cat in favoriteCategories"
+                :key="cat"
+                :class="['fav-filter-chip', { active: favoriteCategory === cat }]"
+                @click="favoriteCategory = cat"
+              >{{ cat }}</button>
+            </div>
+          </div>
+          <div v-if="favTotal === 0" class="empty">
             <span class="empty-icon">🔖</span>
             <p class="empty-title">还没有收藏</p>
-            <p class="empty-sub">在故障库中点击 ♥ 收藏感兴趣的问题</p>
+            <p class="empty-sub">把常见故障先收藏起来，之后排查会快很多。</p>
+            <div class="empty-actions">
+              <button class="empty-btn primary" @click="emit('go-home')">去问题库看看</button>
+            </div>
+          </div>
+          <div v-else-if="favProblems.length === 0" class="empty compact-empty">
+            <span class="empty-icon">🧭</span>
+            <p class="empty-title">当前筛选下没有结果</p>
+            <p class="empty-sub">试试清空搜索词，或者切换别的分类。</p>
           </div>
           <div v-else class="fav-grid">
-            <div v-for="p in favProblems" :key="p.id" class="fav-card" :style="{ '--c': p.color }" @click="$emit('go-detail', p.id)">
+            <div v-for="p in favProblems" :key="p.id" class="fav-card" :style="{ '--c': p.color }" @click="openProblemDetail(p.id)">
               <div class="fav-img" :style="{ background: p.bgGradient }">
-                <img v-if="metaMap[p.id]?.image_url" :src="metaMap[p.id].image_url" :alt="p.title" loading="lazy" />
+                <img v-if="metaMap[p.id]?.image_url || p.image_url" :src="metaMap[p.id]?.image_url || p.image_url" :alt="p.title" loading="lazy" />
                 <span v-else class="fav-emoji">{{ p.emoji }}</span>
               </div>
               <div class="fav-body">
                 <span class="fav-cat" :style="{ color: p.color }">{{ p.category }}</span>
                 <p class="fav-title">{{ p.title }}</p>
+                <p class="fav-sub">{{ p.subtitle }}</p>
                 <span class="fav-diff" :class="'diff-' + p.difficulty">{{ p.difficulty }}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- ── 我的投稿 ── -->
         <div v-else-if="activeTab === 'submitted'" class="tab-body">
+          <div class="tab-header-row">
+            <div>
+              <span class="tab-header-title">我的投稿</span>
+              <span class="tab-header-sub block">你贡献的问题会同步进入公开问题库</span>
+            </div>
+          </div>
           <div v-if="myProblems.length === 0" class="empty">
             <span class="empty-icon">📝</span>
             <p class="empty-title">还没有投稿</p>
-            <p class="empty-sub">在首页点击「提交打印问题」来发布</p>
+            <p class="empty-sub">把自己踩过的坑写下来，后来的人会很感谢你。</p>
+            <div class="empty-actions">
+              <button class="empty-btn primary" @click="emit('go-submit')">去提交问题</button>
+            </div>
           </div>
           <div v-else class="problem-list">
             <div v-for="p in myProblems" :key="p.id" class="problem-item">
@@ -600,10 +811,11 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
                 <img v-if="p.image_url" :src="p.image_url" class="item-img" alt="" />
                 <span v-else class="item-emoji">{{ catMeta(p.category).emoji }}</span>
               </div>
-              <div class="item-body">
+              <div class="item-body item-link" @click="openProblemDetail(p.id)">
                 <div class="item-meta">
                   <span class="item-cat" :style="{ color: catMeta(p.category).color }">{{ p.category }}</span>
                   <span class="item-diff" :style="{ background: DIFF_BG[p.difficulty], color: DIFF_COLOR[p.difficulty] }">{{ p.difficulty }}</span>
+                  <span class="item-status published">已进入题库</span>
                 </div>
                 <h3 class="item-title">{{ p.title }}</h3>
                 <p class="item-sub">{{ p.subtitle }}</p>
@@ -623,10 +835,12 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
           </div>
         </div>
 
-        <!-- ── 求助帖 ── -->
         <div v-else-if="activeTab === 'market'" class="tab-body">
           <div class="tab-header-row">
-            <span class="tab-header-title">我的需求</span>
+            <div>
+              <span class="tab-header-title">我的需求</span>
+              <span class="tab-header-sub block">管理你发布的求助、代打和求购信息</span>
+            </div>
             <button class="create-btn" @click="openCreate">
               <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
               发布需求
@@ -635,7 +849,11 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
           <div v-if="myPosts.length === 0" class="empty" style="padding-top:40px">
             <span class="empty-icon">🛒</span>
             <p class="empty-title">还没有需求记录</p>
-            <p class="empty-sub">发布你的打印需求或技术问题</p>
+            <p class="empty-sub">发布你的打印需求、技术求助或耗材求购信息。</p>
+            <div class="empty-actions">
+              <button class="empty-btn primary" @click="openCreate">立即发布需求</button>
+              <button class="empty-btn" @click="emit('go-market')">去需求市场看看</button>
+            </div>
           </div>
           <div v-else class="post-list">
             <div v-for="post in myPosts" :key="post.id" class="post-row">
@@ -646,6 +864,11 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
               </div>
               <h3 class="row-title">{{ post.title }}</h3>
               <p class="row-desc">{{ post.description }}</p>
+              <div class="market-metrics">
+                <span class="metric-chip">浏览 {{ post.viewCount || 0 }}</span>
+                <span class="metric-chip">意向 {{ post.interestCount || 0 }}</span>
+                <span v-if="post.budget" class="metric-chip">预算 {{ post.budget }}</span>
+              </div>
               <div class="row-actions">
                 <button class="act-btn edit" @click="openEditPost(post)">编辑</button>
                 <button class="act-btn" :disabled="actionLoading[post.id + '_s']" @click="toggleStatus(post)">
@@ -657,11 +880,65 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
           </div>
         </div>
 
-        <!-- ── 账号设置 ── -->
-        <div v-else-if="activeTab === 'account'" class="tab-body account-tab">
+        <div v-else-if="activeTab === 'achievements'" class="tab-body achievements-tab">
+          <section class="achievement-section">
+            <div class="tab-header-row compact">
+              <span class="tab-header-title">徽章进度</span>
+              <span class="tab-header-sub">{{ unlockedBadgeCount }}/{{ achievementBadges.length }} 已解锁</span>
+            </div>
+            <div class="badge-grid">
+              <div v-for="badge in achievementBadges" :key="badge.key" :class="['badge-card', { unlocked: badge.unlocked }]">
+                <span class="badge-card-mark">{{ badge.unlocked ? '✓' : '•' }}</span>
+                <div class="badge-card-title">{{ badge.label }}</div>
+                <div class="badge-card-desc">{{ badge.desc }}</div>
+              </div>
+            </div>
+          </section>
 
+          <section class="achievement-section">
+            <div class="tab-header-row compact">
+              <span class="tab-header-title">我的互动</span>
+              <span class="tab-header-sub">评论、方案和“我也遇到过”都会沉淀在这里</span>
+            </div>
+            <div v-if="activityTimeline.length === 0" class="empty compact-empty">
+              <span class="empty-icon">🌱</span>
+              <p class="empty-title">还没有互动记录</p>
+              <p class="empty-sub">去问题详情页评论、补方案，或者点一下“我也遇到过”。</p>
+            </div>
+            <div v-else class="activity-list">
+              <div v-for="item in activityTimeline" :key="item.type + item.id" class="activity-item">
+                <div class="activity-dot" :class="item.type"></div>
+                <div class="activity-body">
+                  <div class="activity-top">
+                    <span class="activity-type">{{ item.type === 'solution' ? '发布方案' : item.type === 'comment' ? '发表评论' : '标记遇到过' }}</span>
+                    <span class="activity-time">{{ timeAgo(item.createdAt) }}</span>
+                  </div>
+                  <div v-if="item.problem" class="activity-problem" @click="openProblemDetail(item.problem.id)">
+                    {{ item.problem.title }}
+                  </div>
+                  <p v-if="item.type === 'solution'" class="activity-text">{{ item.title }}</p>
+                  <p v-else-if="item.type === 'comment'" class="activity-text">{{ item.content }}</p>
+                  <p v-else class="activity-text">这个问题我也遇到过，留下了一次有效反馈。</p>
+                  <div v-if="item.likes?.length" class="activity-like">获得 {{ item.likes.length }} 个赞</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div v-else-if="activeTab === 'account'" class="tab-body account-tab">
           <div class="account-section">
-            <h3 class="account-title">修改用户名</h3>
+            <div class="account-section-head">
+              <h3 class="account-title">基本信息</h3>
+              <p class="account-sub">调整你在社区里显示的用户名和当前身份信息</p>
+            </div>
+            <div class="account-summary-card">
+              <div class="account-summary-avatar">{{ currentUser.avatar }}</div>
+              <div class="account-summary-main">
+                <div class="account-summary-name">{{ currentUser.username }}</div>
+                <div class="account-summary-meta">积分 {{ contributionStats.points }}</div>
+              </div>
+            </div>
             <div class="account-field">
               <label>用户名</label>
               <input v-model="usernameForm.username" placeholder="输入新用户名" maxlength="20" @keyup.enter="submitUsername" />
@@ -675,7 +952,10 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
           </div>
 
           <div class="account-section">
-            <h3 class="account-title">修改密码</h3>
+            <div class="account-section-head">
+              <h3 class="account-title">安全设置</h3>
+              <p class="account-sub">更新密码，保护你的投稿、收藏和需求记录</p>
+            </div>
             <div class="account-field">
               <label>原密码</label>
               <input v-model="pwdForm.oldPassword" type="password" placeholder="输入原密码" @keyup.enter="submitPwd" />
@@ -695,9 +975,7 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
               {{ pwdLoading ? '修改中…' : '修改密码' }}
             </button>
           </div>
-
         </div>
-
       </template>
     </template>
 
@@ -768,64 +1046,201 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
 </template>
 
 <style scoped>
-.profile-page { min-height: 100vh; background: #f5f5f7; color: #1d1d1f; font-family: -apple-system,'PingFang SC','Helvetica Neue',sans-serif; padding-bottom: 80px; }
+.profile-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(37, 104, 232, 0.12), transparent 24%),
+    linear-gradient(180deg, #f7fbfd 0%, #eef4f8 42%, #f8fbfd 100%);
+  color: var(--lab-text);
+  font-family: -apple-system, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+  padding-bottom: 80px;
+}
 
 /* ── 顶部导航 ── */
-.pnav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 12px 20px; display: flex; align-items: center; gap: 12px; transition: background 0.3s, backdrop-filter 0.3s; }
-.pnav.scrolled { background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid rgba(0,0,0,0.08); }
-.back-btn { display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.28); backdrop-filter: blur(12px); border: none; color: #fff; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; padding: 6px 14px; border-radius: 100px; transition: background 0.18s, color 0.3s; flex-shrink: 0; }
-.pnav.scrolled .back-btn { background: transparent; color: #007aff; }
-.back-btn:hover { background: rgba(0,0,0,0.42); }
-.pnav.scrolled .back-btn:hover { background: rgba(0,122,255,0.08); }
-.pnav-title { font-size: 15px; font-weight: 600; color: #1d1d1f; }
+.pnav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: background 0.28s, backdrop-filter 0.28s, border-color 0.28s, box-shadow 0.28s;
+}
+.pnav.scrolled {
+  background: rgba(247, 251, 253, 0.86);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(57, 86, 120, 0.12);
+  box-shadow: 0 10px 30px rgba(15, 31, 56, 0.06);
+}
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(10, 20, 36, 0.28);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 8px 16px;
+  border-radius: 999px;
+  transition: background 0.18s, color 0.18s, border-color 0.18s, transform 0.18s;
+  flex-shrink: 0;
+}
+.pnav.scrolled .back-btn {
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--lab-text);
+  border-color: rgba(57, 86, 120, 0.14);
+}
+.back-btn:hover { background: rgba(10, 20, 36, 0.42); transform: translateY(-1px); }
+.pnav.scrolled .back-btn:hover { color: var(--lab-accent); border-color: rgba(37, 104, 232, 0.2); }
+.pnav-title { font-size: 15px; font-weight: 700; color: var(--lab-text); }
 .pnav:not(.scrolled) .pnav-title { color: rgba(255,255,255,0.9); }
 
 /* ── 个人信息头 ── */
-.profile-header { position: relative; background: linear-gradient(160deg,#1d1d1f 0%,#2d2d2f 60%,#3a3a3c 100%); padding: 72px 24px 36px; overflow: hidden; }
-.header-bg { position: absolute; inset: 0; background: radial-gradient(ellipse at 60% 0%,rgba(255,107,107,.18) 0%,transparent 60%), radial-gradient(ellipse at 0% 80%,rgba(116,185,255,.12) 0%,transparent 50%); pointer-events: none; }
+.profile-header {
+  position: relative;
+  background: linear-gradient(145deg, #0d1626 0%, #13233a 58%, #17324c 100%);
+  padding: 86px 24px 42px;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.header-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(37, 104, 232, 0.34), transparent 24%),
+    radial-gradient(circle at 82% 12%, rgba(23, 181, 212, 0.22), transparent 18%),
+    linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+  background-size: auto, auto, 28px 28px, 28px 28px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.72));
+  pointer-events: none;
+}
 .header-content { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
-.avatar-circle { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg,#ff6b6b,#ffb347); color: #fff; font-size: 28px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(0,0,0,.3); border: 3px solid rgba(255,255,255,.2); }
-.profile-username { font-size: 22px; font-weight: 700; color: #fff; letter-spacing: -0.02em; }
-.stats-bar { display: flex; align-items: center; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 12px 20px; gap: 20px; margin-top: 4px; }
+.avatar-circle {
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2568e8, #17b5d4);
+  color: #fff;
+  font-size: 30px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 18px 40px rgba(9, 20, 38, 0.34);
+  border: 3px solid rgba(255,255,255,.14);
+}
+.profile-username { font-size: 24px; font-weight: 750; color: #fff; letter-spacing: -0.03em; margin: 0; }
+.profile-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(234, 242, 255, 0.68);
+  letter-spacing: 0.02em;
+}
+.stats-bar {
+  display: flex;
+  align-items: center;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 20px;
+  padding: 14px 22px;
+  gap: 20px;
+  margin-top: 6px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
 .stat-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .stat-num { font-size: 20px; font-weight: 700; color: #fff; line-height: 1; }
-.stat-lbl { font-size: 11px; color: rgba(255,255,255,.55); letter-spacing: .04em; }
+.stat-lbl { font-size: 11px; color: rgba(255,255,255,.6); letter-spacing: .06em; }
 .stat-divider { width: 1px; height: 28px; background: rgba(255,255,255,.15); }
+.profile-summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.summary-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(246, 250, 255, 0.86);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
 
 /* ── Tab 导航 ── */
-.ptabs { display: flex; background: #fff; border-bottom: 1px solid rgba(0,0,0,.08); padding: 0 16px; position: sticky; top: 0; z-index: 50; overflow-x: auto; scrollbar-width: none; }
+.ptabs {
+  display: flex;
+  background: rgba(247, 251, 253, 0.9);
+  border-bottom: 1px solid rgba(57, 86, 120, 0.12);
+  padding: 0 16px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  overflow-x: auto;
+  scrollbar-width: none;
+  backdrop-filter: blur(16px);
+}
 .ptabs::-webkit-scrollbar { display: none; }
-.ptab { display: flex; align-items: center; gap: 6px; padding: 14px 12px; background: transparent; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; color: #6e6e73; font-size: 14px; font-weight: 500; font-family: inherit; cursor: pointer; transition: all .18s; white-space: nowrap; flex-shrink: 0; }
-.ptab:hover { color: #1d1d1f; }
-.ptab.active { color: #1d1d1f; border-bottom-color: #1d1d1f; }
-.ptab-badge { background: #ff6b6b; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 100px; min-width: 16px; text-align: center; }
+.ptab { display: flex; align-items: center; gap: 6px; padding: 14px 12px; background: transparent; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--lab-text-soft); font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all .18s; white-space: nowrap; flex-shrink: 0; }
+.ptab:hover { color: var(--lab-text); }
+.ptab.active { color: var(--lab-text); border-bottom-color: var(--lab-accent); }
+.ptab-badge { background: linear-gradient(135deg, var(--lab-accent), var(--lab-accent-2)); color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px; min-width: 16px; text-align: center; box-shadow: 0 8px 18px rgba(37, 104, 232, 0.18); }
 
 /* ── Tab 内容区 ── */
-.tab-body { padding: 20px 20px; max-width: 760px; margin: 0 auto; }
+.tab-body { padding: 22px 20px; max-width: 860px; margin: 0 auto; }
 .tab-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.tab-header-title { font-size: 15px; font-weight: 600; color: #1d1d1f; }
-.create-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #1d1d1f; color: #fff; border: none; border-radius: 100px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; transition: background .15s; }
-.create-btn:hover { background: #3a3a3c; }
+.tab-header-row.compact { margin-bottom: 12px; }
+.tab-header-title { font-size: 16px; font-weight: 700; color: var(--lab-text); }
+.tab-header-sub { font-size: 12px; color: var(--lab-text-dim); }
+.tab-header-sub.block { display: block; margin-top: 4px; }
+.create-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; background: linear-gradient(135deg, var(--lab-accent), var(--lab-accent-2)); color: #fff; border: none; border-radius: 999px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; transition: transform .15s, box-shadow .15s; box-shadow: 0 12px 24px rgba(37, 104, 232, 0.18); }
+.create-btn:hover { transform: translateY(-1px); box-shadow: 0 14px 28px rgba(37, 104, 232, 0.24); }
 
 /* Loading & Empty */
-.state-box { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 80px 0; color: #aeaeb2; font-size: 14px; }
-.spinner { width: 24px; height: 24px; border: 2px solid rgba(0,0,0,.08); border-top-color: #6e6e73; border-radius: 50%; animation: spin .75s linear infinite; }
+.state-box { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 80px 0; color: var(--lab-text-dim); font-size: 14px; }
+.spinner { width: 24px; height: 24px; border: 2px solid rgba(57, 86, 120, 0.12); border-top-color: var(--lab-accent); border-radius: 50%; animation: spin .75s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 60px 20px; gap: 8px; }
 .empty-icon { font-size: 40px; opacity: .5; }
-.empty-title { font-size: 16px; font-weight: 600; color: #1d1d1f; }
-.empty-sub { font-size: 13px; color: #aeaeb2; line-height: 1.6; }
+.empty-title { font-size: 16px; font-weight: 700; color: var(--lab-text); }
+.empty-sub { font-size: 13px; color: var(--lab-text-dim); line-height: 1.6; }
+.compact-empty { padding: 36px 20px; }
+.empty-actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; justify-content: center; }
+.empty-btn { padding: 9px 14px; border-radius: 999px; border: 1px solid rgba(57, 86, 120, 0.12); background: #fff; color: var(--lab-text); font-size: 13px; font-family: inherit; cursor: pointer; }
+.empty-btn.primary { background: linear-gradient(135deg, var(--lab-accent), var(--lab-accent-2)); color: #fff; border-color: transparent; }
+
+.fav-toolbar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.fav-search input { width: 100%; background: rgba(255, 255, 255, 0.92); border: 1px solid rgba(57, 86, 120, 0.1); border-radius: 14px; padding: 11px 14px; color: var(--lab-text); font-size: 14px; font-family: inherit; outline: none; }
+.fav-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.fav-filter-chip { padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(57, 86, 120, 0.1); background: #fff; color: var(--lab-text-soft); font-size: 12px; font-family: inherit; cursor: pointer; }
+.fav-filter-chip.active { background: linear-gradient(135deg, var(--lab-accent), var(--lab-accent-2)); color: #fff; border-color: transparent; }
 
 /* ── 收藏网格 ── */
 .fav-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(155px,1fr)); gap: 12px; }
-.fav-card { background: #fff; border-radius: 16px; overflow: hidden; cursor: pointer; border: 1px solid rgba(0,0,0,.06); box-shadow: 0 2px 8px rgba(0,0,0,.06); transition: transform .25s cubic-bezier(.34,1.56,.64,1),box-shadow .25s; }
-.fav-card:hover { transform: translateY(-4px); box-shadow: 0 10px 32px rgba(0,0,0,.12); }
+.fav-card { background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(249,252,255,0.96)); border-radius: 18px; overflow: hidden; cursor: pointer; border: 1px solid rgba(57, 86, 120, 0.08); box-shadow: 0 8px 24px rgba(15, 31, 56, 0.05); transition: transform .25s cubic-bezier(.34,1.56,.64,1),box-shadow .25s,border-color .25s; }
+.fav-card:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(15, 31, 56, 0.1); border-color: color-mix(in srgb, var(--c) 20%, rgba(57, 86, 120, 0.08)); }
 .fav-img { height: 120px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .fav-img img { width: 100%; height: 100%; object-fit: cover; }
 .fav-emoji { font-size: 44px; }
 .fav-body { padding: 12px 14px 14px; }
 .fav-cat { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; display: block; margin-bottom: 4px; }
-.fav-title { font-size: 13px; font-weight: 600; color: #1d1d1f; line-height: 1.35; margin: 0 0 6px; }
+.fav-title { font-size: 13px; font-weight: 700; color: var(--lab-text); line-height: 1.4; margin: 0 0 6px; }
+.fav-sub { font-size: 12px; color: var(--lab-text-soft); line-height: 1.55; margin: 0 0 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .fav-diff { font-size: 10px; padding: 2px 7px; border-radius: 100px; font-weight: 600; }
 .diff-新手   { background: rgba(110,110,115,.1);  color: #6e6e73; }
 .diff-紧急   { background: rgba(224,49,49,.1);    color: #e03131; }
@@ -834,45 +1249,84 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
 
 /* ── 我的投稿列表 ── */
 .problem-list { display: flex; flex-direction: column; gap: 10px; }
-.problem-item { background: #fff; border-radius: 18px; overflow: hidden; border: 1px solid rgba(0,0,0,.06); box-shadow: 0 2px 8px rgba(0,0,0,.05); display: flex; align-items: stretch; }
+.problem-item { background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(249,252,255,0.96)); border-radius: 20px; overflow: hidden; border: 1px solid rgba(57, 86, 120, 0.08); box-shadow: 0 10px 28px rgba(15, 31, 56, 0.05); display: flex; align-items: stretch; }
 .item-hero { width: 82px; flex-shrink: 0; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .item-glow { position: absolute; width: 70px; height: 70px; border-radius: 50%; opacity: .25; filter: blur(20px); }
 .item-img  { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
 .item-emoji { font-size: 32px; position: relative; z-index: 1; filter: drop-shadow(0 4px 10px rgba(0,0,0,.4)); font-family: "Apple Color Emoji","Segoe UI Emoji",sans-serif; }
 .item-body { flex: 1; padding: 13px 14px; min-width: 0; }
+.item-link { cursor: pointer; }
+.item-link:hover .item-title { color: var(--lab-accent); }
 .item-meta { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
 .item-cat  { font-size: 10px; font-weight: 700; letter-spacing: .06em; }
 .item-diff { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 100px; }
-.item-title { font-size: 14px; font-weight: 600; color: #1d1d1f; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.item-sub  { font-size: 12px; color: #6e6e73; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
-.item-date { font-size: 11px; color: #aeaeb2; }
+.item-status { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 100px; }
+.item-status.published { background: rgba(34,197,94,.12); color: #16a34a; }
+.item-title { font-size: 14px; font-weight: 700; color: var(--lab-text); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-sub  { font-size: 12px; color: var(--lab-text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
+.item-date { font-size: 11px; color: var(--lab-text-dim); }
 .item-actions { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 12px 12px 12px 0; }
 .act-btn { display: flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-family: inherit; font-weight: 500; cursor: pointer; border: none; transition: all .15s; white-space: nowrap; }
-.act-btn.edit { background: rgba(0,122,255,.1); color: #007aff; }
-.act-btn.edit:hover { background: rgba(0,122,255,.18); }
+.act-btn.edit { background: rgba(37, 104, 232, .1); color: var(--lab-accent); }
+.act-btn.edit:hover { background: rgba(37, 104, 232, .18); }
 .act-btn.del  { background: rgba(255,59,48,.08); color: #ff3b30; }
 .act-btn.del:hover:not(:disabled) { background: rgba(255,59,48,.16); }
-.act-btn:not(.edit):not(.del) { background: rgba(0,0,0,.05); color: #6e6e73; }
-.act-btn:not(.edit):not(.del):hover:not(:disabled) { background: rgba(0,0,0,.1); color: #1d1d1f; }
+.act-btn:not(.edit):not(.del) { background: rgba(37, 104, 232, .06); color: var(--lab-text-soft); }
+.act-btn:not(.edit):not(.del):hover:not(:disabled) { background: rgba(37, 104, 232, .1); color: var(--lab-text); }
 .act-btn:disabled { opacity: .4; cursor: not-allowed; }
 
 /* ── 求助帖列表 ── */
 .post-list { display: flex; flex-direction: column; gap: 10px; }
-.post-row { background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 16px; padding: 18px 20px; box-shadow: 0 2px 6px rgba(0,0,0,.05); }
+.post-row { background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(249,252,255,0.96)); border: 1px solid rgba(57, 86, 120, 0.08); border-radius: 18px; padding: 18px 20px; box-shadow: 0 8px 22px rgba(15, 31, 56, 0.04); }
 .row-top  { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .badge { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 100px; }
 .status-tag  { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 100px; }
 .status-open { background: rgba(34,197,94,.12); color: #16a34a; }
 .status-done { background: rgba(107,114,128,.12); color: #6b7280; }
-.row-time  { font-size: 12px; color: #aeaeb2; margin-left: auto; }
-.row-title { font-size: 15px; font-weight: 600; color: #1d1d1f; margin-bottom: 5px; }
-.row-desc  { font-size: 13px; color: #6e6e73; line-height: 1.6; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.row-time  { font-size: 12px; color: var(--lab-text-dim); margin-left: auto; }
+.row-title { font-size: 15px; font-weight: 700; color: var(--lab-text); margin-bottom: 5px; }
+.row-desc  { font-size: 13px; color: var(--lab-text-soft); line-height: 1.65; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.market-metrics { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.metric-chip { font-size: 11px; color: var(--lab-text-soft); background: rgba(37, 104, 232, 0.06); padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(57, 86, 120, 0.08); }
 .row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.achievements-tab { display: flex; flex-direction: column; gap: 18px; }
+.achievement-stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.achievement-stat-box { background: #fff; border-radius: 18px; padding: 18px; border: 1px solid rgba(57, 86, 120, .08); }
+.achievement-stat-num { display: block; font-size: 24px; font-weight: 700; color: var(--lab-text); margin-bottom: 4px; }
+.achievement-stat-label { display: block; font-size: 12px; color: var(--lab-text-dim); }
+.achievement-section { background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(249,252,255,0.96)); border-radius: 20px; padding: 18px; border: 1px solid rgba(57, 86, 120, .08); box-shadow: 0 8px 22px rgba(15, 31, 56, 0.04); }
+.badge-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.badge-card { border-radius: 16px; padding: 16px; background: #f5f8fc; border: 1px solid transparent; }
+.badge-card.unlocked { background: rgba(22,163,74,.08); border-color: rgba(22,163,74,.18); }
+.badge-card-mark { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(37, 104, 232, .08); color: var(--lab-text-soft); font-size: 12px; margin-bottom: 10px; }
+.badge-card.unlocked .badge-card-mark { background: rgba(22,163,74,.16); color: #16a34a; }
+.badge-card-title { font-size: 14px; font-weight: 700; color: var(--lab-text); margin-bottom: 4px; }
+.badge-card-desc { font-size: 12px; color: var(--lab-text-dim); line-height: 1.55; }
+.activity-list { display: flex; flex-direction: column; gap: 12px; }
+.activity-item { display: flex; gap: 12px; }
+.activity-dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 8px; flex-shrink: 0; }
+.activity-dot.solution { background: #16a34a; }
+.activity-dot.comment { background: #0ea5e9; }
+.activity-dot.encounter { background: #f59e0b; }
+.activity-body { flex: 1; min-width: 0; background: rgba(245, 249, 253, 0.96); border: 1px solid rgba(57, 86, 120, 0.06); border-radius: 16px; padding: 13px 14px; }
+.activity-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.activity-type { font-size: 12px; font-weight: 700; color: var(--lab-text); }
+.activity-time { font-size: 11px; color: var(--lab-text-dim); }
+.activity-problem { font-size: 13px; font-weight: 600; color: var(--lab-accent); cursor: pointer; margin-bottom: 6px; }
+.activity-text { font-size: 13px; color: var(--lab-text-soft); line-height: 1.65; margin: 0; }
+.activity-like { margin-top: 8px; font-size: 11px; color: var(--lab-text-dim); }
 
 /* ── 账号设置 ── */
 .account-tab { display: flex; flex-direction: column; gap: 20px; }
 .account-section { background: #fff; border-radius: 16px; padding: 22px 22px 24px; border: 1px solid rgba(0,0,0,.06); box-shadow: 0 2px 6px rgba(0,0,0,.05); display: flex; flex-direction: column; gap: 14px; }
+.account-section-head { display: flex; flex-direction: column; gap: 5px; }
 .account-title { font-size: 15px; font-weight: 600; color: #1d1d1f; margin: 0; }
+.account-sub { font-size: 12px; color: #8d8d92; line-height: 1.6; }
+.account-summary-card { display: flex; align-items: center; gap: 12px; background: #f5f5f7; border-radius: 14px; padding: 12px 14px; }
+.account-summary-avatar { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg,#ff6b6b,#ffb347); color: #fff; font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.account-summary-name { font-size: 14px; font-weight: 600; color: #1d1d1f; }
+.account-summary-meta { font-size: 12px; color: #8d8d92; margin-top: 2px; }
 .account-field { display: flex; flex-direction: column; gap: 6px; }
 .account-field label { font-size: 12px; color: #6e6e73; letter-spacing: .04em; }
 .account-field input { background: #f5f5f7; border: 1px solid rgba(0,0,0,.1); border-radius: 10px; padding: 11px 14px; color: #1d1d1f; font-size: 14px; font-family: inherit; outline: none; transition: border-color .2s; }
@@ -998,6 +1452,8 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
   .fav-grid { grid-template-columns: repeat(2,1fr); gap: 10px; }
   .fav-img { height: 100px; }
   .tab-body { padding: 14px 14px; }
+  .badge-grid { grid-template-columns: 1fr; }
+  .achievement-stats-grid { grid-template-columns: 1fr 1fr; }
   .hero-content { flex-direction: column; align-items: flex-start; gap: 16px; padding: 64px 20px 28px; }
   .hero-emoji { font-size: 56px; }
   .detail-content { padding: 0 16px 40px; }

@@ -1,6 +1,11 @@
 import { ref } from 'vue'
 import { db } from '@/lib/tcb.js'
 
+const notifications = ref([])
+const unreadCount   = ref(0)
+let fetchedUserId = null
+let fetchPromise = null
+
 export async function createNotification(recipientId, { type, title, body, postId = null }) {
   if (!recipientId) return
   try {
@@ -17,27 +22,37 @@ export async function createNotification(recipientId, { type, title, body, postI
 }
 
 export function useNotifications() {
-  const notifications = ref([])
-  const unreadCount   = ref(0)
-
-  const fetchNotifications = async (userId) => {
+  const fetchNotifications = async (userId, { force = false } = {}) => {
     if (!userId) { notifications.value = []; unreadCount.value = 0; return }
-    try {
-      const { data } = await db.collection('notifications')
-        .where({ user_id: userId })
-        .orderBy('created_at', 'desc')
-        .limit(50)
-        .get()
-      notifications.value = data.map(n => ({
-        id:        n._id,
-        type:      n.type,
-        title:     n.title,
-        body:      n.body,
-        read:      n.read ?? false,
-        createdAt: n.created_at instanceof Date ? n.created_at.getTime() : new Date(n.created_at).getTime(),
-      }))
-      unreadCount.value = notifications.value.filter(n => !n.read).length
-    } catch {}
+    if (!force && fetchedUserId === userId) return notifications.value
+    if (!force && fetchPromise) return fetchPromise
+
+    fetchPromise = (async () => {
+      try {
+        const { data } = await db.collection('notifications')
+          .where({ user_id: userId })
+          .orderBy('created_at', 'desc')
+          .limit(50)
+          .get()
+        notifications.value = data.map(n => ({
+          id:        n._id,
+          type:      n.type,
+          title:     n.title,
+          body:      n.body,
+          read:      n.read ?? false,
+          createdAt: n.created_at instanceof Date ? n.created_at.getTime() : new Date(n.created_at).getTime(),
+        }))
+        unreadCount.value = notifications.value.filter(n => !n.read).length
+        fetchedUserId = userId
+        return notifications.value
+      } catch {
+        return notifications.value
+      } finally {
+        fetchPromise = null
+      }
+    })()
+
+    return fetchPromise
   }
 
   const markAllRead = async () => {

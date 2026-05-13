@@ -5,6 +5,7 @@ import { useMarketDetail } from '@/composables/useMarketDetail.js'
 import { getImageURLs } from '@/composables/useStorage.js'
 import { useLocale } from '@/composables/useLocale.js'
 import { useReport } from '@/composables/useReport.js'
+import { useUserGuard } from '@/composables/useUserGuard.js'
 
 marked.setOptions({ breaks: true, gfm: true })
 const renderMd = (text) => marked.parse(text || '')
@@ -18,8 +19,16 @@ const emit  = defineEmits(['back', 'open-auth'])
 
 const { comments, likedCommentIds, fetchComments, addComment, acceptAnswer, toggleLike } = useMarketDetail()
 const { submitReport } = useReport()
+const { ensureUserCanInteract } = useUserGuard()
 
-const REPORT_REASONS = ['色情低俗', '赌博内容', '毒品违禁品', '虚假欺诈', '垃圾广告', '其他违规']
+const REPORT_REASONS = computed(() => [
+  t('report.porn'),
+  t('report.gambling'),
+  t('report.drugs'),
+  t('report.fraud'),
+  t('report.ad'),
+  t('report.other'),
+])
 const showReportModal  = ref(false)
 const reportReason     = ref('')
 const reportSubmitting = ref(false)
@@ -86,6 +95,7 @@ async function submitComment() {
   commentError.value   = ''
   commentLoading.value = true
   try {
+    await ensureUserCanInteract(props.currentUser.id, '发布回答')
     await addComment(props.post.id, props.currentUser.id, commentText.value, {
       postOwnerId:  props.post.userId,
       postTitle:    props.post.title,
@@ -122,10 +132,10 @@ function closeLightbox() { lightboxUrl.value = '' }
 
 function timeAgo(ts) {
   const s = Math.floor((Date.now() - ts) / 1000)
-  if (s < 60)    return '刚刚'
-  if (s < 3600)  return `${Math.floor(s / 60)} 分钟前`
-  if (s < 86400) return `${Math.floor(s / 3600)} 小时前`
-  return `${Math.floor(s / 86400)} 天前`
+  if (s < 60) return t('time.justNow')
+  if (s < 3600) return t('time.minAgo', { n: Math.floor(s / 60) })
+  if (s < 86400) return t('time.hourAgo', { n: Math.floor(s / 3600) })
+  return t('time.dayAgo', { n: Math.floor(s / 86400) })
 }
 </script>
 
@@ -169,7 +179,7 @@ function timeAgo(ts) {
             <span class="uname">{{ post.username }}</span>
           </div>
           <span class="time">{{ timeAgo(post.createdAt) }}</span>
-          <button v-if="currentUser && !isOwner" class="report-link" @click="showReportModal = true">举报</button>
+          <button v-if="currentUser && !isOwner" class="report-link" @click="showReportModal = true">{{ t('md.report') }}</button>
         </div>
       </div>
 
@@ -179,9 +189,9 @@ function timeAgo(ts) {
 
         <div v-if="props.currentUser" class="comment-box">
           <div class="editor-tabs">
-            <button :class="['editor-tab', { active: commentTab === 'write' }]" @click="commentTab = 'write'">写作</button>
-            <button :class="['editor-tab', { active: commentTab === 'preview' }]" @click="commentTab = 'preview'">预览</button>
-            <span class="md-hint">支持 Markdown</span>
+            <button :class="['editor-tab', { active: commentTab === 'write' }]" @click="commentTab = 'write'">{{ t('md.write') }}</button>
+            <button :class="['editor-tab', { active: commentTab === 'preview' }]" @click="commentTab = 'preview'">{{ t('md.preview') }}</button>
+            <span class="md-hint">{{ t('md.markdown') }}</span>
           </div>
           <textarea
             v-if="commentTab === 'write'"
@@ -192,9 +202,9 @@ function timeAgo(ts) {
             maxlength="2000"
             @keydown.ctrl.enter="submitComment"
           ></textarea>
-          <div v-else class="md-preview" v-html="renderMd(commentText) || '<p class=\'preview-empty\'>暂无内容</p>'"></div>
+          <div v-else class="md-preview" v-html="renderMd(commentText) || `<p class='preview-empty'>${t('md.previewEmpty')}</p>`"></div>
           <div class="comment-footer">
-            <span class="char-hint">{{ commentText.length }}/2000 · Ctrl+Enter 发送</span>
+            <span class="char-hint">{{ commentText.length }}/2000 · Ctrl+Enter</span>
             <button
               class="submit-btn small"
               :disabled="commentLoading || !commentText.trim()"
@@ -216,7 +226,7 @@ function timeAgo(ts) {
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
                 <path d="M2 7l3 3 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              已采纳
+              {{ t('md.accepted') }}
             </div>
             <div class="c-header">
               <div class="avatar sm">{{ c.avatar }}</div>
@@ -227,7 +237,7 @@ function timeAgo(ts) {
                 class="accept-btn"
                 :disabled="acceptLoading"
                 @click="handleAccept(c.id)"
-              >采纳此答案</button>
+              >{{ t('md.acceptAnswer') }}</button>
             </div>
             <div class="c-content md-body" v-html="renderMd(c.content)"></div>
             <div class="c-actions">
@@ -261,21 +271,21 @@ function timeAgo(ts) {
     <div v-if="showReportModal" class="lightbox report-mask" @click.self="showReportModal = false">
       <div class="report-box">
         <div class="report-head">
-          <h3>举报内容</h3>
+          <h3>{{ t('md.reportTitle') }}</h3>
           <button class="close-btn" @click="showReportModal = false">✕</button>
         </div>
-        <p class="report-hint">请选择举报原因：</p>
+        <p class="report-hint">{{ t('md.reportHint') }}</p>
         <div class="reason-list">
           <label v-for="r in REPORT_REASONS" :key="r" class="reason-item">
             <input type="radio" :value="r" v-model="reportReason" />
             <span>{{ r }}</span>
           </label>
         </div>
-        <div v-if="reportDone" class="report-success">举报已提交，我们将尽快处理。</div>
+        <div v-if="reportDone" class="report-success">{{ t('md.reportSuccess') }}</div>
         <div class="report-actions">
-          <button class="cancel-btn" @click="showReportModal = false">取消</button>
+          <button class="cancel-btn" @click="showReportModal = false">{{ t('common.cancel') }}</button>
           <button class="submit-btn" :disabled="!reportReason || reportSubmitting || reportDone" @click="handleReport">
-            {{ reportSubmitting ? '提交中…' : reportDone ? '已举报' : '提交举报' }}
+            {{ reportSubmitting ? t('md.submitting') : reportDone ? t('md.reportSubmitted') : t('md.reportSubmit') }}
           </button>
         </div>
       </div>

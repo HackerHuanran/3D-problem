@@ -1,5 +1,10 @@
 <template>
-  <div class="detail-page" v-if="problem">
+  <div v-if="detailLoading" class="detail-loading">
+    <span class="spinner large"></span>
+    <span>正在加载问题详情…</span>
+  </div>
+
+  <div class="detail-page" v-else-if="problem">
 
     <nav class="back-nav" :class="{ scrolled: navScrolled }">
       <button class="back-btn" @click="$emit('back')">
@@ -63,192 +68,197 @@
     </header>
 
     <div class="detail-content">
+      <div class="detail-layout">
+        <div class="detail-main">
+          <section class="section">
+            <p class="desc-text">{{ problem.description }}</p>
+            <img v-if="metaMap[problem?.id]?.image_url || problem.image_url"
+              :src="metaMap[problem?.id]?.image_url || problem.image_url"
+              class="problem-img" alt="问题图片" loading="lazy" />
+          </section>
 
-      <section class="section">
-        <p class="desc-text">{{ problem.description }}</p>
-        <img v-if="metaMap[problem?.id]?.image_url || problem.image_url"
-          :src="metaMap[problem?.id]?.image_url || problem.image_url"
-          class="problem-img" alt="问题图片" loading="lazy" />
-      </section>
-
-      <section class="section">
-        <h2 class="section-title">
-          <span class="section-icon" :style="{ background: problem.color + '22', color: problem.color }">⚡</span>
-          {{ t('pd.causes') }}
-        </h2>
-        <div class="causes-grid">
-          <div v-for="(cause, i) in problem.causes" :key="i" class="cause-item" :style="{ '--color': problem.color }">
-            <span class="cause-num" :style="{ color: problem.color }">0{{ i + 1 }}</span>
-            <span class="cause-text">{{ cause }}</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="section">
-        <h2 class="section-title">
-          <span class="section-icon" :style="{ background: problem.color + '22', color: problem.color }">🔧</span>
-          {{ t('pd.steps') }}
-          <button class="toggle-all-btn" @click="toggleAll">{{ allExpanded ? t('pd.collapseAll') : t('pd.expandAll') }}</button>
-        </h2>
-        <div class="solutions-list">
-          <div
-            v-for="(sol, i) in problem.solutions" :key="sol.step"
-            class="solution-item" :class="{ expanded: expandedSet.has(i) }"
-            :style="{ '--color': problem.color }" @click="toggleSol(i)"
-          >
-            <div class="sol-head">
-              <span class="sol-step" :style="{ background: problem.color }">{{ sol.step }}</span>
-              <span class="sol-title">{{ sol.title }}</span>
-              <svg class="sol-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </div>
-            <Transition name="expand">
-              <div class="sol-detail" v-if="expandedSet.has(i)">
-                <p>{{ sol.detail }}</p>
-                <img v-if="sol.image_url" :src="sol.image_url" class="sol-img" alt="步骤图片" loading="lazy" />
+          <section class="section">
+            <h2 class="section-title">
+              <span class="section-icon" :style="{ background: problem.color + '22', color: problem.color }">⚡</span>
+              {{ t('pd.causes') }}
+            </h2>
+            <div class="causes-grid">
+              <div v-for="(cause, i) in problem.causes" :key="i" class="cause-item" :style="{ '--color': problem.color }">
+                <span class="cause-num" :style="{ color: problem.color }">0{{ i + 1 }}</span>
+                <span class="cause-text">{{ cause }}</span>
               </div>
-            </Transition>
-          </div>
-        </div>
-      </section>
+            </div>
+          </section>
 
-      <!-- 视频教程 -->
-      <section v-if="problem.video" class="section video-section">
-        <h2 class="section-title">
-          <span class="section-icon" :style="{ background: problem.color + '22', color: problem.color }">▶</span>
-          视频教程
-        </h2>
-        <div class="bili-wrap">
-          <iframe
-            :src="`https://player.bilibili.com/player.html?bvid=${problem.video}&page=1&high_quality=1&danmaku=0&autoplay=0`"
-            class="bili-player"
-            scrolling="no"
-            frameborder="0"
-            allowfullscreen
-          ></iframe>
-        </div>
-      </section>
-
-      <section class="section" :style="{ '--color': problem.color }">
-        <div class="tip-box">
-          <div class="tip-header"><span>💡</span><span class="tip-label">{{ t('pd.tip') }}</span></div>
-          <p class="tip-text">{{ problem.tips }}</p>
-        </div>
-      </section>
-
-      <!-- ── 社区方案 ── -->
-      <section class="section community-section">
-        <h2 class="section-title">
-          <span class="section-icon" style="background:rgba(92,186,122,0.15);color:#5cba7a">🌟</span>
-          {{ t('pd.community') }}
-          <span class="count-badge">{{ solutions.length }}</span>
-        </h2>
-
-        <div v-if="loadingSolutions" class="loading-state">
-          <span class="spinner"></span>{{ t('pd.loadingSol') }}
-        </div>
-        <div v-else>
-          <div v-if="solutions.length > 0" class="community-cards">
-            <div v-for="sol in solutions" :key="sol.id" class="community-card">
-              <div class="card-head">
-                <div class="avatar">{{ sol.avatar }}</div>
-                <div class="card-info">
-                  <span class="card-user">{{ sol.username }}</span>
-                  <span class="card-time">{{ formatTime(sol.createdAt) }}</span>
+          <section class="section">
+            <h2 class="section-title">
+              <span class="section-icon" :style="{ background: problem.color + '22', color: problem.color }">🔧</span>
+              {{ t('pd.steps') }}
+              <button class="toggle-all-btn" @click="toggleAll">{{ allExpanded ? t('pd.collapseAll') : t('pd.expandAll') }}</button>
+            </h2>
+            <div class="solutions-list">
+              <div
+                v-for="(sol, i) in problem.solutions" :key="sol.step"
+                class="solution-item" :class="{ expanded: expandedSet.has(i) }"
+                :style="{ '--color': problem.color }" @click="toggleSol(i)"
+              >
+                <div class="sol-head">
+                  <span class="sol-step" :style="{ background: problem.color }">{{ sol.step }}</span>
+                  <span class="sol-title">{{ sol.title }}</span>
+                  <svg class="sol-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
                 </div>
-                <button class="like-btn" :class="{ liked: sol.likes.includes(currentUser?.id) }" @click="handleSolLike(sol.id, sol.likes)">
-                  👍 {{ sol.likes.length || '' }}
-                </button>
-                <button v-if="currentUser?.id === sol.userId" class="delete-btn" @click="handleDeleteSol(sol.id)">{{ t('pd.delete') }}</button>
-              </div>
-              <div class="card-title">{{ sol.title }}</div>
-              <div class="card-detail">{{ sol.detail }}</div>
-            </div>
-          </div>
-          <div v-else class="community-empty"><span>🔍</span><p>{{ t('pd.noSol') }}</p></div>
-
-          <div v-if="currentUser" class="submit-form">
-            <div class="form-label">{{ t('pd.shareLabel') }}</div>
-            <input v-model="newSolTitle" class="form-input" :placeholder="t('pd.solTitlePh')" maxlength="60" />
-            <textarea v-model="newSolDetail" class="form-textarea" :placeholder="t('pd.solDetailPh')" rows="4" maxlength="500"></textarea>
-            <div class="form-footer">
-              <span class="char-count">{{ newSolDetail.length }}/500</span>
-              <button class="submit-btn" @click="submitSolution" :disabled="submittingSol || !newSolTitle.trim() || !newSolDetail.trim()">
-                <span v-if="submittingSol" class="btn-spinner"></span>
-                {{ submittingSol ? t('pd.publishing') : t('pd.publish') }}
-              </button>
-            </div>
-          </div>
-          <div v-else class="login-prompt" @click="$emit('open-auth', 'login')">
-            <span>💬</span><span>{{ t('pd.loginShare') }}</span><span class="prompt-arrow">→</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── 评论区 ── -->
-      <section class="section community-section">
-        <h2 class="section-title">
-          <span class="section-icon" style="background:rgba(116,185,255,0.15);color:#74b9ff">💬</span>
-          {{ t('pd.discussion') }}
-          <span class="count-badge">{{ comments.length }}</span>
-        </h2>
-
-        <div v-if="currentUser" class="comment-input-wrap">
-          <div class="avatar">{{ currentUser.avatar }}</div>
-          <div class="comment-input-inner">
-            <textarea v-model="newComment" class="comment-textarea" :placeholder="t('pd.cmtPh', { u: currentUser.username })" rows="2" maxlength="300" @keydown.ctrl.enter="submitComment"></textarea>
-            <div class="form-footer">
-              <span class="char-count">{{ t('pd.charHint', { n: newComment.length }) }}</span>
-              <button class="submit-btn" @click="submitComment" :disabled="submittingComment || !newComment.trim()">
-                <span v-if="submittingComment" class="btn-spinner"></span>
-                {{ submittingComment ? t('pd.sending') : t('pd.send') }}
-              </button>
-            </div>
-          </div>
-        </div>
-        <div v-else class="login-prompt" @click="$emit('open-auth', 'login')">
-          <span>✏️</span><span>{{ t('pd.loginComment') }}</span><span class="prompt-arrow">→</span>
-        </div>
-
-        <div v-if="loadingComments" class="loading-state">
-          <span class="spinner"></span>{{ t('pd.loadingCmt') }}
-        </div>
-        <div v-else-if="comments.length > 0" class="comments-list">
-          <div v-for="comment in comments" :key="comment.id" class="comment-item">
-            <div class="avatar">{{ comment.avatar }}</div>
-            <div class="comment-body">
-              <div class="comment-head">
-                <span class="comment-user">{{ comment.username }}</span>
-                <span class="comment-time">{{ formatTime(comment.createdAt) }}</span>
-              </div>
-              <p class="comment-text">{{ comment.content }}</p>
-              <div class="comment-actions">
-                <button class="like-btn small" :class="{ liked: comment.likes.includes(currentUser?.id) }" @click="handleCommentLike(comment.id)">
-                  👍 {{ comment.likes.length > 0 ? comment.likes.length : '' }}
-                </button>
-                <button v-if="currentUser?.id === comment.userId" class="delete-btn" @click="handleDeleteComment(comment.id)">{{ t('pd.delete') }}</button>
+                <Transition name="expand">
+                  <div class="sol-detail" v-if="expandedSet.has(i)">
+                    <p>{{ sol.detail }}</p>
+                    <img v-if="sol.image_url" :src="sol.image_url" class="sol-img" alt="步骤图片" loading="lazy" />
+                  </div>
+                </Transition>
               </div>
             </div>
-          </div>
-        </div>
-        <div v-else-if="currentUser" class="community-empty"><span>💭</span><p>{{ t('pd.noCmt') }}</p></div>
-      </section>
+          </section>
 
-      <!-- 相关问题 -->
-      <section class="section" v-if="relatedProblems.length">
-        <h2 class="section-title">
-          <span class="section-icon" style="background:rgba(255,255,255,0.06);color:#86868b">📎</span>
-          {{ t('pd.related') }}
-        </h2>
-        <div class="related-grid">
-          <div v-for="rel in relatedProblems" :key="rel.id" class="related-card" :style="{ '--color': rel.color }" @click="$emit('go-detail', rel.id)">
-            <span class="related-emoji">{{ rel.emoji }}</span>
-            <div><div class="related-title">{{ rel.title }}</div><div class="related-sub">{{ rel.subtitle }}</div></div>
-            <svg class="related-arrow" width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
+          <!-- ── 社区方案 ── -->
+          <section class="section community-section">
+            <h2 class="section-title">
+              <span class="section-icon" style="background:rgba(92,186,122,0.15);color:#5cba7a">🌟</span>
+              {{ t('pd.community') }}
+              <span class="count-badge">{{ solutions.length }}</span>
+            </h2>
+
+            <div v-if="loadingSolutions" class="loading-state">
+              <span class="spinner"></span>{{ t('pd.loadingSol') }}
+            </div>
+            <div v-else>
+              <div v-if="solutions.length > 0" class="community-cards">
+                <div v-for="sol in solutions" :key="sol.id" class="community-card">
+                  <div class="card-head">
+                    <div class="avatar">{{ sol.avatar }}</div>
+                    <div class="card-info">
+                      <span class="card-user">{{ sol.username }}</span>
+                      <span class="card-time">{{ formatTime(sol.createdAt) }}</span>
+                    </div>
+                    <button class="like-btn" :class="{ liked: sol.likes.includes(currentUser?.id) }" @click="handleSolLike(sol.id, sol.likes)">
+                      👍 {{ sol.likes.length || '' }}
+                    </button>
+                    <button v-if="currentUser?.id === sol.userId" class="delete-btn" @click="handleDeleteSol(sol.id)">{{ t('pd.delete') }}</button>
+                  </div>
+                  <div class="card-title">{{ sol.title }}</div>
+                  <div class="card-detail">{{ sol.detail }}</div>
+                </div>
+              </div>
+              <div v-else class="community-empty"><span>🔍</span><p>{{ t('pd.noSol') }}</p></div>
+
+              <div v-if="currentUser" class="submit-form">
+                <div class="form-label">{{ t('pd.shareLabel') }}</div>
+                <input v-model="newSolTitle" class="form-input" :placeholder="t('pd.solTitlePh')" maxlength="60" />
+                <textarea v-model="newSolDetail" class="form-textarea" :placeholder="t('pd.solDetailPh')" rows="4" maxlength="500"></textarea>
+                <div class="form-footer">
+                  <span class="char-count">{{ newSolDetail.length }}/500</span>
+                  <button class="submit-btn" @click="submitSolution" :disabled="submittingSol || !newSolTitle.trim() || !newSolDetail.trim()">
+                    <span v-if="submittingSol" class="btn-spinner"></span>
+                    {{ submittingSol ? t('pd.publishing') : t('pd.publish') }}
+                  </button>
+                </div>
+              </div>
+              <div v-else class="login-prompt" @click="$emit('open-auth', 'login')">
+                <span>💬</span><span>{{ t('pd.loginShare') }}</span><span class="prompt-arrow">→</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- ── 评论区 ── -->
+          <section class="section community-section">
+            <h2 class="section-title">
+              <span class="section-icon" style="background:rgba(116,185,255,0.15);color:#74b9ff">💬</span>
+              {{ t('pd.discussion') }}
+              <span class="count-badge">{{ comments.length }}</span>
+            </h2>
+
+            <div v-if="currentUser" class="comment-input-wrap">
+              <div class="avatar">{{ currentUser.avatar }}</div>
+              <div class="comment-input-inner">
+                <textarea v-model="newComment" class="comment-textarea" :placeholder="t('pd.cmtPh', { u: currentUser.username })" rows="2" maxlength="300" @keydown.ctrl.enter="submitComment"></textarea>
+                <div class="form-footer">
+                  <span class="char-count">{{ t('pd.charHint', { n: newComment.length }) }}</span>
+                  <button class="submit-btn" @click="submitComment" :disabled="submittingComment || !newComment.trim()">
+                    <span v-if="submittingComment" class="btn-spinner"></span>
+                    {{ submittingComment ? t('pd.sending') : t('pd.send') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div v-else class="login-prompt" @click="$emit('open-auth', 'login')">
+              <span>✏️</span><span>{{ t('pd.loginComment') }}</span><span class="prompt-arrow">→</span>
+            </div>
+
+            <div v-if="loadingComments" class="loading-state">
+              <span class="spinner"></span>{{ t('pd.loadingCmt') }}
+            </div>
+            <div v-else-if="comments.length > 0" class="comments-list">
+              <div v-for="comment in comments" :key="comment.id" class="comment-item">
+                <div class="avatar">{{ comment.avatar }}</div>
+                <div class="comment-body">
+                  <div class="comment-head">
+                    <span class="comment-user">{{ comment.username }}</span>
+                    <span class="comment-time">{{ formatTime(comment.createdAt) }}</span>
+                  </div>
+                  <p class="comment-text">{{ comment.content }}</p>
+                  <div class="comment-actions">
+                    <button class="like-btn small" :class="{ liked: comment.likes.includes(currentUser?.id) }" @click="handleCommentLike(comment.id)">
+                      👍 {{ comment.likes.length > 0 ? comment.likes.length : '' }}
+                    </button>
+                    <button v-if="currentUser?.id === comment.userId" class="delete-btn" @click="handleDeleteComment(comment.id)">{{ t('pd.delete') }}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else-if="currentUser" class="community-empty"><span>💭</span><p>{{ t('pd.noCmt') }}</p></div>
+          </section>
         </div>
-      </section>
+
+        <aside class="detail-side">
+          <!-- 视频教程 -->
+          <section v-if="problem.video" class="section side-section video-section">
+            <h2 class="section-title">
+              <span class="section-icon" :style="{ background: problem.color + '22', color: problem.color }">▶</span>
+              视频教程
+            </h2>
+            <div class="bili-wrap">
+              <iframe
+                :src="`https://player.bilibili.com/player.html?bvid=${problem.video}&page=1&high_quality=1&danmaku=0&autoplay=0`"
+                class="bili-player"
+                scrolling="no"
+                frameborder="0"
+                allowfullscreen
+              ></iframe>
+            </div>
+          </section>
+
+          <section class="section side-section" :style="{ '--color': problem.color }">
+            <div class="tip-box">
+              <div class="tip-header"><span>💡</span><span class="tip-label">{{ t('pd.tip') }}</span></div>
+              <p class="tip-text">{{ problem.tips }}</p>
+            </div>
+          </section>
+
+          <!-- 相关问题 -->
+          <section class="section side-section" v-if="relatedProblems.length">
+            <h2 class="section-title">
+              <span class="section-icon" style="background:rgba(255,255,255,0.06);color:#86868b">📎</span>
+              {{ t('pd.related') }}
+            </h2>
+            <div class="related-grid">
+              <div v-for="rel in relatedProblems" :key="rel.id" class="related-card" :style="{ '--color': rel.color }" @click="$emit('go-detail', rel.id)">
+                <span class="related-emoji">{{ rel.emoji }}</span>
+                <div><div class="related-title">{{ rel.title }}</div><div class="related-sub">{{ rel.subtitle }}</div></div>
+                <svg class="related-arrow" width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
     </div>
 
     <div class="float-back">
@@ -294,7 +304,6 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { problems } from '@/data/problems.js'
 import { useUserProblems } from '@/composables/useUserProblems.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { useCommunity } from '@/composables/useCommunity.js'
@@ -302,6 +311,8 @@ import { useLocale } from '@/composables/useLocale.js'
 import { useReport } from '@/composables/useReport.js'
 import { useFavorites } from '@/composables/useFavorites.js'
 import { useProblemMeta } from '@/composables/useProblemMeta.js'
+import { useUserGuard } from '@/composables/useUserGuard.js'
+import { getProblemDetail, getRelatedProblemSummaries } from '@/composables/useProblemLibrary.js'
 
 const props = defineProps({ problemId: { type: String, required: true } })
 const emit = defineEmits(['back', 'go-detail', 'open-auth'])
@@ -310,15 +321,19 @@ const { currentUser } = useAuth()
 const { userProblems } = useUserProblems()
 const { favorites, fetchFavorites, toggleFavorite } = useFavorites()
 const { metaMap, fetchProblemMeta } = useProblemMeta()
-const { getComments, addComment, deleteComment, toggleCommentLike, getSolutions, addSolution, deleteSolution, toggleSolutionLike, getEncounterData, toggleEncounter } = useCommunity()
+const { getProblemCommunity, getComments, addComment, deleteComment, toggleCommentLike, getSolutions, addSolution, deleteSolution, toggleSolutionLike, toggleEncounter } = useCommunity()
 const { t } = useLocale()
 const { submitReport } = useReport()
+const { ensureUserCanInteract } = useUserGuard()
 
 const REPORT_REASONS = ['色情低俗', '赌博内容', '毒品违禁品', '虚假欺诈', '垃圾广告', '其他违规']
 const showReportModal  = ref(false)
 const reportReason     = ref('')
 const reportSubmitting = ref(false)
 const reportDone       = ref(false)
+const problem = ref(null)
+const detailLoading = ref(true)
+const loadedProblemId = ref(null)
 
 async function handleReport() {
   if (!reportReason.value || reportSubmitting.value || reportDone.value) return
@@ -335,16 +350,15 @@ async function handleReport() {
   }
 }
 
-const problem = computed(() =>
-  problems.find(p => p.id === props.problemId) ||
-  userProblems.value.find(p => p.id === props.problemId)
-)
-
 // ── 步骤展开 ──
 const expandedSet = ref(new Set())
 const initExpanded = () => { if (problem.value) expandedSet.value = new Set(problem.value.solutions.map((_, i) => i)) }
 initExpanded()
-watch(() => props.problemId, () => { initExpanded(); loadData() })
+watch(() => props.problemId, async () => {
+  await loadProblem()
+  initExpanded()
+  loadData()
+})
 const toggleSol = (i) => { const s = new Set(expandedSet.value); s.has(i) ? s.delete(i) : s.add(i); expandedSet.value = s }
 const allExpanded = computed(() => problem.value && expandedSet.value.size === problem.value.solutions.length)
 const toggleAll = () => { allExpanded.value ? (expandedSet.value = new Set()) : (expandedSet.value = new Set(problem.value.solutions.map((_, i) => i))) }
@@ -353,12 +367,6 @@ const toggleAll = () => { allExpanded.value ? (expandedSet.value = new Set()) : 
 const encounterCount   = ref(0)
 const hasEncountered   = ref(false)
 const encounterLoading = ref(false)
-
-const loadEncounter = async () => {
-  const { count, hasEncountered: has } = await getEncounterData(props.problemId, currentUser.value?.id)
-  encounterCount.value = count
-  hasEncountered.value = has
-}
 
 const handleEncounter = async () => {
   if (!currentUser.value) { emit('open-auth', 'login'); return }
@@ -391,17 +399,35 @@ const comments = ref([])
 const solutions = ref([])
 const loadingComments = ref(true)
 const loadingSolutions = ref(true)
+const relatedProblems = ref([])
+
+async function loadProblem() {
+  if (loadedProblemId.value === props.problemId && problem.value) return
+  detailLoading.value = true
+  try {
+    problem.value = await getProblemDetail(props.problemId, { extraItems: userProblems.value })
+    relatedProblems.value = await getRelatedProblemSummaries(props.problemId, { extraItems: userProblems.value, limit: 3 })
+    loadedProblemId.value = props.problemId
+  } finally {
+    detailLoading.value = false
+  }
+}
 
 const loadData = async () => {
   loadingComments.value = true
   loadingSolutions.value = true
-  const [c, s] = await Promise.all([getComments(props.problemId), getSolutions(props.problemId), loadEncounter()])
-  comments.value = c
-  solutions.value = s
+  const community = await getProblemCommunity(props.problemId, currentUser.value?.id)
+  comments.value = community.comments
+  solutions.value = community.solutions
+  encounterCount.value = community.encounter.count
+  hasEncountered.value = community.encounter.hasEncountered
   loadingComments.value = false
   loadingSolutions.value = false
 }
-loadData()
+loadProblem().then(() => {
+  initExpanded()
+  loadData()
+})
 
 // ── 评论 ──
 const newComment = ref('')
@@ -410,21 +436,28 @@ const submitComment = async () => {
   if (!newComment.value.trim() || !currentUser.value) return
   submittingComment.value = true
   try {
-    await addComment(props.problemId, currentUser.value.id, newComment.value)
+    await ensureUserCanInteract(currentUser.value.id, '发表评论')
+    const content = newComment.value.trim()
+    await addComment(props.problemId, currentUser.value.id, content)
     newComment.value = ''
-    comments.value = await getComments(props.problemId)
+    comments.value = await getComments(props.problemId, { force: true })
   } catch (e) { alert(e.message) }
   finally { submittingComment.value = false }
 }
 const handleCommentLike = async (id) => {
   if (!currentUser.value) return
-  await toggleCommentLike(id, currentUser.value.id)
-  comments.value = await getComments(props.problemId)
+  const target = comments.value.find(comment => comment.id === id)
+  if (!target) return
+  const liked = target.likes.includes(currentUser.value.id)
+  target.likes = liked
+    ? target.likes.filter(userId => userId !== currentUser.value.id)
+    : [...target.likes, currentUser.value.id]
+  await toggleCommentLike(id, currentUser.value.id, props.problemId)
 }
 const handleDeleteComment = async (id) => {
   if (!confirm('确定删除这条评论？')) return
-  await deleteComment(id)
-  comments.value = await getComments(props.problemId)
+  await deleteComment(id, props.problemId)
+  comments.value = comments.value.filter(comment => comment.id !== id)
 }
 
 // ── 方案 ──
@@ -435,29 +468,29 @@ const submitSolution = async () => {
   if (!newSolTitle.value.trim() || !newSolDetail.value.trim() || !currentUser.value) return
   submittingSol.value = true
   try {
-    await addSolution(props.problemId, currentUser.value.id, newSolTitle.value, newSolDetail.value)
+    await ensureUserCanInteract(currentUser.value.id, '补充方案')
+    await addSolution(props.problemId, currentUser.value.id, newSolTitle.value.trim(), newSolDetail.value.trim())
     newSolTitle.value = ''
     newSolDetail.value = ''
-    solutions.value = await getSolutions(props.problemId)
+    solutions.value = await getSolutions(props.problemId, { force: true })
   } catch (e) { alert(e.message) }
   finally { submittingSol.value = false }
 }
 const handleSolLike = async (id) => {
   if (!currentUser.value) return
-  await toggleSolutionLike(id, currentUser.value.id)
-  solutions.value = await getSolutions(props.problemId)
+  const target = solutions.value.find(solution => solution.id === id)
+  if (!target) return
+  const liked = target.likes.includes(currentUser.value.id)
+  target.likes = liked
+    ? target.likes.filter(userId => userId !== currentUser.value.id)
+    : [...target.likes, currentUser.value.id]
+  await toggleSolutionLike(id, currentUser.value.id, props.problemId)
 }
 const handleDeleteSol = async (id) => {
   if (!confirm('确定删除这个方案？')) return
-  await deleteSolution(id)
-  solutions.value = await getSolutions(props.problemId)
+  await deleteSolution(id, props.problemId)
+  solutions.value = solutions.value.filter(solution => solution.id !== id)
 }
-
-// ── 相关问题 ──
-const relatedProblems = computed(() => {
-  if (!problem.value) return []
-  return problems.filter(p => p.id !== problem.value.id && p.category === problem.value.category).slice(0, 3)
-})
 
 const formatTime = (ts) => {
   const diff = Date.now() - ts
@@ -508,36 +541,174 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.detail-page { min-height: 100vh; background: #f5f5f7; color: #1d1d1f; font-family: -apple-system,'PingFang SC','Helvetica Neue',sans-serif; padding-bottom: 120px; }
-.back-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 12px 24px; background: transparent; display: flex; align-items: center; justify-content: space-between; transition: background 0.3s, backdrop-filter 0.3s, border-color 0.3s; border-bottom: 1px solid transparent; }
-.back-nav.scrolled { background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); border-bottom-color: rgba(0,0,0,0.08); }
-.back-nav.scrolled .back-btn { background: transparent; color: #007aff; }
-.back-nav.scrolled .back-btn:hover { background: rgba(0,122,255,0.08); }
-.back-nav.scrolled .nav-login-btn { background: transparent; color: #6e6e73; border: 1px solid rgba(0,0,0,0.15); }
-.back-nav.scrolled .nav-user { color: #1d1d1f; }
-.back-btn { display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.28); backdrop-filter: blur(12px); border: none; color: #fff; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; padding: 6px 14px; border-radius: 100px; transition: background 0.18s, color 0.3s; }
-.back-btn:hover { background: rgba(0,0,0,0.42); }
+.detail-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--lab-bg-soft);
+  color: var(--lab-text-soft);
+  font-size: 15px;
+  font-family: -apple-system, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+}
+.detail-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(37, 104, 232, 0.12), transparent 24%),
+    linear-gradient(180deg, #f7fbfd 0%, #eef4f8 42%, #f8fbfd 100%);
+  color: var(--lab-text);
+  font-family: -apple-system, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+  padding-bottom: 120px;
+}
+.back-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 14px 28px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.28s, backdrop-filter 0.28s, border-color 0.28s, box-shadow 0.28s;
+  border-bottom: 1px solid transparent;
+}
+.back-nav.scrolled {
+  background: rgba(247, 251, 253, 0.86);
+  backdrop-filter: blur(18px);
+  border-bottom-color: rgba(57, 86, 120, 0.12);
+  box-shadow: 0 10px 30px rgba(15, 31, 56, 0.06);
+}
+.back-nav.scrolled .back-btn,
+.back-nav.scrolled .nav-login-btn {
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--lab-text);
+  border-color: rgba(57, 86, 120, 0.14);
+}
+.back-nav.scrolled .back-btn:hover,
+.back-nav.scrolled .nav-login-btn:hover {
+  border-color: rgba(37, 104, 232, 0.24);
+  color: var(--lab-accent);
+}
+.back-nav.scrolled .nav-user {
+  color: var(--lab-text);
+}
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(10, 20, 36, 0.28);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 8px 16px;
+  border-radius: 999px;
+  transition: background 0.18s, color 0.18s, border-color 0.18s, transform 0.18s;
+}
+.back-btn:hover {
+  background: rgba(10, 20, 36, 0.42);
+  transform: translateY(-1px);
+}
 .nav-right { display: flex; align-items: center; gap: 8px; }
-.nav-user { display: flex; align-items: center; gap: 8px; font-size: 14px; color: rgba(255,255,255,0.9); }
-.user-avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg,#ff6b6b,#ffb347); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-.nav-login-btn { background: rgba(0,0,0,0.28); backdrop-filter: blur(12px); border: none; color: #fff; padding: 6px 14px; border-radius: 100px; font-size: 13px; cursor: pointer; font-family: inherit; transition: background 0.18s; }
-.nav-login-btn:hover { background: rgba(0,0,0,0.42); }
-.detail-hero { padding-top: 52px; min-height: 280px; position: relative; display: flex; align-items: flex-end; overflow: hidden; }
-.hero-content { width: 100%; max-width: 800px; margin: 0 auto; padding: 48px 24px 36px; display: flex; align-items: flex-end; gap: 28px; position: relative; z-index: 2; }
+.nav-user { display: flex; align-items: center; gap: 8px; font-size: 14px; color: rgba(255,255,255,0.92); }
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2568e8, #17b5d4);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(37, 104, 232, 0.22);
+}
+.nav-login-btn {
+  background: rgba(10, 20, 36, 0.28);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.18s, border-color 0.18s, transform 0.18s;
+}
+.nav-login-btn:hover {
+  background: rgba(10, 20, 36, 0.42);
+  transform: translateY(-1px);
+}
+.detail-hero {
+  padding-top: 58px;
+  min-height: 312px;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+.detail-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(8, 16, 30, 0.08) 0%, rgba(8, 16, 30, 0.42) 100%),
+    linear-gradient(90deg, rgba(8, 16, 30, 0.28) 0%, rgba(8, 16, 30, 0.08) 55%, rgba(8, 16, 30, 0.2) 100%);
+}
+.hero-content {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 56px 32px 40px;
+  display: flex;
+  align-items: flex-end;
+  gap: 28px;
+  position: relative;
+  z-index: 2;
+}
 .hero-emoji { font-size: 80px; line-height: 1; flex-shrink: 0; filter: drop-shadow(0 12px 32px rgba(0,0,0,0.5)); animation: floatIn 0.6s cubic-bezier(0.34,1.56,0.64,1) both; font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif; }
 @keyframes floatIn { from { opacity:0; transform:scale(0.6) rotate(-10deg); } to { opacity:1; transform:scale(1) rotate(0deg); } }
 .hero-glow { position: absolute; width: 200px; height: 200px; border-radius: 50%; opacity: 0.2; filter: blur(60px); left: 24px; bottom: 20px; }
 .hero-meta { flex: 1; min-width: 0; }
-.hero-category { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-bottom: 8px; }
-.hero-title { font-size: clamp(1.8rem,5vw,2.8rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; color: #f5f5f7; margin-bottom: 8px; }
-.hero-subtitle { font-size: 15px; color: rgba(255,255,255,0.6); margin-bottom: 14px; }
+.hero-category {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 10px;
+}
+.hero-title {
+  font-size: clamp(2rem, 4.6vw, 3.2rem);
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  line-height: 1.06;
+  color: #f8fbff;
+  margin-bottom: 10px;
+}
+.hero-subtitle { font-size: 15px; color: rgba(235, 243, 255, 0.72); margin-bottom: 16px; max-width: 720px; }
 .hero-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
-.stat-badge { display: inline-block; font-size: 11px; padding: 4px 10px; border-radius: 100px; letter-spacing: 0.04em; }
-.stat-badge.neutral { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); }
+.stat-badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.stat-badge.neutral { background: rgba(255,255,255,0.14); color: rgba(245, 250, 255, 0.82); }
 .hero-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .encounter-btn {
   display: inline-flex; align-items: center; gap: 7px;
-  background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
   color: rgba(255,255,255,0.85); border-radius: 100px;
   padding: 8px 18px; font-size: 13px; font-weight: 600; font-family: inherit;
   cursor: pointer; transition: all 0.2s; backdrop-filter: blur(8px);
@@ -548,7 +719,7 @@ onUnmounted(() => {
 .encounter-count { background: rgba(255,255,255,0.2); border-radius: 100px; padding: 1px 8px; font-size: 12px; }
 .fav-btn {
   display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
   color: rgba(255,255,255,0.85); border-radius: 100px;
   padding: 8px 18px; font-size: 13px; font-weight: 600; font-family: inherit;
   cursor: pointer; transition: all 0.2s; backdrop-filter: blur(8px);
@@ -560,131 +731,419 @@ onUnmounted(() => {
 .diff-urgent { background:rgba(232,92,92,0.22); color:#ff6b6b; }
 .diff-warn { background:rgba(162,155,254,0.18); color:#a29bfe; }
 .diff-advanced { background:rgba(116,185,255,0.18); color:#74b9ff; }
-.detail-content { max-width: 800px; margin: 0 auto; padding: 0 24px 40px; }
-.section { padding: 36px 0; border-bottom: 1px solid rgba(0,0,0,0.06); }
-.section:last-child { border-bottom: none; }
-.section-title { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 600; margin-bottom: 20px; letter-spacing: -0.01em; color: #1d1d1f; }
-.section-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
-.count-badge { background: rgba(0,0,0,0.06); color: #6e6e73; font-size: 12px; padding: 2px 8px; border-radius: 100px; font-weight: 400; }
-.toggle-all-btn { margin-left: auto; background: transparent; border: 1px solid rgba(0,0,0,0.1); color: #6e6e73; padding: 4px 12px; border-radius: 100px; font-size: 12px; cursor: pointer; font-family: inherit; transition: all 0.18s; }
-.toggle-all-btn:hover { color: #1d1d1f; border-color: rgba(0,0,0,0.22); }
-.desc-text { font-size: 17px; color: #6e6e73; line-height: 1.75; }
-.problem-img { width: 100%; max-height: 320px; object-fit: cover; border-radius: 16px; margin-top: 16px; display: block; }
-.bili-wrap { position: relative; width: 100%; padding-top: 56.25%; border-radius: 16px; overflow: hidden; background: #000; }
-.bili-player { position: absolute; inset: 0; width: 100%; height: 100%; border: none; border-radius: 16px; }
-.sol-img { max-width: 100%; max-height: 220px; object-fit: cover; border-radius: 10px; margin-top: 10px; display: block; }
+.detail-content {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 28px 32px 44px;
+}
+.detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.42fr) minmax(300px, 0.82fr);
+  gap: 22px;
+  align-items: start;
+}
+.detail-main,
+.detail-side {
+  min-width: 0;
+}
+.detail-side {
+  position: sticky;
+  top: 88px;
+}
+.section {
+  padding: 28px;
+  margin-bottom: 18px;
+  border: 1px solid var(--lab-line);
+  border-radius: 24px;
+  background: rgba(255,255,255,0.94);
+  box-shadow: var(--lab-shadow-sm);
+  backdrop-filter: blur(12px);
+}
+.section:last-child { margin-bottom: 0; }
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  letter-spacing: -0.02em;
+  color: var(--lab-text);
+}
+.section-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.count-badge {
+  background: rgba(37, 104, 232, 0.08);
+  color: var(--lab-text-soft);
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+.toggle-all-btn {
+  margin-left: auto;
+  background: rgba(37, 104, 232, 0.06);
+  border: 1px solid rgba(37, 104, 232, 0.14);
+  color: var(--lab-text-soft);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.18s;
+}
+.toggle-all-btn:hover {
+  color: var(--lab-accent);
+  border-color: rgba(37, 104, 232, 0.24);
+  background: rgba(37, 104, 232, 0.1);
+}
+.desc-text { font-size: 16px; color: var(--lab-text-soft); line-height: 1.9; padding: 2px 2px 0; }
+.problem-img,
+.sol-img {
+  width: 100%;
+  object-fit: cover;
+  border-radius: 18px;
+  margin-top: 18px;
+  display: block;
+  border: 1px solid var(--lab-line);
+  background: rgba(255, 255, 255, 0.86);
+  padding: 12px;
+}
+.problem-img { max-height: 360px; }
+.sol-img { max-height: 240px; }
+.bili-wrap {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #09101a;
+  margin-top: 4px;
+  border: 1px solid rgba(57, 86, 120, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+}
+.bili-player { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
 .causes-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 10px; }
-.cause-item { background: #fff; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(0,0,0,0.06); box-shadow: 0 2px 6px rgba(0,0,0,0.05); transition: box-shadow 0.2s; }
-.cause-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.cause-item {
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248, 251, 254, 0.96));
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(57, 86, 120, 0.09);
+  box-shadow: 0 6px 18px rgba(15, 31, 56, 0.04);
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+}
+.cause-item:hover {
+  box-shadow: 0 12px 24px rgba(15, 31, 56, 0.08);
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--color) 20%, rgba(57, 86, 120, 0.09));
+}
 .cause-num { font-size: 12px; font-weight: 700; }
-.cause-text { font-size: 14px; color: #1d1d1f; line-height: 1.4; font-weight: 500; }
+.cause-text { font-size: 14px; color: var(--lab-text); line-height: 1.55; font-weight: 600; }
 .solutions-list { display: flex; flex-direction: column; gap: 8px; }
-.solution-item { background: #fff; border-radius: 16px; overflow: hidden; border: 1px solid rgba(0,0,0,0.06); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.05); transition: box-shadow 0.2s, border-color 0.2s; }
-.solution-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.solution-item {
+  background: #fff;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(57, 86, 120, 0.08);
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(15, 31, 56, 0.04);
+  transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+}
+.solution-item:hover {
+  box-shadow: 0 12px 26px rgba(15, 31, 56, 0.08);
+  transform: translateY(-1px);
+}
 .solution-item.expanded { border-color: color-mix(in srgb, var(--color) 35%, transparent); }
 .sol-head { display: flex; align-items: center; gap: 14px; padding: 16px 18px; }
 .sol-step { width: 26px; height: 26px; border-radius: 50%; font-size: 12px; font-weight: 700; color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.sol-title { flex: 1; font-size: 15px; font-weight: 500; color: #1d1d1f; }
-.sol-arrow { color: #aeaeb2; transition: transform 0.25s, color 0.2s; flex-shrink: 0; }
+.sol-title { flex: 1; font-size: 15px; font-weight: 600; color: var(--lab-text); }
+.sol-arrow { color: var(--lab-text-dim); transition: transform 0.25s, color 0.2s; flex-shrink: 0; }
 .solution-item.expanded .sol-arrow { transform: rotate(180deg); color: var(--color); }
 .sol-detail { padding: 0 18px 18px 58px; }
-.sol-detail p { font-size: 14px; color: #6e6e73; line-height: 1.75; }
+.sol-detail p { font-size: 14px; color: var(--lab-text-soft); line-height: 1.8; }
 .expand-enter-active, .expand-leave-active { transition: all 0.22s ease; overflow: hidden; }
 .expand-enter-from, .expand-leave-to { max-height: 0; opacity: 0; }
 .expand-enter-to, .expand-leave-from { max-height: 400px; opacity: 1; }
-.tip-box { background: color-mix(in srgb, var(--color) 6%, #fff); border: 1px solid color-mix(in srgb, var(--color) 20%, transparent); border-radius: 16px; padding: 20px 22px; }
+.tip-box {
+  background: color-mix(in srgb, var(--color) 7%, #fff);
+  border: 1px solid color-mix(in srgb, var(--color) 22%, transparent);
+  border-radius: 18px;
+  padding: 20px 22px;
+}
 .tip-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .tip-label { font-size: 13px; font-weight: 600; color: var(--color); letter-spacing: 0.04em; }
-.tip-text { font-size: 14px; color: #6e6e73; line-height: 1.75; }
-.loading-state { display: flex; align-items: center; justify-content: center; gap: 10px; color: #aeaeb2; font-size: 14px; padding: 32px 0; }
-.spinner { width: 18px; height: 18px; border: 2px solid rgba(0,0,0,0.08); border-top-color: #6e6e73; border-radius: 50%; animation: spin 0.75s linear infinite; flex-shrink: 0; }
+.tip-text { font-size: 14px; color: var(--lab-text-soft); line-height: 1.8; }
+.loading-state { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--lab-text-dim); font-size: 14px; padding: 32px 0; }
+.spinner { width: 18px; height: 18px; border: 2px solid rgba(57, 86, 120, 0.12); border-top-color: var(--lab-accent); border-radius: 50%; animation: spin 0.75s linear infinite; flex-shrink: 0; }
+.spinner.large { width: 24px; height: 24px; border-width: 2.5px; }
 .btn-spinner { width: 12px; height: 12px; border: 1.5px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg,#ff6b6b,#ffb347); color: #fff; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2568e8, #17b5d4);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 8px 20px rgba(37, 104, 232, 0.16);
+}
 .community-cards { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
-.community-card { background: #fff; border: 1px solid rgba(0,0,0,0.06); border-radius: 16px; padding: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+.community-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250, 252, 255, 0.96));
+  border: 1px solid rgba(57, 86, 120, 0.08);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 8px 22px rgba(15, 31, 56, 0.04);
+}
 .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .card-info { flex: 1; min-width: 0; }
-.card-user { font-size: 13px; font-weight: 600; color: #1d1d1f; display: block; }
-.card-time { font-size: 11px; color: #aeaeb2; }
-.card-title { font-size: 15px; font-weight: 600; color: #1d1d1f; margin-bottom: 8px; }
-.card-detail { font-size: 14px; color: #6e6e73; line-height: 1.7; }
-.like-btn { display: flex; align-items: center; gap: 4px; background: transparent; border: 1px solid rgba(0,0,0,0.1); color: #6e6e73; padding: 5px 10px; border-radius: 100px; font-size: 13px; cursor: pointer; transition: all 0.18s; font-family: inherit; }
-.like-btn:hover { border-color: rgba(0,0,0,0.2); color: #1d1d1f; }
+.card-user { font-size: 13px; font-weight: 600; color: var(--lab-text); display: block; }
+.card-time { font-size: 11px; color: var(--lab-text-dim); }
+.card-title { font-size: 15px; font-weight: 700; color: var(--lab-text); margin-bottom: 8px; }
+.card-detail { font-size: 14px; color: var(--lab-text-soft); line-height: 1.8; }
+.like-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(37, 104, 232, 0.04);
+  border: 1px solid rgba(57, 86, 120, 0.12);
+  color: var(--lab-text-soft);
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.18s;
+  font-family: inherit;
+}
+.like-btn:hover { border-color: rgba(37, 104, 232, 0.24); color: var(--lab-accent); }
 .like-btn.liked { background: rgba(255,214,0,0.12); border-color: rgba(200,160,0,0.3); color: #8c6900; }
 .like-btn.small { padding: 3px 8px; font-size: 12px; }
-.delete-btn { background: transparent; border: none; color: #aeaeb2; font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: color 0.15s; font-family: inherit; }
+.delete-btn { background: transparent; border: none; color: var(--lab-text-dim); font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: color 0.15s; font-family: inherit; }
 .delete-btn:hover { color: #ff3b30; }
-.submit-form { background: #fff; border: 1px solid rgba(0,0,0,0.08); border-radius: 16px; padding: 18px; margin-top: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
-.form-label { font-size: 13px; font-weight: 600; color: #6e6e73; margin-bottom: 12px; letter-spacing: 0.04em; }
-.form-input, .form-textarea, .comment-textarea { width: 100%; background: #f5f5f7; border: 1px solid rgba(0,0,0,0.1); border-radius: 10px; padding: 11px 14px; color: #1d1d1f; font-size: 14px; font-family: inherit; outline: none; resize: vertical; transition: border-color 0.2s; }
-.form-input:focus, .form-textarea:focus, .comment-textarea:focus { border-color: rgba(0,0,0,0.22); }
-.form-input::placeholder, .form-textarea::placeholder, .comment-textarea::placeholder { color: #c7c7cc; }
+.submit-form {
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250, 252, 255, 0.96));
+  border: 1px solid rgba(57, 86, 120, 0.09);
+  border-radius: 18px;
+  padding: 18px;
+  margin-top: 16px;
+  box-shadow: 0 8px 22px rgba(15, 31, 56, 0.04);
+}
+.form-label { font-size: 13px; font-weight: 600; color: var(--lab-text-soft); margin-bottom: 12px; letter-spacing: 0.04em; }
+.form-input, .form-textarea, .comment-textarea {
+  width: 100%;
+  background: rgba(244, 248, 252, 0.96);
+  border: 1px solid rgba(57, 86, 120, 0.12);
+  border-radius: 14px;
+  padding: 12px 14px;
+  color: var(--lab-text);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.form-input:focus, .form-textarea:focus, .comment-textarea:focus {
+  border-color: rgba(37, 104, 232, 0.28);
+  box-shadow: 0 0 0 4px rgba(37, 104, 232, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+}
+.form-input::placeholder, .form-textarea::placeholder, .comment-textarea::placeholder { color: #9aa8bc; }
 .form-input { margin-bottom: 10px; resize: none; }
 .form-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
-.char-count { font-size: 11px; color: #aeaeb2; }
-.submit-btn { background: #1d1d1f; color: #fff; border: none; border-radius: 100px; padding: 8px 20px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.18s; display: inline-flex; align-items: center; gap: 6px; }
-.submit-btn:hover:not(:disabled) { background: #3a3a3c; }
+.char-count { font-size: 11px; color: var(--lab-text-dim); }
+.submit-btn {
+  background: linear-gradient(135deg, var(--lab-accent), var(--lab-accent-2));
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 9px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.18s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 12px 24px rgba(37, 104, 232, 0.18);
+}
+.submit-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(37, 104, 232, 0.24);
+}
 .submit-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-.login-prompt { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px dashed rgba(0,0,0,0.12); border-radius: 14px; padding: 16px 20px; font-size: 14px; color: #6e6e73; cursor: pointer; transition: all 0.2s; margin-top: 12px; }
-.login-prompt:hover { border-color: rgba(0,0,0,0.22); color: #1d1d1f; }
-.prompt-arrow { margin-left: auto; color: #007aff; }
+.login-prompt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px dashed rgba(57, 86, 120, 0.16);
+  border-radius: 16px;
+  padding: 16px 20px;
+  font-size: 14px;
+  color: var(--lab-text-soft);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 12px;
+}
+.login-prompt:hover { border-color: rgba(37, 104, 232, 0.24); color: var(--lab-text); }
+.prompt-arrow { margin-left: auto; color: var(--lab-accent); }
 .comment-input-wrap { display: flex; gap: 12px; margin-bottom: 20px; }
 .comment-input-inner { flex: 1; }
 .comment-textarea { min-height: 70px; }
 .comments-list { display: flex; flex-direction: column; gap: 16px; }
-.comment-item { display: flex; gap: 12px; }
+.comment-item {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(248,250,253,0.94);
+  border: 1px solid rgba(57, 86, 120, 0.06);
+}
 .comment-body { flex: 1; min-width: 0; }
 .comment-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.comment-user { font-size: 13px; font-weight: 600; color: #1d1d1f; }
-.comment-time { font-size: 11px; color: #aeaeb2; }
-.comment-text { font-size: 14px; color: #6e6e73; line-height: 1.65; margin-bottom: 8px; word-break: break-word; }
+.comment-user { font-size: 13px; font-weight: 600; color: var(--lab-text); }
+.comment-time { font-size: 11px; color: var(--lab-text-dim); }
+.comment-text { font-size: 14px; color: var(--lab-text-soft); line-height: 1.72; margin-bottom: 8px; word-break: break-word; }
 .comment-actions { display: flex; align-items: center; gap: 8px; }
-.community-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 32px; color: #aeaeb2; font-size: 14px; text-align: center; }
+.community-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 32px; color: var(--lab-text-dim); font-size: 14px; text-align: center; }
 .community-empty span { font-size: 24px; }
+.side-section {
+  padding: 22px;
+}
+.video-section .section-title,
+.side-section .section-title {
+  font-size: 18px;
+  margin-bottom: 16px;
+}
 .related-grid { display: flex; flex-direction: column; gap: 8px; }
-.related-card { background: #fff; border: 1px solid rgba(0,0,0,0.06); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.05); transition: all 0.2s; }
-.related-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); border-color: color-mix(in srgb, var(--color) 30%, transparent); transform: translateX(4px); }
+.related-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248, 251, 254, 0.96));
+  border: 1px solid rgba(57, 86, 120, 0.08);
+  border-radius: 16px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(15, 31, 56, 0.04);
+  transition: all 0.2s;
+}
+.related-card:hover {
+  box-shadow: 0 12px 28px rgba(15, 31, 56, 0.08);
+  border-color: color-mix(in srgb, var(--color) 30%, rgba(57, 86, 120, 0.08));
+  transform: translateX(4px);
+}
 .related-emoji { font-size: 28px; flex-shrink: 0; font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif; }
-.related-title { font-size: 15px; font-weight: 500; color: #1d1d1f; margin-bottom: 2px; }
-.related-sub { font-size: 12px; color: #aeaeb2; }
-.related-arrow { color: #aeaeb2; flex-shrink: 0; margin-left: auto; transition: color 0.2s, transform 0.2s; }
+.related-title { font-size: 15px; font-weight: 600; color: var(--lab-text); margin-bottom: 2px; }
+.related-sub { font-size: 12px; color: var(--lab-text-dim); }
+.related-arrow { color: var(--lab-text-dim); flex-shrink: 0; margin-left: auto; transition: color 0.2s, transform 0.2s; }
 .related-card:hover .related-arrow { color: var(--color); transform: translateX(2px); }
 .float-back { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); z-index: 80; display: flex; align-items: center; gap: 10px; }
-.float-back-btn { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.92); border: 1px solid rgba(0,0,0,0.12); color: #1d1d1f; padding: 11px 22px; border-radius: 100px; font-size: 14px; font-family: inherit; cursor: pointer; backdrop-filter: blur(16px); box-shadow: 0 4px 16px rgba(0,0,0,0.12); transition: all 0.2s; }
-.float-back-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.16); }
-.float-report-btn { background: rgba(255,255,255,0.7); border: 1px solid rgba(0,0,0,0.1); color: #aeaeb2; font-size: 12px; font-family: inherit; padding: 8px 14px; border-radius: 100px; cursor: pointer; backdrop-filter: blur(16px); transition: all 0.15s; }
+.float-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(57, 86, 120, 0.14);
+  color: var(--lab-text);
+  padding: 11px 22px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 12px 28px rgba(15, 31, 56, 0.12);
+  transition: all 0.2s;
+}
+.float-back-btn:hover { transform: translateY(-2px); box-shadow: 0 16px 34px rgba(15, 31, 56, 0.16); }
+.float-report-btn {
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(57, 86, 120, 0.12);
+  color: var(--lab-text-dim);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  transition: all 0.15s;
+}
 .float-report-btn:hover { color: #ff3b30; border-color: rgba(255,59,48,0.25); }
 
 .report-mask { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.5); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 20px; }
-.report-box  { background: #fff; border-radius: 20px; width: 100%; max-width: 400px; padding: 24px; box-shadow: 0 16px 48px rgba(0,0,0,0.2); }
+.report-box  { background: #fff; border-radius: 24px; width: 100%; max-width: 400px; padding: 24px; box-shadow: 0 24px 56px rgba(0,0,0,0.2); border: 1px solid rgba(57, 86, 120, 0.1); }
 .report-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.report-head h3 { font-size: 16px; font-weight: 700; color: #1d1d1f; }
-.pd-close-btn { background: rgba(0,0,0,0.06); border: none; color: #6e6e73; font-size: 13px; cursor: pointer; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.report-hint { font-size: 13px; color: #6e6e73; margin-bottom: 12px; }
+.report-head h3 { font-size: 16px; font-weight: 700; color: var(--lab-text); }
+.pd-close-btn { background: rgba(37, 104, 232, 0.06); border: none; color: var(--lab-text-soft); font-size: 13px; cursor: pointer; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.report-hint { font-size: 13px; color: var(--lab-text-soft); margin-bottom: 12px; }
 .reason-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
-.reason-item { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #1d1d1f; cursor: pointer; }
-.reason-item input[type=radio] { accent-color: #1d1d1f; width: 16px; height: 16px; cursor: pointer; }
+.reason-item { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--lab-text); cursor: pointer; }
+.reason-item input[type=radio] { accent-color: var(--lab-accent); width: 16px; height: 16px; cursor: pointer; }
 .report-success { font-size: 13px; color: #16a34a; background: rgba(34,197,94,0.08); padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
 .report-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.pd-cancel-btn { padding: 9px 18px; background: transparent; border: 1px solid rgba(0,0,0,0.1); border-radius: 8px; color: #6e6e73; font-size: 13px; font-family: inherit; cursor: pointer; }
-.pd-submit-btn { padding: 9px 20px; background: #1d1d1f; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
+.pd-cancel-btn { padding: 9px 18px; background: transparent; border: 1px solid rgba(57, 86, 120, 0.12); border-radius: 10px; color: var(--lab-text-soft); font-size: 13px; font-family: inherit; cursor: pointer; }
+.pd-submit-btn { padding: 9px 20px; background: linear-gradient(135deg, var(--lab-accent), var(--lab-accent-2)); color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
 .pd-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .report-fade-enter-active, .report-fade-leave-active { transition: opacity 0.2s; }
 .report-fade-enter-from, .report-fade-leave-to { opacity: 0; }
-.not-found { min-height: 100vh; background: #f5f5f7; color: #6e6e73; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; font-family: -apple-system,'PingFang SC',sans-serif; }
-.not-found button { background: #fff; border: 1px solid rgba(0,0,0,0.1); color: #007aff; padding: 10px 24px; border-radius: 100px; cursor: pointer; font-size: 15px; font-family: inherit; }
-@media (max-width: 600px) {
-  .hero-content { flex-direction: column; align-items: flex-start; gap: 16px; padding: 72px 20px 28px; }
+.not-found { min-height: 100vh; background: var(--lab-bg-soft); color: var(--lab-text-soft); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; font-family: -apple-system,'PingFang SC',sans-serif; }
+.not-found button { background: #fff; border: 1px solid rgba(57, 86, 120, 0.12); color: var(--lab-accent); padding: 10px 24px; border-radius: 999px; cursor: pointer; font-size: 15px; font-family: inherit; }
+
+@media (max-width: 1080px) {
+  .detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detail-side {
+    position: static;
+  }
+}
+
+@media (max-width: 760px) {
+  .back-nav {
+    padding: 12px 16px;
+  }
+
+  .hero-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 78px 20px 30px;
+  }
   .hero-emoji { font-size: 56px; }
-  .detail-content { padding: 0 20px 40px; }
+  .detail-content { padding: 18px 16px 40px; }
+  .section { padding: 20px 18px; border-radius: 20px; }
+  .side-section {
+    padding: 18px;
+  }
   .causes-grid { grid-template-columns: 1fr 1fr; }
   .sol-detail { padding: 0 14px 14px 48px; }
   .float-back { bottom: 20px; }
   .float-report-btn { display: none; }
 }
 @media (max-width: 480px) {
-  .section { padding: 24px 0; }
+  .back-btn,
+  .nav-login-btn {
+    padding: 7px 13px;
+  }
+  .section { padding: 18px 16px; }
   .section-title { font-size: 17px; gap: 8px; }
   .desc-text { font-size: 15px; }
   .sol-head { padding: 13px 14px; gap: 10px; }
@@ -692,5 +1151,6 @@ onUnmounted(() => {
   .sol-title { font-size: 14px; }
   .sol-detail { padding: 0 12px 12px 44px; }
   .comment-input-wrap { gap: 8px; }
+  .causes-grid { grid-template-columns: 1fr; }
 }
 </style>

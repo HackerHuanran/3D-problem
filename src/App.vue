@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, defineAsyncComponent } from 'vue'
+import { ref, watch, onMounted, defineAsyncComponent, computed } from 'vue'
 import { useAuth } from './composables/useAuth.js'
 import { useNotifications } from './composables/useNotifications.js'
 import { useLocale } from './composables/useLocale.js'
@@ -10,6 +10,7 @@ const NewsView          = defineAsyncComponent(() => import('./components/NewsVi
 const MarketView        = defineAsyncComponent(() => import('./components/MarketView.vue'))
 const FilamentView      = defineAsyncComponent(() => import('./components/FilamentView.vue'))
 const ServicesView      = defineAsyncComponent(() => import('./components/ServicesView.vue'))
+const CalibrationView   = defineAsyncComponent(() => import('./components/CalibrationView.vue'))
 const AdminView         = defineAsyncComponent(() => import('./components/AdminView.vue'))
 const SubmitProblemView = defineAsyncComponent(() => import('./components/SubmitProblemView.vue'))
 const ProfileView       = defineAsyncComponent(() => import('./components/ProfileView.vue'))
@@ -38,14 +39,23 @@ onMounted(async () => {
     if (p) {
       currentDetailId.value = id
       currentPage.value = 'detail'
-      setMeta(`${p.title} - 3D打印故障解决方案 | 3D故障库`, p.description || BASE_DESC, path)
+      setMeta(`${p.title} - ${t('seo.baseTitle')}`, p.description || BASE_DESC.value, path)
     }
   } else if (path === '/filament') {
     activeTab.value = 'filament'
-    setMeta('耗材参数库 | 3D故障库', BASE_DESC, path)
+    setMeta(t('seo.filament'), BASE_DESC.value, path)
+  } else if (path === '/market') {
+    activeTab.value = 'market'
+    setMeta(t('seo.market'), BASE_DESC.value, path)
   } else if (path === '/services') {
     activeTab.value = 'services'
-    setMeta('服务商目录 | 3D故障库', BASE_DESC, path)
+    setMeta(t('seo.services'), BASE_DESC.value, path)
+  } else if (path === '/calibration') {
+    activeTab.value = 'calibration'
+    setMeta(t('seo.calibration'), BASE_DESC.value, path)
+  } else if (path === '/news') {
+    activeTab.value = 'news'
+    setMeta(t('seo.news'), BASE_DESC.value, path)
   }
   await init()
   appReady.value = true
@@ -60,10 +70,11 @@ watch(currentUser, (user) => {
 const currentPage     = ref('list')
 const currentDetailId = ref(null)
 const activeTab       = ref('home')
+const detailReturnContext = ref({ from: 'home', profileTab: 'fav' })
 
 // ── SEO 辅助 ──
-const BASE_TITLE = '3D打印故障排查 · 3D故障库'
-const BASE_DESC  = '3D打印故障排查指南，收录翘边、拉丝、堵嘴等30+常见问题的分步解决方案'
+const BASE_TITLE = computed(() => t('seo.baseTitle'))
+const BASE_DESC  = computed(() => t('seo.baseDesc'))
 
 function setMeta(title, description, path) {
   document.title = title
@@ -71,27 +82,52 @@ function setMeta(title, description, path) {
   if (path) history.replaceState(null, '', path)
 }
 
-const goToDetail = async (id) => {
+const goToDetail = async (id, options = {}) => {
+  detailReturnContext.value = {
+    from: options.from || 'home',
+    profileTab: options.profileTab || 'fav',
+  }
   currentDetailId.value = id
   currentPage.value = 'detail'
   window.scrollTo(0, 0)
   const probs = await getProblems()
   const p = probs.find(x => x.id === id)
-  if (p) setMeta(`${p.title} - 3D打印故障解决方案 | 3D故障库`, p.description || BASE_DESC, `/p/${id}`)
+  if (p) setMeta(`${p.title} - ${t('seo.baseTitle')}`, p.description || BASE_DESC.value, `/p/${id}`)
 }
 const goBackToList = () => {
   currentPage.value = 'list'
   activeTab.value = 'home'
   currentDetailId.value = null
+  showMoreMenu.value = false
+  showProfile.value = false
+  detailReturnContext.value = { from: 'home', profileTab: 'fav' }
   window.scrollTo(0, 0)
-  setMeta(BASE_TITLE, BASE_DESC, '/')
+  setMeta(BASE_TITLE.value, BASE_DESC.value, '/')
+}
+const handleDetailBack = () => {
+  if (detailReturnContext.value.from === 'profile') {
+    currentPage.value = 'list'
+    currentDetailId.value = null
+    showProfile.value = true
+    showMoreMenu.value = false
+    window.scrollTo(0, 0)
+    return
+  }
+  goBackToList()
 }
 const switchTab = (tab) => {
   activeTab.value = tab
   currentPage.value = 'list'
+  showMoreMenu.value = false
   window.scrollTo(0, 0)
-  const tabTitles = { filament: '耗材参数库 | 3D故障库', services: '服务商目录 | 3D故障库', market: '零件市场 | 3D故障库' }
-  setMeta(tabTitles[tab] || BASE_TITLE, BASE_DESC, tab === 'home' ? '/' : `/${tab}`)
+  const tabTitles = {
+    filament: t('seo.filament'),
+    services: t('seo.services'),
+    market: t('seo.market'),
+    calibration: t('seo.calibration'),
+    news: t('seo.news'),
+  }
+  setMeta(tabTitles[tab] || BASE_TITLE.value, BASE_DESC.value, tab === 'home' ? '/' : `/${tab}`)
 }
 const goToSubmit = () => { currentPage.value = 'submit'; window.scrollTo(0, 0) }
 const onSubmitted = () => { currentPage.value = 'list'; activeTab.value = 'home'; window.scrollTo(0, 0) }
@@ -99,6 +135,7 @@ const onSubmitted = () => { currentPage.value = 'list'; activeTab.value = 'home'
 // ── 个人主页 ──
 const showProfile = ref(false)
 const openProfile = () => { showUserMenu.value = false; showProfile.value = true; window.scrollTo(0, 0) }
+const profileInitialTab = ref('fav')
 
 // ── 通知面板 ──
 const showNotifPanel = ref(false)
@@ -109,10 +146,10 @@ const openNotifPanel = async () => {
 
 function notifTimeAgo(ts) {
   const s = Math.floor((Date.now() - ts) / 1000)
-  if (s < 60)    return '刚刚'
-  if (s < 3600)  return `${Math.floor(s / 60)} 分钟前`
-  if (s < 86400) return `${Math.floor(s / 3600)} 小时前`
-  return `${Math.floor(s / 86400)} 天前`
+  if (s < 60) return t('time.justNow')
+  if (s < 3600) return t('time.minAgo', { n: Math.floor(s / 60) })
+  if (s < 86400) return t('time.hourAgo', { n: Math.floor(s / 3600) })
+  return t('time.dayAgo', { n: Math.floor(s / 86400) })
 }
 
 // ── 用户菜单 ──
@@ -137,21 +174,21 @@ const showLoginPwd = ref(false)
 const authTouched = ref({ username: false, phone: false, password: false })
 
 function validatePhone(v) {
-  if (!v?.trim()) return '请输入手机号'
-  if (!/^1[3-9]\d{9}$/.test(v.trim())) return '请输入有效的手机号（11位）'
+  if (!v?.trim()) return t('v.phoneRequired')
+  if (!/^1[3-9]\d{9}$/.test(v.trim())) return t('v.phoneInvalid')
   return ''
 }
 function validateRegPassword(v) {
-  if (!v) return '请输入密码'
-  if (v.length < 6) return '密码至少 6 位'
-  if (!/[a-zA-Z]/.test(v)) return '密码需包含至少一个字母'
-  if (!/[0-9]/.test(v)) return '密码需包含至少一个数字'
+  if (!v) return t('v.passwordRequired')
+  if (v.length < 6) return t('v.passwordMin')
+  if (!/[a-zA-Z]/.test(v)) return t('v.passwordLetter')
+  if (!/[0-9]/.test(v)) return t('v.passwordDigit')
   return ''
 }
 function validateUsername(v) {
-  if (!v?.trim()) return '请输入用户名'
-  if (v.trim().length < 2) return '用户名至少 2 个字符'
-  if (v.trim().length > 20) return '用户名最多 20 个字符'
+  if (!v?.trim()) return t('v.usernameRequired')
+  if (v.trim().length < 2) return t('v.usernameMin')
+  if (v.trim().length > 20) return t('v.usernameMax')
   return ''
 }
 
@@ -200,11 +237,11 @@ const submitAuth = async () => {
   try {
     const { username, phone, code, password } = authForm.value
     if (authMode.value === 'register') {
-      if (!code.trim()) { authError.value = '请输入验证码'; return }
+      if (!code.trim()) { authError.value = t('v.codeRequired'); return }
       await confirmCode(verifyOtpFn, code.trim(), username.trim(), phone.trim())
     } else {
-      if (!phone.trim()) { authError.value = '请输入手机号'; return }
-      if (!password)     { authError.value = '请输入密码'; return }
+      if (!phone.trim()) { authError.value = t('v.phoneRequired'); return }
+      if (!password)     { authError.value = t('v.passwordRequired'); return }
       await login(phone.trim(), password)
     }
     closeAuth()
@@ -235,6 +272,12 @@ const openPoints = () => { showUserMenu.value = false; showPoints.value = true }
 
 // ── 关于我们 ──
 const showAbout = ref(false)
+const showMoreMenu = ref(false)
+const moreMenuActive = () => ['services', 'news'].includes(activeTab.value) || showAbout.value
+const openAboutFromMenu = () => {
+  showMoreMenu.value = false
+  showAbout.value = true
+}
 
 // ── 语言切换 ──
 const showLangMenu = ref(false)
@@ -254,8 +297,12 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
   <ProfileView
     v-else-if="showProfile && currentUser"
     :current-user="currentUser"
+    :initial-tab="profileInitialTab"
     @back="showProfile = false"
-    @go-detail="(id) => { showProfile = false; goToDetail(id) }"
+    @go-detail="({ id, tab }) => { profileInitialTab = tab || 'fav'; showProfile = false; goToDetail(id, { from: 'profile', profileTab: profileInitialTab }) }"
+    @go-submit="() => { showProfile = false; goToSubmit() }"
+    @go-home="() => { showProfile = false; goBackToList() }"
+    @go-market="() => { showProfile = false; switchTab('market') }"
   />
 
   <SubmitProblemView
@@ -265,29 +312,32 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
     @submitted="onSubmitted"
   />
 
-  <ProblemDetailView
-    v-else-if="currentPage === 'detail'"
-    :problem-id="currentDetailId"
-    @back="goBackToList"
-    @go-detail="goToDetail"
-    @open-auth="openAuth"
-  />
-
-
-  <div v-else-if="!showAdmin" class="app-shell">
+  <div v-else-if="!showAdmin" v-show="currentPage !== 'detail'" class="app-shell">
     <nav class="app-nav">
       <div class="nav-inner">
         <div class="nav-logo" @click="goBackToList">
           <span class="logo-mark">▲</span>
-          <span class="logo-text">3D 故障库</span>
+          <span class="logo-text">{{ t('app.logo') }}</span>
         </div>
         <div class="nav-tabs">
           <button :class="['nav-tab', { active: activeTab === 'home' }]"   @click="switchTab('home')">{{ t('nav.home') }}</button>
-          <button :class="['nav-tab', { active: activeTab === 'filament' }]"  @click="switchTab('filament')">耗材参数库</button>
+          <button :class="['nav-tab', { active: activeTab === 'filament' }]"  @click="switchTab('filament')">{{ t('nav.filament') }}</button>
           <button :class="['nav-tab', { active: activeTab === 'market' }]"   @click="switchTab('market')">{{ t('nav.market') }}</button>
-          <button :class="['nav-tab', { active: activeTab === 'services' }]" @click="switchTab('services')">服务商目录</button>
-          <button :class="['nav-tab', { active: activeTab === 'news' }]"   @click="switchTab('news')">{{ t('nav.news') }}</button>
-          <button class="nav-tab" @click="showAbout = true">{{ t('nav.about') }}</button>
+          <button :class="['nav-tab', { active: activeTab === 'calibration' }]" @click="switchTab('calibration')">{{ t('nav.calibration') }}</button>
+          <div class="nav-more-wrap">
+            <button :class="['nav-tab', 'nav-tab-more', { active: moreMenuActive() }]" @click="showMoreMenu = !showMoreMenu">
+              {{ t('nav.resources') }}
+              <span class="nav-more-caret" :class="{ open: showMoreMenu }">▾</span>
+            </button>
+            <Transition name="dropdown">
+              <div v-if="showMoreMenu" class="nav-more-menu">
+                <button class="nav-more-item" @click="switchTab('services')">{{ t('nav.services') }}</button>
+                <button class="nav-more-item" @click="switchTab('news')">{{ t('nav.news') }}</button>
+                <button class="nav-more-item" @click="openAboutFromMenu">{{ t('nav.about') }}</button>
+              </div>
+            </Transition>
+            <div v-if="showMoreMenu" class="menu-backdrop" @click="showMoreMenu = false"></div>
+          </div>
         </div>
         <div class="nav-right">
           <template v-if="!currentUser">
@@ -374,10 +424,10 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
               </div>
               <Transition name="dropdown">
                 <div v-if="showUserMenu" class="user-dropdown">
-                  <button v-if="currentUser.isAdmin" class="dropdown-item admin-item" @click="openAdmin">管理后台</button>
+                  <button v-if="currentUser.isAdmin" class="dropdown-item admin-item" @click="openAdmin">{{ t('nav.admin') }}</button>
                   <div v-if="currentUser.isAdmin" class="dropdown-divider"></div>
-                  <button class="dropdown-item" @click="openProfile">个人主页</button>
-                  <button class="dropdown-item" @click="openJoinService">服务商入驻</button>
+                  <button class="dropdown-item" @click="openProfile">{{ t('nav.profile') }}</button>
+                  <button class="dropdown-item" @click="openJoinService">{{ t('nav.joinService') }}</button>
                   <button class="dropdown-item" @click="openPoints">{{ t('user.points') }}</button>
                   <div class="dropdown-divider"></div>
                   <button class="dropdown-item danger" @click="handleLogout">{{ t('nav.logout') }}</button>
@@ -395,6 +445,7 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
       <NewsView      v-else-if="activeTab === 'news'" />
       <MarketView    v-else-if="activeTab === 'market'"   :current-user="currentUser" @open-auth="openAuth" />
       <FilamentView  v-else-if="activeTab === 'filament'" />
+      <CalibrationView v-else-if="activeTab === 'calibration'" @go-detail="goToDetail" />
       <ServicesView  v-else-if="activeTab === 'services'"
         :current-user="currentUser"
         :auto-open-join="autoOpenJoinService"
@@ -406,6 +457,14 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
       <span class="loading-spinner"></span>
     </div>
   </div>
+
+  <ProblemDetailView
+    v-if="!showAdmin && !showProfile && currentPage === 'detail'"
+    :problem-id="currentDetailId"
+    @back="handleDetailBack"
+    @go-detail="goToDetail"
+    @open-auth="openAuth"
+  />
 
   <!-- 登录/注册弹窗 -->
   <Transition name="modal">
@@ -539,7 +598,7 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
       <div class="modal-box about-box">
         <div class="about-header">
           <span class="about-logo-mark">▲</span>
-          <span class="about-logo-text">3D 故障库</span>
+          <span class="about-logo-text">{{ t('app.logo') }}</span>
         </div>
         <div class="modal-body" style="padding-top:20px">
           <p class="about-desc">{{ t('about.desc') }}</p>
@@ -578,62 +637,160 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
 
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #f5f5f7; font-family: -apple-system, 'PingFang SC', 'Helvetica Neue', sans-serif; color: #1d1d1f; }
+body { color: var(--lab-text); font-family: -apple-system, 'PingFang SC', 'Helvetica Neue', sans-serif; }
 </style>
 
 <style scoped>
-.app-shell { min-height: 100vh; background: #f5f5f7; }
-.app-nav { position: sticky; top: 0; z-index: 200; background: rgba(255,255,255,0.88); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(0,0,0,0.08); height: 52px; }
-.nav-inner { max-width: 1200px; margin: 0 auto; height: 100%; padding: 0 24px; display: flex; align-items: center; gap: 0; }
-.nav-logo { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; transition: opacity 0.15s; flex-shrink: 0; margin-right: 20px; }
-.nav-logo:hover { opacity: 0.7; }
-.logo-mark { font-size: 16px; color: #ff6b6b; }
-.logo-text { font-size: 15px; font-weight: 600; color: #1d1d1f; letter-spacing: -0.01em; }
+.app-shell { min-height: 100vh; background: transparent; }
+.app-nav {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: rgba(247, 250, 253, 0.84);
+  backdrop-filter: blur(22px) saturate(140%);
+  border-bottom: 1px solid var(--lab-line);
+  box-shadow: 0 8px 26px rgba(14, 29, 52, 0.04);
+  min-height: 56px;
+}
+.nav-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  min-height: 56px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+  margin-right: 20px;
+}
+.nav-logo:hover { opacity: 0.78; }
+.logo-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #f7fbff;
+  background: linear-gradient(135deg, var(--lab-accent) 0%, var(--lab-accent-2) 100%);
+  box-shadow: 0 8px 18px rgba(37, 104, 232, 0.2);
+}
+.logo-text { font-size: 15px; font-weight: 700; color: var(--lab-text); letter-spacing: -0.01em; }
 .nav-tabs { display: flex; align-items: center; height: 100%; flex: 1; }
-.nav-tab { padding: 0 14px; height: 100%; background: transparent; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; color: #6e6e73; font-size: 14px; font-weight: 500; font-family: inherit; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-.nav-tab:hover { color: #1d1d1f; }
-.nav-tab.active { color: #1d1d1f; border-bottom-color: #1d1d1f; }
+.nav-tab {
+  padding: 0 14px;
+  height: 56px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--lab-text-soft);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.nav-tab:hover { color: var(--lab-text); }
+.nav-tab.active { color: var(--lab-text); border-bottom-color: var(--lab-accent); }
+.nav-more-wrap { position: relative; display: flex; align-items: stretch; height: 100%; }
+.nav-tab-more { display: inline-flex; align-items: center; gap: 6px; }
+.nav-more-caret { font-size: 11px; transition: transform 0.18s; }
+.nav-more-caret.open { transform: rotate(180deg); }
+.nav-more-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  min-width: 176px;
+  background: rgba(252, 253, 255, 0.98);
+  border: 1px solid var(--lab-line);
+  border-radius: 16px;
+  overflow: hidden;
+  z-index: 300;
+  box-shadow: var(--lab-shadow);
+  backdrop-filter: blur(18px);
+}
+.nav-more-item {
+  width: 100%;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: var(--lab-text);
+  font-size: 14px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.nav-more-item:hover { background: rgba(37, 104, 232, 0.06); }
 .nav-right { display: flex; align-items: center; gap: 8px; position: relative; flex-shrink: 0; }
-.nav-btn { border-radius: 100px; font-size: 13px; cursor: pointer; font-family: inherit; padding: 6px 16px; transition: all 0.18s; border: 1px solid transparent; }
-.nav-btn.ghost { background: transparent; border-color: rgba(0,0,0,0.15); color: #6e6e73; }
-.nav-btn.ghost:hover { border-color: rgba(0,0,0,0.3); color: #1d1d1f; }
-.nav-btn.solid { background: #1d1d1f; color: #fff; border-color: #1d1d1f; font-weight: 500; }
-.nav-btn.solid:hover { background: #3a3a3c; }
+.nav-btn { border-radius: 999px; font-size: 13px; cursor: pointer; font-family: inherit; padding: 7px 16px; transition: all 0.18s; border: 1px solid transparent; }
+.nav-btn.ghost { background: rgba(248, 251, 254, 0.76); border-color: var(--lab-line); color: var(--lab-text-soft); }
+.nav-btn.ghost:hover { border-color: var(--lab-line-strong); color: var(--lab-text); }
+.nav-btn.solid {
+  background: linear-gradient(135deg, var(--lab-accent) 0%, var(--lab-accent-2) 100%);
+  color: #fff;
+  border-color: transparent;
+  font-weight: 600;
+  box-shadow: 0 10px 22px rgba(37, 104, 232, 0.18);
+}
+.nav-btn.solid:hover { filter: brightness(1.03); }
 
 /* 铃铛 */
 .bell-wrap { position: relative; }
-.bell-btn  { position: relative; background: transparent; border: none; color: #6e6e73; cursor: pointer; padding: 6px; display: flex; align-items: center; border-radius: 8px; transition: color 0.15s; }
-.bell-btn:hover { color: #1d1d1f; }
+.bell-btn  {
+  position: relative;
+  background: rgba(248, 251, 254, 0.76);
+  border: 1px solid transparent;
+  color: var(--lab-text-soft);
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.bell-btn:hover { color: var(--lab-text); border-color: var(--lab-line); background: rgba(255,255,255,0.92); }
 .bell-badge { position: absolute; top: 1px; right: 1px; min-width: 16px; height: 16px; padding: 0 4px; background: #ff6b6b; color: #fff; font-size: 10px; font-weight: 700; border-radius: 100px; display: flex; align-items: center; justify-content: center; }
 
-.notif-panel { position: absolute; top: calc(100% + 10px); right: 0; width: 320px; background: #fff; border: 1px solid rgba(0,0,0,0.1); border-radius: 16px; overflow: hidden; z-index: 300; box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+.notif-panel { position: absolute; top: calc(100% + 10px); right: 0; width: 320px; background: rgba(252, 253, 255, 0.98); border: 1px solid var(--lab-line); border-radius: 18px; overflow: hidden; z-index: 300; box-shadow: var(--lab-shadow); backdrop-filter: blur(18px); }
 .notif-head  { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; border-bottom: 1px solid rgba(0,0,0,0.06); }
-.notif-title-text { font-size: 14px; font-weight: 600; color: #1d1d1f; }
-.notif-read-all   { background: transparent; border: none; font-size: 12px; color: #6e6e73; cursor: pointer; font-family: inherit; transition: color 0.15s; }
-.notif-read-all:hover { color: #1d1d1f; }
-.notif-empty { padding: 24px 16px; font-size: 13px; color: #aeaeb2; text-align: center; }
+.notif-title-text { font-size: 14px; font-weight: 700; color: var(--lab-text); }
+.notif-read-all   { background: transparent; border: none; font-size: 12px; color: var(--lab-text-soft); cursor: pointer; font-family: inherit; transition: color 0.15s; }
+.notif-read-all:hover { color: var(--lab-text); }
+.notif-empty { padding: 24px 16px; font-size: 13px; color: var(--lab-text-dim); text-align: center; }
 .notif-list  { max-height: 360px; overflow-y: auto; }
 .notif-item  { padding: 12px 16px; border-bottom: 1px solid rgba(0,0,0,0.05); transition: background 0.15s; }
 .notif-item:last-child { border-bottom: none; }
-.notif-item.unread { background: rgba(0,122,255,0.04); }
-.notif-item-title { font-size: 13px; font-weight: 500; color: #1d1d1f; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.notif-item.unread { background: rgba(37, 104, 232, 0.04); }
+.notif-item-title { font-size: 13px; font-weight: 600; color: var(--lab-text); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
 .notif-item.unread .notif-item-title::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #ff6b6b; flex-shrink: 0; }
-.notif-item-body  { font-size: 12px; color: #6e6e73; line-height: 1.5; margin-bottom: 4px; }
-.notif-item-time  { font-size: 11px; color: #aeaeb2; }
+.notif-item-body  { font-size: 12px; color: var(--lab-text-soft); line-height: 1.5; margin-bottom: 4px; }
+.notif-item-time  { font-size: 11px; color: var(--lab-text-dim); }
 
 /* 用户菜单 */
 .user-wrap { position: relative; }
 .nav-user { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 8px; border-radius: 100px; transition: background 0.15s; user-select: none; }
-.nav-user:hover { background: rgba(0,0,0,0.05); }
-.user-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg,#ff6b6b,#ffb347); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.user-name { font-size: 14px; color: #1d1d1f; }
-.menu-caret { font-size: 11px; color: #6e6e73; transition: transform 0.2s; }
+.nav-user:hover { background: rgba(255,255,255,0.72); }
+.user-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #2568e8, #18b5d4); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 8px 18px rgba(37, 104, 232, 0.18); }
+.user-name { font-size: 14px; color: var(--lab-text); }
+.menu-caret { font-size: 11px; color: var(--lab-text-soft); transition: transform 0.2s; }
 .menu-caret.open { transform: rotate(180deg); }
 
-.user-dropdown { position: absolute; top: calc(100% + 8px); right: 0; background: #fff; border: 1px solid rgba(0,0,0,0.1); border-radius: 14px; min-width: 140px; overflow: hidden; z-index: 300; box-shadow: 0 4px 24px rgba(0,0,0,0.1); }
-.dropdown-item { width: 100%; padding: 12px 16px; background: transparent; border: none; color: #1d1d1f; font-size: 14px; font-family: inherit; text-align: left; cursor: pointer; transition: background 0.15s; }
-.dropdown-item:hover { background: rgba(0,0,0,0.04); }
-.dropdown-item.danger { color: #ff3b30; }
+.user-dropdown { position: absolute; top: calc(100% + 8px); right: 0; background: rgba(252, 253, 255, 0.98); border: 1px solid var(--lab-line); border-radius: 16px; min-width: 156px; overflow: hidden; z-index: 300; box-shadow: var(--lab-shadow); backdrop-filter: blur(18px); }
+.dropdown-item { width: 100%; padding: 12px 16px; background: transparent; border: none; color: var(--lab-text); font-size: 14px; font-family: inherit; text-align: left; cursor: pointer; transition: background 0.15s; }
+.dropdown-item:hover { background: rgba(37, 104, 232, 0.06); }
+.dropdown-item.danger { color: var(--lab-danger); }
 .dropdown-item.admin-item { color: #0f3460; font-weight: 600; }
 .dropdown-divider { height: 1px; background: rgba(0,0,0,0.06); margin: 2px 0; }
 .menu-backdrop { position: fixed; inset: 0; z-index: 250; }
@@ -642,80 +799,80 @@ body { background: #f5f5f7; font-family: -apple-system, 'PingFang SC', 'Helvetic
 .dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-6px); }
 
 
-.modal-mask { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 20px; }
-.modal-box { background: #fff; border: 1px solid rgba(0,0,0,0.1); border-radius: 24px; width: 100%; max-width: 400px; position: relative; overflow: hidden; box-shadow: 0 16px 48px rgba(0,0,0,0.18); }
+.modal-mask { position: fixed; inset: 0; z-index: 500; background: rgba(12,20,32,0.42); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.modal-box { background: rgba(252, 253, 255, 0.98); border: 1px solid var(--lab-line); border-radius: 26px; width: 100%; max-width: 400px; position: relative; overflow: hidden; box-shadow: var(--lab-shadow-lg); backdrop-filter: blur(20px); }
 .modal-tabs { display: flex; border-bottom: 1px solid rgba(0,0,0,0.08); }
-.tab { flex: 1; padding: 16px; background: transparent; border: none; color: #6e6e73; font-size: 15px; font-family: inherit; cursor: pointer; transition: all 0.18s; border-bottom: 2px solid transparent; margin-bottom: -1px; }
-.tab.active { color: #1d1d1f; border-bottom-color: #1d1d1f; }
-.tab:hover:not(.active) { color: #1d1d1f; }
+.tab { flex: 1; padding: 16px; background: transparent; border: none; color: var(--lab-text-soft); font-size: 15px; font-family: inherit; cursor: pointer; transition: all 0.18s; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab.active { color: var(--lab-text); border-bottom-color: var(--lab-accent); }
+.tab:hover:not(.active) { color: var(--lab-text); }
 .modal-body { padding: 28px 28px 32px; }
-.modal-title { font-size: 22px; font-weight: 700; color: #1d1d1f; margin-bottom: 6px; letter-spacing: -0.02em; }
-.modal-sub { font-size: 13px; color: #6e6e73; margin-bottom: 24px; line-height: 1.5; }
+.modal-title { font-size: 22px; font-weight: 700; color: var(--lab-text); margin-bottom: 6px; letter-spacing: -0.02em; }
+.modal-sub { font-size: 13px; color: var(--lab-text-soft); margin-bottom: 24px; line-height: 1.5; }
 .form-fields { display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
-.field label { font-size: 12px; color: #6e6e73; letter-spacing: 0.04em; }
-.field input { background: #f5f5f7; border: 1px solid rgba(0,0,0,0.1); border-radius: 10px; padding: 11px 14px; color: #1d1d1f; font-size: 15px; font-family: inherit; outline: none; transition: border-color 0.2s; }
-.field input:focus { border-color: rgba(0,0,0,0.25); }
-.field input::placeholder { color: #c7c7cc; }
+.field label { font-size: 12px; color: var(--lab-text-soft); letter-spacing: 0.04em; }
+.field input { background: rgba(244,248,252,0.95); border: 1px solid var(--lab-line); border-radius: 12px; padding: 11px 14px; color: var(--lab-text); font-size: 15px; font-family: inherit; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.field input:focus { border-color: rgba(37, 104, 232, 0.34); box-shadow: 0 0 0 4px rgba(37, 104, 232, 0.08); }
+.field input::placeholder { color: #9eadc2; }
 .field input:disabled { opacity: 0.5; cursor: not-allowed; }
-.field-error { font-size: 11px; color: #ff3b30; margin-top: -2px; }
+.field-error { font-size: 11px; color: var(--lab-danger); margin-top: -2px; }
 .pwd-wrap { position: relative; }
 .pwd-wrap input { padding-right: 42px; width: 100%; }
-.eye-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #aeaeb2; cursor: pointer; padding: 4px; display: flex; align-items: center; transition: color 0.15s; }
-.eye-btn:hover:not(:disabled) { color: #6e6e73; }
+.eye-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--lab-text-dim); cursor: pointer; padding: 4px; display: flex; align-items: center; transition: color 0.15s; }
+.eye-btn:hover:not(:disabled) { color: var(--lab-text-soft); }
 .eye-btn:disabled { cursor: not-allowed; }
 .phone-row { display: flex; gap: 8px; }
-.phone-input { flex: 1; background: #f5f5f7; border: 1px solid rgba(0,0,0,0.1); border-radius: 10px; padding: 11px 14px; color: #1d1d1f; font-size: 15px; font-family: inherit; outline: none; transition: border-color 0.2s; }
-.phone-input:focus { border-color: rgba(0,0,0,0.25); }
-.phone-input::placeholder { color: #c7c7cc; }
+.phone-input { flex: 1; background: rgba(244,248,252,0.95); border: 1px solid var(--lab-line); border-radius: 12px; padding: 11px 14px; color: var(--lab-text); font-size: 15px; font-family: inherit; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.phone-input:focus { border-color: rgba(37, 104, 232, 0.34); box-shadow: 0 0 0 4px rgba(37, 104, 232, 0.08); }
+.phone-input::placeholder { color: #9eadc2; }
 .phone-input:disabled { opacity: 0.5; }
-.send-btn { flex-shrink: 0; padding: 11px 14px; background: #f5f5f7; border: 1px solid rgba(0,0,0,0.12); border-radius: 10px; color: #6e6e73; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; transition: all 0.18s; }
-.send-btn:hover:not(:disabled) { border-color: rgba(0,0,0,0.25); color: #1d1d1f; }
+.send-btn { flex-shrink: 0; padding: 11px 14px; background: rgba(244,248,252,0.98); border: 1px solid var(--lab-line); border-radius: 12px; color: var(--lab-text-soft); font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; transition: all 0.18s; }
+.send-btn:hover:not(:disabled) { border-color: var(--lab-line-strong); color: var(--lab-text); }
 .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.auth-error { background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.2); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #ff3b30; margin-bottom: 14px; }
-.submit-btn { width: 100%; padding: 13px; background: #1d1d1f; color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.18s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.submit-btn:hover:not(:disabled) { background: #3a3a3c; }
+.auth-error { background: rgba(213,82,103,0.08); border: 1px solid rgba(213,82,103,0.18); border-radius: 10px; padding: 10px 14px; font-size: 13px; color: var(--lab-danger); margin-bottom: 14px; }
+.submit-btn { width: 100%; padding: 13px; background: linear-gradient(135deg, var(--lab-accent) 0%, var(--lab-accent-2) 100%); color: #fff; border: none; border-radius: 14px; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.18s; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 12px 24px rgba(37, 104, 232, 0.18); }
+.submit-btn:hover:not(:disabled) { filter: brightness(1.03); }
 .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.submit-btn.loading { background: #aeaeb2; color: #fff; }
+.submit-btn.loading { background: #a6b5c8; color: #fff; box-shadow: none; }
 .btn-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.modal-close { position: absolute; top: 12px; right: 14px; background: rgba(0,0,0,0.06); border: none; color: #6e6e73; font-size: 13px; cursor: pointer; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
-.modal-close:hover { background: rgba(0,0,0,0.1); color: #1d1d1f; }
+.modal-close { position: absolute; top: 12px; right: 14px; background: rgba(19,32,51,0.06); border: none; color: var(--lab-text-soft); font-size: 13px; cursor: pointer; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+.modal-close:hover { background: rgba(19,32,51,0.1); color: var(--lab-text); }
 .modal-enter-active, .modal-leave-active { transition: all 0.25s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 
 /* 积分 */
 .points-display { display: flex; align-items: baseline; justify-content: center; gap: 6px; margin: 24px 0 4px; }
-.points-value { font-size: 56px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.04em; }
-.points-unit { font-size: 18px; color: #6e6e73; }
+.points-value { font-size: 56px; font-weight: 700; color: var(--lab-text); letter-spacing: -0.04em; font-family: var(--lab-mono); }
+.points-unit { font-size: 18px; color: var(--lab-text-soft); }
 
 /* 地球语言切换 */
 .lang-wrap { position: relative; }
-.icon-btn { background: transparent; border: none; color: #6e6e73; cursor: pointer; padding: 6px; display: flex; align-items: center; border-radius: 8px; transition: color 0.15s; }
-.icon-btn:hover { color: #1d1d1f; }
-.lang-dropdown { position: absolute; top: calc(100% + 10px); right: 0; background: #fff; border: 1px solid rgba(0,0,0,0.1); border-radius: 14px; overflow: hidden; z-index: 300; box-shadow: 0 4px 24px rgba(0,0,0,0.1); min-width: 130px; }
-.lang-item { width: 100%; padding: 11px 16px; background: transparent; border: none; color: #1d1d1f; font-size: 14px; font-family: inherit; text-align: left; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 10px; }
-.lang-item:hover { background: rgba(0,0,0,0.04); }
+.icon-btn { background: rgba(248, 251, 254, 0.76); border: 1px solid transparent; color: var(--lab-text-soft); cursor: pointer; padding: 6px; display: flex; align-items: center; border-radius: 12px; transition: color 0.15s, border-color 0.15s, background 0.15s; }
+.icon-btn:hover { color: var(--lab-text); border-color: var(--lab-line); background: rgba(255,255,255,0.92); }
+.lang-dropdown { position: absolute; top: calc(100% + 10px); right: 0; background: rgba(252, 253, 255, 0.98); border: 1px solid var(--lab-line); border-radius: 16px; overflow: hidden; z-index: 300; box-shadow: var(--lab-shadow); min-width: 130px; backdrop-filter: blur(18px); }
+.lang-item { width: 100%; padding: 11px 16px; background: transparent; border: none; color: var(--lab-text); font-size: 14px; font-family: inherit; text-align: left; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 10px; }
+.lang-item:hover { background: rgba(37, 104, 232, 0.06); }
 .lang-item.active { font-weight: 600; }
 .lang-flag { font-size: 18px; line-height: 1; }
 
 /* 关于我们弹窗 */
 .about-box { max-width: 360px; }
 .about-header { display: flex; align-items: center; gap: 8px; padding: 24px 28px 0; }
-.about-logo-mark { font-size: 20px; color: #ff6b6b; }
-.about-logo-text { font-size: 17px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.01em; }
-.about-desc { font-size: 14px; color: #6e6e73; line-height: 1.7; margin-bottom: 24px; }
+.about-logo-mark { font-size: 20px; color: var(--lab-accent); }
+.about-logo-text { font-size: 17px; font-weight: 700; color: var(--lab-text); letter-spacing: -0.01em; }
+.about-desc { font-size: 14px; color: var(--lab-text-soft); line-height: 1.7; margin-bottom: 24px; }
 .about-contacts { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
-.contact-item { display: flex; align-items: center; gap: 14px; background: #f5f5f7; border-radius: 14px; padding: 14px 16px; }
-.contact-icon { width: 36px; height: 36px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; color: #1d1d1f; flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.contact-item { display: flex; align-items: center; gap: 14px; background: rgba(245, 249, 253, 0.96); border: 1px solid var(--lab-line); border-radius: 14px; padding: 14px 16px; }
+.contact-icon { width: 36px; height: 36px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; color: var(--lab-text); flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
 .contact-info { display: flex; flex-direction: column; gap: 2px; }
-.contact-label { font-size: 11px; color: #aeaeb2; letter-spacing: 0.04em; }
-.contact-value { font-size: 15px; font-weight: 600; color: #1d1d1f; letter-spacing: 0.01em; }
-.about-footer { font-size: 11px; color: #c7c7cc; text-align: center; }
+.contact-label { font-size: 11px; color: var(--lab-text-dim); letter-spacing: 0.04em; }
+.contact-value { font-size: 15px; font-weight: 600; color: var(--lab-text); letter-spacing: 0.01em; }
+.about-footer { font-size: 11px; color: #a3b1c4; text-align: center; }
 
 /* Auth init loading */
 .app-loading { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 52px); }
-.loading-spinner { width: 28px; height: 28px; border: 2.5px solid rgba(0,0,0,0.1); border-top-color: #1d1d1f; border-radius: 50%; animation: spin 0.75s linear infinite; }
+.loading-spinner { width: 28px; height: 28px; border: 2.5px solid rgba(0,0,0,0.1); border-top-color: var(--lab-accent); border-radius: 50%; animation: spin 0.75s linear infinite; }
 
 /* ── 移动端导航：上栏(logo+操作) + 下栏(可横滑 tabs) ── */
 @media (max-width: 768px) {
@@ -734,6 +891,8 @@ body { background: #f5f5f7; font-family: -apple-system, 'PingFang SC', 'Helvetic
   }
   .nav-tabs::-webkit-scrollbar { display: none; }
   .nav-tab { height: 40px; padding: 0 11px; font-size: 13px; }
+  .nav-more-wrap { height: 40px; }
+  .nav-more-menu { left: 8px; top: calc(100% + 8px); }
   .user-name { display: none; }
   .menu-caret { display: none; }
   .nav-btn { padding: 5px 11px; font-size: 12px; }

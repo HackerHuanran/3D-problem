@@ -1,6 +1,8 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useUserProblems } from '@/composables/useUserProblems.js'
+import { useUserGuard } from '@/composables/useUserGuard.js'
+import { useLocale } from '@/composables/useLocale.js'
 import { app } from '@/lib/tcb.js'
 import { compressImage } from '@/lib/imageUtils.js'
 import { checkContent, checkImage } from '@/lib/moderate.js'
@@ -9,10 +11,12 @@ const props = defineProps({ currentUser: Object })
 const emit  = defineEmits(['back', 'submitted'])
 
 const { submitProblem } = useUserProblems()
+const { ensureUserCanInteract } = useUserGuard()
+const { t } = useLocale()
 
 const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
 
-const CATEGORIES   = ['打印机整机', '喷头热端', '挤出机', '热床', 'AMS送料', '耗材材料', '切片软件', '校准调平', '打印质量', '固件设置']
+const CATEGORIES = ['打印机整机', '喷头热端', '挤出机', '热床', 'AMS送料', '耗材材料', '切片软件', '校准调平', '打印质量', '固件设置']
 const DIFFICULTIES = ['常见', '需处理', '紧急', '进阶']
 
 const CAT_META = {
@@ -92,13 +96,39 @@ const submitting = ref(false)
 
 function validate() {
   const e = {}
-  if (!form.title.trim())       e.title       = '请填写问题标题'
-  if (!form.subtitle.trim())    e.subtitle    = '请填写一句话描述'
-  if (!form.description.trim()) e.description = '请填写详细描述'
-  if (!form.causes.some(c => c.trim()))          e.causes    = '请至少填写一个原因'
-  if (!form.solutions.some(s => s.title.trim())) e.solutions = '请至少填写一个解决步骤'
+  if (!form.title.trim()) e.title = t('sp.errTitle')
+  if (!form.subtitle.trim()) e.subtitle = t('sp.errSubtitle')
+  if (!form.description.trim()) e.description = t('sp.errDescription')
+  if (!form.causes.some(c => c.trim())) e.causes = t('sp.errCause')
+  if (!form.solutions.some(s => s.title.trim())) e.solutions = t('sp.errSolution')
   errors.value = e
   return Object.keys(e).length === 0
+}
+
+function categoryLabel(category) {
+  const map = {
+    '打印机整机': t('sp.cat.machine'),
+    '喷头热端': t('sp.cat.hotend'),
+    '挤出机': t('sp.cat.extruder'),
+    '热床': t('sp.cat.bed'),
+    'AMS送料': t('sp.cat.ams'),
+    '耗材材料': t('sp.cat.filament'),
+    '切片软件': t('sp.cat.slicer'),
+    '校准调平': t('sp.cat.leveling'),
+    '打印质量': t('sp.cat.quality'),
+    '固件设置': t('sp.cat.firmware'),
+  }
+  return map[category] || category
+}
+
+function difficultyLabel(level) {
+  const map = {
+    '常见': t('sp.diff.common'),
+    '需处理': t('sp.diff.warn'),
+    '紧急': t('sp.diff.urgent'),
+    '进阶': t('sp.diff.advanced'),
+  }
+  return map[level] || level
 }
 
 // ── 滚动检测（nav 样式）──
@@ -121,6 +151,7 @@ async function submit() {
   if (!validate()) { window.scrollTo({ top: 0, behavior: 'smooth' }); return }
   submitting.value = true
   try {
+    await ensureUserCanInteract(props.currentUser.id, '提交问题')
     const contentText = [form.title, form.subtitle, form.description, ...form.causes, form.tips].filter(Boolean).join('\n')
     const { pass, msg } = await checkContent(contentText)
     if (!pass) { errors.value.submit = msg; return }
@@ -157,7 +188,7 @@ async function submit() {
     })
     emit('submitted')
   } catch (e) {
-    errors.value.submit = e.message || '提交失败，请重试'
+    errors.value.submit = e.message || t('sp.errSubmit')
   } finally {
     submitting.value = false
   }
@@ -173,7 +204,7 @@ async function submit() {
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path d="M11 4L6 9l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        返回
+        {{ t('common.back') }}
       </button>
     </nav>
 
@@ -188,7 +219,7 @@ async function submit() {
           <input
             v-model="form.title"
             class="hero-title-input"
-            placeholder="问题标题（例：打印件翘边）"
+            :placeholder="t('sp.titlePh')"
             maxlength="40"
             :class="{ 'has-error': errors.title }"
           />
@@ -198,7 +229,7 @@ async function submit() {
           <input
             v-model="form.subtitle"
             class="hero-sub-input"
-            placeholder="一句话描述（例：底部脱离热床）"
+            :placeholder="t('sp.subtitlePh')"
             maxlength="40"
             :class="{ 'has-error': errors.subtitle }"
           />
@@ -214,12 +245,12 @@ async function submit() {
       <section class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">📝</span>
-          详细描述
+          {{ t('sp.detail') }}
         </h2>
         <textarea
           v-model="form.description"
           class="content-textarea"
-          placeholder="详细描述问题的具体表现、出现场景等…"
+          :placeholder="t('sp.descPh')"
           rows="5"
           maxlength="600"
           :class="{ 'has-error': errors.description }"
@@ -232,7 +263,7 @@ async function submit() {
       <section class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">🏷️</span>
-          问题类型
+          {{ t('sp.category') }}
         </h2>
         <div class="select-chips">
           <button
@@ -240,7 +271,7 @@ async function submit() {
             :class="['select-chip', { active: form.category === c }]"
             :style="form.category === c ? { background: heroColor + '18', borderColor: heroColor, color: heroColor } : {}"
             type="button" @click="form.category = c"
-          >{{ c }}</button>
+          >{{ categoryLabel(c) }}</button>
         </div>
       </section>
 
@@ -248,7 +279,7 @@ async function submit() {
       <section class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">⚠️</span>
-          问题重要性
+          {{ t('sp.difficulty') }}
         </h2>
         <div class="select-chips">
           <button
@@ -258,7 +289,7 @@ async function submit() {
               ? { background: DIFF_BG[d] + 'cc', borderColor: DIFF_COLOR[d], color: DIFF_COLOR[d] }
               : {}"
             type="button" @click="form.difficulty = d"
-          >{{ d }}</button>
+          >{{ difficultyLabel(d) }}</button>
         </div>
       </section>
 
@@ -266,13 +297,13 @@ async function submit() {
       <section class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">📷</span>
-          问题图片
-          <span class="optional-tag">选填</span>
+          {{ t('sp.image') }}
+          <span class="optional-tag">{{ t('common.optional') }}</span>
         </h2>
-        <p class="section-sub">上传能直观展示该问题的图片</p>
+        <p class="section-sub">{{ t('sp.imageSub') }}</p>
 
         <div v-if="problemImagePreview" class="img-preview-wrap">
-          <img :src="problemImagePreview" class="img-preview" alt="问题图片" />
+          <img :src="problemImagePreview" class="img-preview" :alt="t('sp.image')" />
           <button class="img-remove-btn" type="button" @click="removeProblemImage">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
@@ -282,8 +313,8 @@ async function submit() {
         <label v-else class="img-upload-area">
           <input type="file" accept="image/*" style="display:none" @change="onProblemImageChange" />
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M14 6v16M6 14h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          <span>点击上传图片</span>
-          <span class="upload-hint">JPG / PNG，建议横图</span>
+          <span>{{ t('sp.uploadImage') }}</span>
+          <span class="upload-hint">{{ t('sp.uploadHint') }}</span>
         </label>
       </section>
 
@@ -291,7 +322,7 @@ async function submit() {
       <section class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">⚡</span>
-          可能原因
+          {{ t('sp.causes') }}
         </h2>
         <div class="causes-edit-grid">
           <div v-for="(_, i) in form.causes" :key="i" class="cause-edit-item">
@@ -299,7 +330,7 @@ async function submit() {
             <input
               v-model="form.causes[i]"
               class="cause-input"
-              :placeholder="`原因 ${i + 1}，例：热床温度不足`"
+              :placeholder="t('sp.causePh', { n: i + 1 })"
               maxlength="60"
             />
             <button v-if="form.causes.length > 1" class="icon-remove" type="button" @click="removeCause(i)">
@@ -312,7 +343,7 @@ async function submit() {
         <p v-if="errors.causes" class="field-err" style="margin-top:8px">{{ errors.causes }}</p>
         <button class="add-row-btn" type="button" @click="addCause" :disabled="form.causes.length >= 8">
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-          添加原因
+          {{ t('sp.addCause') }}
         </button>
       </section>
 
@@ -320,7 +351,7 @@ async function submit() {
       <section class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">🔧</span>
-          解决步骤
+          {{ t('sp.solutions') }}
         </h2>
         <p v-if="errors.solutions" class="field-err" style="margin-bottom:12px">{{ errors.solutions }}</p>
 
@@ -329,7 +360,7 @@ async function submit() {
             <!-- 步骤头 -->
             <div class="sol-edit-head">
               <span class="sol-step-badge" :style="{ background: heroColor }">{{ i + 1 }}</span>
-              <span class="sol-step-label">步骤 {{ i + 1 }}</span>
+              <span class="sol-step-label">{{ t('sp.step', { n: i + 1 }) }}</span>
               <button v-if="form.solutions.length > 1" class="icon-remove" type="button" @click="removeSolution(i)">
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
                   <path d="M2 2l9 9M11 2l-9 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -341,7 +372,7 @@ async function submit() {
             <input
               v-model="sol.title"
               class="content-input"
-              placeholder="步骤名称，例：重新调平热床"
+              :placeholder="t('sp.stepTitlePh')"
               maxlength="40"
             />
 
@@ -349,7 +380,7 @@ async function submit() {
             <textarea
               v-model="sol.detail"
               class="content-textarea small"
-              placeholder="操作说明，例：使用A4纸在喷嘴与热床之间校准间距…"
+              :placeholder="t('sp.stepDetailPh')"
               rows="3"
               maxlength="300"
             ></textarea>
@@ -367,7 +398,7 @@ async function submit() {
               <label v-else class="sol-img-upload">
                 <input type="file" accept="image/*" style="display:none" @change="e => onSolImageChange(e, i)" />
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                <span>上传步骤图片（选填）</span>
+                <span>{{ t('sp.stepImage') }}</span>
               </label>
             </div>
           </div>
@@ -375,7 +406,7 @@ async function submit() {
 
         <button class="add-row-btn" type="button" @click="addSolution" :disabled="form.solutions.length >= 10">
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-          添加步骤
+          {{ t('sp.addStep') }}
         </button>
       </section>
 
@@ -383,14 +414,14 @@ async function submit() {
       <section class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">💡</span>
-          小贴士
-          <span class="optional-tag">选填</span>
+          {{ t('sp.tips') }}
+          <span class="optional-tag">{{ t('common.optional') }}</span>
         </h2>
         <div class="tip-box" :style="{ background: heroColor + '0d', borderColor: heroColor + '33' }">
           <textarea
             v-model="form.tips"
             class="tip-textarea"
-            placeholder="补充一些额外注意事项或小技巧…"
+            :placeholder="t('sp.tipPh')"
             rows="3"
             maxlength="200"
           ></textarea>
@@ -404,7 +435,7 @@ async function submit() {
       <!-- 提交按钮 -->
       <button class="submit-btn" :class="{ loading: submitting }" :disabled="submitting" @click="submit">
         <span v-if="submitting" class="btn-spinner"></span>
-        {{ submitting ? '正在发布…' : '发布问题' }}
+        {{ submitting ? t('sp.submitting') : t('sp.submit') }}
       </button>
 
     </div>
@@ -415,7 +446,7 @@ async function submit() {
         <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
           <path d="M10 3L5 7.5l5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        返回列表
+        {{ t('sp.backList') }}
       </button>
     </div>
 

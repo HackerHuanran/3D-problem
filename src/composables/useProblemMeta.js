@@ -13,44 +13,48 @@ function cdnUrl(cloudPath) {
 
 const metaMap = ref({})
 let fetched   = false
+let fetchPromise = null
 
 export function useProblemMeta() {
 
   const fetchProblemMeta = async (force = false) => {
-    if (fetched && !force) return
+    if (fetched && !force) return metaMap.value
+    if (fetchPromise && !force) return fetchPromise
     fetched = true
-    try {
-      const res = await db.collection('problem_meta').limit(200).get()
-      if (res.code) {
-        // 集合不存在时静默返回（首次使用前需在控制台创建 problem_meta 集合）
-        console.warn('[useProblemMeta] DB error:', res.code, res.message)
-        return
+    fetchPromise = (async () => {
+      try {
+        const res = await db.collection('problem_meta').limit(200).get()
+        if (res.code) {
+          console.warn('[useProblemMeta] DB error:', res.code, res.message)
+          return metaMap.value
+        }
+        const data = res.data || []
+        const map = {}
+        data.forEach(r => {
+          if (!r.problem_id) return
+          let image_url = ''
+          if (r.cloud_path) {
+            image_url = cdnUrl(r.cloud_path)
+          } else if (r.file_id) {
+            const match = r.file_id.match(/^cloud:\/\/[^/]+\/(.+)$/)
+            if (match) image_url = cdnUrl(match[1])
+          }
+          image_url = image_url || r.image_url || ''
+          if (image_url) {
+            map[r.problem_id] = { _id: r._id, file_id: r.file_id, cloud_path: r.cloud_path, image_url }
+          }
+        })
+        metaMap.value = map
+        return metaMap.value
+      } catch (e) {
+        console.warn('[useProblemMeta] fetch failed:', e?.message, e)
+        return metaMap.value
+      } finally {
+        fetchPromise = null
       }
-      const data = res.data || []
-      console.log('[useProblemMeta] DB records:', data.length, data)
-      const map = {}
-      data.forEach(r => {
-        if (!r.problem_id) return
-        let image_url = ''
-        if (r.cloud_path) {
-          image_url = cdnUrl(r.cloud_path)
-        } else if (r.file_id) {
-          // 兼容旧数据：从 fileID 提取 cloudPath
-          // fileID 格式: cloud://env.bucket/path/to/file.jpg
-          const match = r.file_id.match(/^cloud:\/\/[^/]+\/(.+)$/)
-          if (match) image_url = cdnUrl(match[1])
-        }
-        image_url = image_url || r.image_url || ''
-        console.log('[useProblemMeta]', r.problem_id, '→', image_url)
-        if (image_url) {
-          map[r.problem_id] = { _id: r._id, file_id: r.file_id, cloud_path: r.cloud_path, image_url }
-        }
-      })
-      metaMap.value = map
-      console.log('[useProblemMeta] metaMap populated:', Object.keys(map))
-    } catch (e) {
-      console.warn('[useProblemMeta] fetch failed:', e?.message, e)
-    }
+    })()
+
+    return fetchPromise
   }
 
   const uploadProblemImage = async (problemId, file) => {
