@@ -47,6 +47,14 @@ function buildFallbackUser(uid, profile = {}) {
   }
 }
 
+function formatCnPhone(phone) {
+  const raw = String(phone || '').trim()
+  if (!raw) return ''
+  if (/^\+\d{1,3}\s+\d{4,20}$/.test(raw)) return raw
+  if (/^\+\d{5,}$/.test(raw)) return raw.replace(/^(\+\d{1,3})(\d+)$/, '$1 $2')
+  return `+86 ${raw}`
+}
+
 async function findProfile(uid) {
   try {
     const { data } = await db.collection('profiles').where({ uid }).limit(20).get()
@@ -190,13 +198,18 @@ export function useAuth() {
 
   const requestPasswordReset = async (phone) => {
     if (!phone) throw new Error('请输入手机号')
-    const res = await auth.resetPasswordForEmail(phone)
-    if (res?.error) {
-      const msg = res.error?.error_description || res.error?.message || '验证码发送失败，请重试'
+    const formattedPhone = formatCnPhone(phone)
+    try {
+      const verification = await auth.getVerification({ phone_number: formattedPhone })
+      if (!verification?.verification_id) throw new Error('验证码发送失败，请重试')
+      return {
+        formattedPhone,
+        verificationId: verification.verification_id,
+      }
+    } catch (e) {
+      const msg = e?.error_description || e?.message || '验证码发送失败，请重试'
       throw new Error(msg)
     }
-    if (!res?.data?.updateUser) throw new Error('验证码发送失败，请重试')
-    return res.data.updateUser
   }
 
   const confirmPasswordReset = async (updateUserFn, code, password) => {
@@ -204,9 +217,25 @@ export function useAuth() {
     if (!code?.trim()) throw new Error('请输入验证码')
     if (!password) throw new Error('请输入新密码')
 
-    const res = await updateUserFn({ nonce: code.trim(), password })
-    if (res?.error) {
-      const msg = res.error?.error_description || res.error?.message || '重置失败，请重试'
+    try {
+      const verifyRes = await auth.verify({
+        verification_id: updateUserFn.verificationId,
+        verification_code: code.trim(),
+      })
+
+      await auth.resetPassword({
+        phone_number: updateUserFn.formattedPhone,
+        new_password: password,
+        verification_token: verifyRes.verification_token,
+      })
+
+      const signInRes = await auth.signInWithPassword({ phone: updateUserFn.formattedPhone, password })
+      if (signInRes?.error) {
+        const msg = signInRes.error?.error_description || signInRes.error?.message || '重置成功，但自动登录失败'
+        throw new Error(msg)
+      }
+    } catch (e) {
+      const msg = e?.error_description || e?.message || '重置失败，请重试'
       throw new Error(msg)
     }
 
