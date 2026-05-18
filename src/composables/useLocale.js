@@ -36,6 +36,7 @@ const M = {
     // about
     'about.desc': '专注于 3D 打印故障排查与工具资源，帮助每一位打印爱好者解决问题、共享经验。',
     'about.wechat': '合作微信', 'about.phone': '联系电话',
+    'about.icp': 'ICP备案号', 'about.publicSecurity': '公安备案号',
     'about.copy': '© 2026 3D 故障库 · 版权所有',
     // lang
     'lang.zh': '中文', 'lang.en': 'English',
@@ -269,6 +270,7 @@ const M = {
     // about
     'about.desc': 'Focused on 3D printing troubleshooting and the maker community, helping every enthusiast solve problems and share experiences.',
     'about.wechat': 'WeChat', 'about.phone': 'Phone',
+    'about.icp': 'ICP Filing', 'about.publicSecurity': 'Public Security Filing',
     'about.copy': '© 2026 3D Fault Library · All Rights Reserved',
     // lang
     'lang.zh': '中文', 'lang.en': 'English',

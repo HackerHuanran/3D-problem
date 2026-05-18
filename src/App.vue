@@ -5,6 +5,7 @@ import { useNotifications } from './composables/useNotifications.js'
 import { useLocale } from './composables/useLocale.js'
 import { useToast } from './composables/useToast.js'
 import { isAvatarImage, avatarFallback } from './lib/avatar.js'
+import { siteRecordInfo } from './lib/site.js'
 
 const ProblemsView      = defineAsyncComponent(() => import('./components/ProblemsView.vue'))
 const ProblemDetailView = defineAsyncComponent(() => import('./components/ProblemDetailView.vue'))
@@ -29,6 +30,10 @@ const { lang, t } = useLocale()
 const { toasts, removeToast, success, error, info } = useToast()
 const currentAvatarIsImage = computed(() => isAvatarImage(currentUser.value?.avatar))
 const currentAvatarFallback = computed(() => avatarFallback(currentUser.value?.avatar, currentUser.value?.username))
+const icpRecordCode = computed(() => String(siteRecordInfo.icp?.code || '').trim())
+const icpRecordUrl = computed(() => String(siteRecordInfo.icp?.url || 'https://beian.miit.gov.cn/').trim())
+const publicSecurityCode = computed(() => String(siteRecordInfo.publicSecurity?.code || '').trim())
+const publicSecurityUrl = computed(() => String(siteRecordInfo.publicSecurity?.url || 'https://beian.mps.gov.cn/#/query/webSearch').trim())
 
 const appReady = ref(false)
 onMounted(async () => {
@@ -447,6 +452,26 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
         <div class="site-footer-meta">
           <span>{{ t('about.wechat') }}：crazy0568</span>
           <span>{{ t('about.phone') }}：+86-17111469098</span>
+          <div v-if="icpRecordCode || publicSecurityCode" class="site-footer-records">
+            <a
+              v-if="icpRecordCode"
+              class="site-footer-link"
+              :href="icpRecordUrl"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {{ t('about.icp') }}：{{ icpRecordCode }}
+            </a>
+            <a
+              v-if="publicSecurityCode"
+              class="site-footer-link"
+              :href="publicSecurityUrl"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {{ t('about.publicSecurity') }}：{{ publicSecurityCode }}
+            </a>
+          </div>
           <span>{{ t('about.copy') }}</span>
         </div>
       </div>
@@ -879,6 +904,19 @@ body { color: var(--lab-text); font-family: -apple-system, 'PingFang SC', 'Helve
   color: var(--lab-text-dim);
   text-align: right;
 }
+.site-footer-records {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+.site-footer-link {
+  color: var(--lab-text-soft);
+  transition: color 0.18s ease;
+}
+.site-footer-link:hover {
+  color: var(--lab-accent);
+}
 
 /* Auth init loading */
 .app-loading { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 52px); }
@@ -963,6 +1001,7 @@ body { color: var(--lab-text); font-family: -apple-system, 'PingFang SC', 'Helve
     align-items: flex-start;
   }
   .site-footer-meta { text-align: left; }
+  .site-footer-records { align-items: flex-start; }
   /* 下拉面板位置微调 */
   .notif-panel { width: 290px; }
   .user-dropdown { right: 0; }
