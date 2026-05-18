@@ -21,20 +21,48 @@ function buildFallbackUser(uid, profile = {}) {
   }
 }
 
-function isRealUser(loginState) {
-  if (!loginState?.user?.uid) return false
-  // loginType 为 null 时（缓存恢复场景）视为非匿名，让 loadProfile 来判断
-  return loginState.loginType?.toUpperCase() !== 'ANONYMOUS'
+async function findProfile(uid) {
+  try {
+    const { data } = await db.collection('profiles').where({ uid }).limit(1).get()
+    return data?.[0] || null
+  } catch {
+    return null
+  }
 }
 
 async function loadProfile(uid) {
-  try {
-    const { data } = await db.collection('profiles').where({ uid }).limit(1).get()
-    const profile = data?.[0]
-    currentUser.value = buildFallbackUser(uid, profile || {})
-  } catch {
-    currentUser.value = buildFallbackUser(uid)
+  const profile = await findProfile(uid)
+  if (!profile) {
+    currentUser.value = null
+    return null
   }
+  currentUser.value = buildFallbackUser(uid, profile)
+  return profile
+}
+
+async function resolveRealUserSession(loginState) {
+  if (!loginState?.user?.uid) {
+    currentUser.value = null
+    return false
+  }
+
+  const loginType = loginState.loginType?.toUpperCase?.() || ''
+  if (loginType === 'ANONYMOUS') {
+    currentUser.value = null
+    return false
+  }
+
+  if (loginType) {
+    return !!(await loadProfile(loginState.user.uid))
+  }
+
+  const profile = await findProfile(loginState.user.uid)
+  if (!profile) {
+    currentUser.value = null
+    return false
+  }
+  currentUser.value = buildFallbackUser(loginState.user.uid, profile)
+  return true
 }
 
 async function ensureAnonymousSession() {
@@ -47,10 +75,7 @@ async function ensureAnonymousSession() {
 
 // 监听登录状态变化
 auth.onLoginStateChanged(async loginState => {
-  if (!loginState || !loginState.user?.uid) { currentUser.value = null; return }
-  if (loginState.loginType?.toUpperCase() === 'ANONYMOUS') return  // 明确匿名，跳过
-  // loginType 为 null（缓存恢复）或真实类型，尝试加载 profile
-  await loadProfile(loginState.user.uid)
+  await resolveRealUserSession(loginState)
 })
 
 // 启动时恢复 session
@@ -61,8 +86,8 @@ auth.onLoginStateChanged(async loginState => {
     if (!loginState?.user?.uid) {
       // 完全没有 session 才触发匿名登录
       await ensureAnonymousSession()
-    } else if (isRealUser(loginState)) {
-      await loadProfile(loginState.user.uid)
+    } else {
+      await resolveRealUserSession(loginState)
     }
     // 有 anonymous session → 什么都不做
   } catch {}
@@ -230,8 +255,8 @@ export function useAuth() {
       const loginState = await Promise.race([auth.getLoginState(), timeout])
       if (!loginState?.user?.uid) {
         await ensureAnonymousSession()
-      } else if (isRealUser(loginState)) {
-        await loadProfile(loginState.user.uid)
+      } else {
+        await resolveRealUserSession(loginState)
       }
     } catch {}
   }
