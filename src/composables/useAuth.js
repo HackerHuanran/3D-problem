@@ -6,6 +6,7 @@ import { checkImage } from '@/lib/moderate.js'
 
 const currentUser = ref(null)
 const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
+let logoutInFlight = false
 
 function normalizeAdminFlag(profile = {}) {
   const direct = profile?.isAdmin
@@ -89,6 +90,11 @@ async function resolveRealUserSession(loginState) {
     return false
   }
 
+  if (logoutInFlight) {
+    currentUser.value = null
+    return false
+  }
+
   if (loginType) {
     return !!(await loadProfile(loginState.user.uid))
   }
@@ -102,16 +108,12 @@ async function resolveRealUserSession(loginState) {
   return true
 }
 
-async function ensureAnonymousSession() {
-  try {
-    await auth.signInAnonymously()
-  } catch (e) {
-    console.warn('[Auth] 匿名登录失败 —— 请在云开发控制台「登录授权」中开启「匿名登录」:', e?.message)
-  }
-}
-
 // 监听登录状态变化
 auth.onLoginStateChanged(async loginState => {
+  if (logoutInFlight) {
+    currentUser.value = null
+    return
+  }
   await resolveRealUserSession(loginState)
 })
 
@@ -120,13 +122,9 @@ auth.onLoginStateChanged(async loginState => {
   try {
     const timeout    = new Promise(resolve => setTimeout(resolve, 5000))
     const loginState = await Promise.race([auth.getLoginState(), timeout])
-    if (!loginState?.user?.uid) {
-      // 完全没有 session 才触发匿名登录
-      await ensureAnonymousSession()
-    } else {
+    if (loginState?.user?.uid) {
       await resolveRealUserSession(loginState)
     }
-    // 有 anonymous session → 什么都不做
   } catch {}
 })()
 
@@ -308,19 +306,21 @@ export function useAuth() {
   }
 
   const logout = async () => {
+    logoutInFlight = true
     currentUser.value = null
     try { await auth.signOut() } catch {}
-    await ensureAnonymousSession()
+    currentUser.value = null
+    logoutInFlight = false
   }
 
   const init = async () => {
     try {
       const timeout    = new Promise(resolve => setTimeout(resolve, 5000))
       const loginState = await Promise.race([auth.getLoginState(), timeout])
-      if (!loginState?.user?.uid) {
-        await ensureAnonymousSession()
-      } else {
+      if (loginState?.user?.uid) {
         await resolveRealUserSession(loginState)
+      } else {
+        currentUser.value = null
       }
     } catch {}
   }
