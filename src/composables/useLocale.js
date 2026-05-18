@@ -5,12 +5,10 @@ const lang = ref('zh')
 const M = {
   zh: {
     // nav
-    'nav.home': '首页', 'nav.news': '新闻资讯', 'nav.market': '需求广场',
-    'nav.calibration': '校准专区', 'nav.filament': '耗材参数库',
-    'nav.resources': '资源', 'nav.services': '服务商目录',
-    'nav.about': '关于我们', 'nav.login': '登录', 'nav.register': '注册',
+    'nav.home': '首页', 'nav.market': '需求广场', 'nav.filament': '耗材参数库',
+    'nav.login': '登录', 'nav.register': '注册',
     'nav.logout': '退出登录', 'nav.admin': '管理后台',
-    'nav.profile': '个人主页', 'nav.joinService': '服务商入驻',
+    'nav.profile': '个人主页',
     // notifications
     'notif.title': '通知', 'notif.markRead': '全部已读', 'notif.empty': '暂无通知',
     // user menu
@@ -63,9 +61,6 @@ const M = {
     'seo.baseDesc': '3D打印故障排查指南，收录翘边、拉丝、堵嘴等30+常见问题的分步解决方案',
     'seo.filament': '耗材参数库 | 3D故障库',
     'seo.market': '需求广场 | 3D故障库',
-    'seo.services': '服务商目录 | 3D故障库',
-    'seo.calibration': '校准专区 | 3D故障库',
-    'seo.news': '新闻资讯 | 3D故障库',
     // problems
     'p.eyebrow': '3D 打印 · 故障排查',
     'p.h1a': '遇到问题了？', 'p.h1b': '这里帮你解决。',
@@ -240,12 +235,10 @@ const M = {
   },
   en: {
     // nav
-    'nav.home': 'Home', 'nav.news': 'News', 'nav.market': 'Marketplace',
-    'nav.calibration': 'Calibration', 'nav.filament': 'Filaments',
-    'nav.resources': 'Resources', 'nav.services': 'Service Providers',
-    'nav.about': 'About', 'nav.login': 'Log In', 'nav.register': 'Sign Up',
+    'nav.home': 'Home', 'nav.market': 'Marketplace', 'nav.filament': 'Filaments',
+    'nav.login': 'Log In', 'nav.register': 'Sign Up',
     'nav.logout': 'Log Out', 'nav.admin': 'Admin Panel',
-    'nav.profile': 'Profile', 'nav.joinService': 'Join as Provider',
+    'nav.profile': 'Profile',
     // notifications
     'notif.title': 'Notifications', 'notif.markRead': 'Mark All Read',
     'notif.empty': 'No notifications',
@@ -301,9 +294,6 @@ const M = {
     'seo.baseDesc': 'Step-by-step 3D printing troubleshooting guides for warping, stringing, clogs and 30+ common failures.',
     'seo.filament': 'Filament Library | 3D Fault Library',
     'seo.market': 'Marketplace | 3D Fault Library',
-    'seo.services': 'Service Providers | 3D Fault Library',
-    'seo.calibration': 'Calibration | 3D Fault Library',
-    'seo.news': 'News | 3D Fault Library',
     // problems
     'p.eyebrow': '3D Printing · Troubleshooting',
     'p.h1a': 'Got a problem?', 'p.h1b': "We'll help you fix it.",

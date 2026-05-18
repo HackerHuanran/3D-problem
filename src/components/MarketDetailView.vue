@@ -6,6 +6,7 @@ import { getImageURLs } from '@/composables/useStorage.js'
 import { useLocale } from '@/composables/useLocale.js'
 import { useReport } from '@/composables/useReport.js'
 import { useUserGuard } from '@/composables/useUserGuard.js'
+import { useToast } from '@/composables/useToast.js'
 
 marked.setOptions({ breaks: true, gfm: true })
 const renderMd = (text) => marked.parse(text || '')
@@ -20,6 +21,7 @@ const emit  = defineEmits(['back', 'open-auth'])
 const { comments, likedCommentIds, fetchComments, addComment, acceptAnswer, toggleLike } = useMarketDetail()
 const { submitReport } = useReport()
 const { ensureUserCanInteract } = useUserGuard()
+const { success, error: toastError } = useToast()
 
 const REPORT_REASONS = computed(() => [
   t('report.porn'),
@@ -42,8 +44,10 @@ async function handleReport() {
       type: 'market', targetId: props.post.id, targetTitle: props.post.title, reason: reportReason.value,
     })
     reportDone.value = true
+    success('举报提交成功，我们会尽快处理')
   } catch (e) {
     console.error(e)
+    toastError('举报提交失败，请稍后重试')
   } finally {
     reportSubmitting.value = false
   }
@@ -103,8 +107,10 @@ async function submitComment() {
     })
     commentText.value = ''
     await fetchComments(props.post.id, props.currentUser?.id)
+    success('回答提交成功')
   } catch (e) {
     commentError.value = e.message
+    toastError(commentError.value || '回答提交失败')
   } finally {
     commentLoading.value = false
   }
@@ -268,7 +274,7 @@ function timeAgo(ts) {
 
   <!-- 举报弹窗 -->
   <Transition name="lb">
-    <div v-if="showReportModal" class="lightbox report-mask" @click.self="showReportModal = false">
+    <div v-if="showReportModal" class="lightbox report-mask">
       <div class="report-box">
         <div class="report-head">
           <h3>{{ t('md.reportTitle') }}</h3>

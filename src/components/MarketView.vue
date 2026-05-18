@@ -6,8 +6,10 @@ import { uploadImages } from '@/composables/useStorage.js'
 import MarketDetailView from './MarketDetailView.vue'
 import { useLocale } from '@/composables/useLocale.js'
 import { checkContent, checkImage } from '@/lib/moderate.js'
+import { useToast } from '@/composables/useToast.js'
 
 const { t } = useLocale()
+const { success, error: toastError } = useToast()
 
 const props = defineProps({ currentUser: Object })
 const emit  = defineEmits(['open-auth'])
@@ -107,8 +109,10 @@ async function submit() {
     clearFormFiles()
     showModal.value = false
     await fetchPosts()
+    success('需求发布成功')
   } catch (e) {
     submitError.value = e.message
+    toastError(submitError.value || '需求发布失败')
   } finally {
     submitting.value = false
   }

@@ -2,9 +2,11 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { db } from '@/lib/tcb.js'
 import { services as staticServices, serviceTypes, provinces, specialtyTags, PRICE_LABEL, PRICE_COLOR, TYPE_COLOR } from '../data/services.js'
+import { useToast } from '@/composables/useToast.js'
 
 const props = defineProps({ currentUser: Object, autoOpenJoin: Boolean })
 const emit  = defineEmits(['open-auth', 'join-opened'])
+const { success, error: toastError } = useToast()
 
 // ── 从数据库加载已审核通过的服务商 ─────────────────────────────────────────────
 const dbServices = ref([])
@@ -157,8 +159,10 @@ async function submitJoin() {
       created_at:  new Date(),
     })
     joinSuccess.value = true
+    success('入驻申请提交成功，等待后台审核')
   } catch (e) {
     joinError.value = e.message || '提交失败，请稍后重试'
+    toastError(joinError.value)
   } finally {
     joinLoading.value = false
   }
@@ -327,7 +331,7 @@ async function submitJoin() {
 
   <!-- ── 入驻弹窗 ─────────────────────────────────────────────────────────── -->
   <Transition name="modal">
-    <div v-if="showJoin" class="modal-mask" @click="closeJoin">
+    <div v-if="showJoin" class="modal-mask">
       <div class="join-modal" @click.stop>
         <div class="join-modal-header">
           <h2 class="join-modal-title">服务商免费入驻</h2>

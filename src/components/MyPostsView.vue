@@ -4,8 +4,10 @@ import { useMarket } from '@/composables/useMarket.js'
 import { uploadImages, getImageURLs } from '@/composables/useStorage.js'
 import { useLocale } from '@/composables/useLocale.js'
 import { checkContent, checkImage } from '@/lib/moderate.js'
+import { useToast } from '@/composables/useToast.js'
 
 const { t } = useLocale()
+const { success, error: toastError, info } = useToast()
 
 const props = defineProps({ currentUser: Object })
 const emit  = defineEmits(['back'])
@@ -96,8 +98,10 @@ async function submitCreate() {
     clearFiles(createImg)
     showCreate.value = false
     await fetchMyPosts(props.currentUser.id)
+    success('需求发布成功')
   } catch (e) {
     createError.value = e.message
+    toastError(createError.value || '需求发布失败')
   } finally {
     creating.value = false
   }
@@ -153,8 +157,10 @@ async function submitEdit() {
     clearFiles(editImg)
     showEdit.value = false
     await fetchMyPosts(props.currentUser.id)
+    success('需求保存成功')
   } catch (e) {
     editError.value = e.message
+    toastError(editError.value || '需求保存失败')
   } finally {
     editing.value = false
   }
@@ -169,7 +175,10 @@ async function toggleStatus(post) {
   try {
     await updatePostStatus(post.id, next)
     post.status = next
-  } catch (e) { alert(e.message) } finally {
+    info(next === '已完成' ? '已标记为已完成' : '已重新开放需求')
+  } catch (e) {
+    toastError(e.message || '状态更新失败')
+  } finally {
     delete actionLoading.value[post.id + '_s']
   }
 }
@@ -180,7 +189,10 @@ async function remove(post) {
   try {
     await deletePost(post.id)
     await fetchMyPosts(props.currentUser.id)
-  } catch {} finally {
+    success('需求已删除')
+  } catch (e) {
+    toastError(e?.message || '删除失败')
+  } finally {
     delete actionLoading.value[post.id + '_d']
   }
 }

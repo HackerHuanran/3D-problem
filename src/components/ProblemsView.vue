@@ -416,23 +416,23 @@
       </div>
     </main>
 
-    <!-- 耗材参数速查表 -->
-    <section class="temp-section">
-      <div class="temp-inner">
-        <h2 class="temp-title"><span>🌡️</span> {{ t('p.matTitle') }}</h2>
-        <p class="temp-sub">{{ t('p.matSub') }}</p>
-        <div class="temp-grid">
-          <div v-for="m in materials" :key="m.name" class="temp-card" :style="{ '--mc': m.color }">
-            <div class="temp-name">{{ m.name }}</div>
-            <div class="temp-rows">
-              <div class="temp-row"><span class="temp-label">{{ t('p.nozzle') }}</span><span class="temp-val">{{ m.nozzle }}</span></div>
-              <div class="temp-row"><span class="temp-label">{{ t('p.bed') }}</span><span class="temp-val">{{ m.bed }}</span></div>
-              <div class="temp-row"><span class="temp-label">{{ t('p.fan') }}</span><span class="temp-val">{{ m.fan }}</span></div>
-              <div class="temp-row"><span class="temp-label">{{ t('p.speed') }}</span><span class="temp-val">{{ m.speed }}</span></div>
-            </div>
-            <div class="temp-tip">{{ t(m.tipKey) }}</div>
+    <section class="filament-entry-section">
+      <div class="filament-entry-card">
+        <div class="filament-entry-copy">
+          <span class="filament-entry-kicker">耗材参数库</span>
+          <h2 class="filament-entry-title">材料别在首页里顺手看，直接进参数库会更快</h2>
+          <p class="filament-entry-desc">
+            按材料、品牌、使用场景筛选，查看推荐参数、真实评价、风险提示和适配建议。
+          </p>
+          <div class="filament-entry-tags">
+            <span class="filament-entry-tag">PLA / PETG / TPU / 树脂</span>
+            <span class="filament-entry-tag">真实评价</span>
+            <span class="filament-entry-tag">风险标签</span>
           </div>
         </div>
+        <button class="filament-entry-btn" @click="$emit('go-filament')">
+          去耗材参数库
+        </button>
       </div>
     </section>
 
@@ -449,7 +449,7 @@ import { useProblemMeta } from '@/composables/useProblemMeta.js'
 import { searchProblemLibrary, getAllProblemSummaries } from '@/composables/useProblemLibrary.js'
 
 const props = defineProps({ currentUser: Object })
-const emit = defineEmits(['go-detail', 'open-auth', 'go-submit'])
+const emit = defineEmits(['go-detail', 'open-auth', 'go-submit', 'go-filament'])
 
 const { userProblems, fetchUserProblems } = useUserProblems()
 const { getEncounterCounts } = useCommunity()
@@ -1627,14 +1627,6 @@ const catLabel = (c) => {
   return c
 }
 
-const materials = [
-  { name: 'PLA',   color: '#5cba7a', nozzle: '190–220°C', bed: '55–65°C',   fan: '100%',  speed: '40–100mm/s', tipKey: 'p.matTip.pla' },
-  { name: 'PETG',  color: '#74b9ff', nozzle: '230–245°C', bed: '70–85°C',   fan: '50%',   speed: '30–60mm/s',  tipKey: 'p.matTip.petg' },
-  { name: 'ABS',   color: '#ff6b6b', nozzle: '230–250°C', bed: '100–110°C', fan: '关闭',  speed: '30–60mm/s',  tipKey: 'p.matTip.abs' },
-  { name: 'ASA',   color: '#fdcb6e', nozzle: '240–260°C', bed: '90–110°C',  fan: '关闭',  speed: '30–60mm/s',  tipKey: 'p.matTip.asa' },
-  { name: 'TPU',   color: '#a29bfe', nozzle: '220–240°C', bed: '30–60°C',   fan: '100%',  speed: '20–30mm/s',  tipKey: 'p.matTip.tpu' },
-  { name: 'PA尼龙', color: '#e17055', nozzle: '240–270°C', bed: '70–90°C',  fan: '30–50%',speed: '30–50mm/s',  tipKey: 'p.matTip.pa' },
-]
 </script>
 
 <style scoped>
@@ -2592,20 +2584,86 @@ const materials = [
 .card-enter-from, .card-leave-to { opacity: 0; transform: scale(0.94); }
 .card-move { transition: transform 0.28s ease; }
 
-/* 耗材表 */
-.temp-section { padding: 0 24px 80px; }
-.temp-inner { max-width: 1200px; margin: 0 auto; }
-.temp-title { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 700; color: var(--text-main); margin-bottom: 6px; letter-spacing: -0.01em; }
-.temp-sub { font-size: 13px; color: var(--text-soft); margin-bottom: 18px; }
-.temp-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(170px,1fr)); gap: 12px; }
-.temp-card { background: linear-gradient(180deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.62) 100%); border: 1px solid rgba(255,255,255,0.72); border-top: 2px solid var(--mc); border-radius: 20px; padding: 16px; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 18px 34px rgba(128, 138, 162, 0.1); backdrop-filter: blur(18px); }
-.temp-card:hover { transform: translateY(-2px); box-shadow: 0 20px 36px rgba(128, 138, 162, 0.14); }
-.temp-name { font-size: 15px; font-weight: 700; color: var(--mc); margin-bottom: 12px; }
-.temp-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-.temp-row { display: flex; justify-content: space-between; }
-.temp-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
-.temp-val { font-size: 12px; font-weight: 600; color: var(--text-main); font-family: "SF Mono","Menlo","Roboto Mono","Consolas",monospace; }
-.temp-tip { font-size: 11px; color: var(--text-soft); line-height: 1.5; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.6); }
+.filament-entry-section { padding: 0 24px 80px; }
+.filament-entry-card {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 26px;
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 196, 87, 0.16), transparent 28%),
+    radial-gradient(circle at left center, rgba(116, 185, 255, 0.14), transparent 26%),
+    linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(248,250,253,0.92) 100%);
+  border: 1px solid rgba(255,255,255,0.78);
+  box-shadow: 0 20px 38px rgba(128, 138, 162, 0.12);
+  backdrop-filter: blur(18px);
+}
+.filament-entry-copy {
+  max-width: 720px;
+}
+.filament-entry-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(37, 104, 232, 0.08);
+  color: #31507e;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin-bottom: 12px;
+}
+.filament-entry-title {
+  font-size: 24px;
+  line-height: 1.28;
+  letter-spacing: -0.03em;
+  color: var(--text-main);
+  margin-bottom: 10px;
+}
+.filament-entry-desc {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-soft);
+  margin-bottom: 14px;
+}
+.filament-entry-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.filament-entry-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.86);
+  border: 1px solid rgba(57, 86, 120, 0.08);
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 600;
+}
+.filament-entry-btn {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  padding: 13px 22px;
+  background: linear-gradient(135deg, #1f5eff 0%, #3aa9c9 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 14px 30px rgba(37, 104, 232, 0.2);
+  transition: transform 0.18s, box-shadow 0.18s;
+}
+.filament-entry-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 34px rgba(37, 104, 232, 0.24);
+}
 
 /* 热门故障 */
 .hot-section { padding: 0 24px 8px; }
@@ -2681,7 +2739,17 @@ const materials = [
   .card-body { padding: 13px 15px 15px; }
   .card-title { font-size: 14px; }
   .hot-scroll { grid-template-columns: 1fr; }
-  .temp-section { padding: 0 16px 60px; }
-  .temp-grid { grid-template-columns: repeat(2,1fr); }
+  .filament-entry-section { padding: 0 16px 60px; }
+  .filament-entry-card {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 20px;
+  }
+  .filament-entry-title {
+    font-size: 20px;
+  }
+  .filament-entry-btn {
+    width: 100%;
+  }
 }
 </style>

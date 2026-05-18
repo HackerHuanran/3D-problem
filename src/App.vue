@@ -3,14 +3,13 @@ import { ref, watch, onMounted, defineAsyncComponent, computed } from 'vue'
 import { useAuth } from './composables/useAuth.js'
 import { useNotifications } from './composables/useNotifications.js'
 import { useLocale } from './composables/useLocale.js'
+import { useToast } from './composables/useToast.js'
+import { isAvatarImage, avatarFallback } from './lib/avatar.js'
 
 const ProblemsView      = defineAsyncComponent(() => import('./components/ProblemsView.vue'))
 const ProblemDetailView = defineAsyncComponent(() => import('./components/ProblemDetailView.vue'))
-const NewsView          = defineAsyncComponent(() => import('./components/NewsView.vue'))
 const MarketView        = defineAsyncComponent(() => import('./components/MarketView.vue'))
 const FilamentView      = defineAsyncComponent(() => import('./components/FilamentView.vue'))
-const ServicesView      = defineAsyncComponent(() => import('./components/ServicesView.vue'))
-const CalibrationView   = defineAsyncComponent(() => import('./components/CalibrationView.vue'))
 const AdminView         = defineAsyncComponent(() => import('./components/AdminView.vue'))
 const SubmitProblemView = defineAsyncComponent(() => import('./components/SubmitProblemView.vue'))
 const ProfileView       = defineAsyncComponent(() => import('./components/ProfileView.vue'))
@@ -27,6 +26,9 @@ const getProblems = async () => {
 const { currentUser, checkUsername, requestPhoneCode, confirmCode, login, logout, init } = useAuth()
 const { notifications, unreadCount, fetchNotifications, markAllRead } = useNotifications()
 const { lang, t } = useLocale()
+const { toasts, removeToast, success, error, info } = useToast()
+const currentAvatarIsImage = computed(() => isAvatarImage(currentUser.value?.avatar))
+const currentAvatarFallback = computed(() => avatarFallback(currentUser.value?.avatar, currentUser.value?.username))
 
 const appReady = ref(false)
 onMounted(async () => {
@@ -47,15 +49,6 @@ onMounted(async () => {
   } else if (path === '/market') {
     activeTab.value = 'market'
     setMeta(t('seo.market'), BASE_DESC.value, path)
-  } else if (path === '/services') {
-    activeTab.value = 'services'
-    setMeta(t('seo.services'), BASE_DESC.value, path)
-  } else if (path === '/calibration') {
-    activeTab.value = 'calibration'
-    setMeta(t('seo.calibration'), BASE_DESC.value, path)
-  } else if (path === '/news') {
-    activeTab.value = 'news'
-    setMeta(t('seo.news'), BASE_DESC.value, path)
   }
   await init()
   appReady.value = true
@@ -71,6 +64,7 @@ const currentPage     = ref('list')
 const currentDetailId = ref(null)
 const activeTab       = ref('home')
 const detailReturnContext = ref({ from: 'home', profileTab: 'fav' })
+const submitContext = ref(null)
 
 // ── SEO 辅助 ──
 const BASE_TITLE = computed(() => t('seo.baseTitle'))
@@ -98,7 +92,6 @@ const goBackToList = () => {
   currentPage.value = 'list'
   activeTab.value = 'home'
   currentDetailId.value = null
-  showMoreMenu.value = false
   showProfile.value = false
   detailReturnContext.value = { from: 'home', profileTab: 'fav' }
   window.scrollTo(0, 0)
@@ -109,7 +102,6 @@ const handleDetailBack = () => {
     currentPage.value = 'list'
     currentDetailId.value = null
     showProfile.value = true
-    showMoreMenu.value = false
     window.scrollTo(0, 0)
     return
   }
@@ -118,19 +110,43 @@ const handleDetailBack = () => {
 const switchTab = (tab) => {
   activeTab.value = tab
   currentPage.value = 'list'
-  showMoreMenu.value = false
   window.scrollTo(0, 0)
   const tabTitles = {
     filament: t('seo.filament'),
-    services: t('seo.services'),
     market: t('seo.market'),
-    calibration: t('seo.calibration'),
-    news: t('seo.news'),
   }
   setMeta(tabTitles[tab] || BASE_TITLE.value, BASE_DESC.value, tab === 'home' ? '/' : `/${tab}`)
 }
-const goToSubmit = () => { currentPage.value = 'submit'; window.scrollTo(0, 0) }
-const onSubmitted = () => { currentPage.value = 'list'; activeTab.value = 'home'; window.scrollTo(0, 0) }
+const goToSubmit = (context = null) => {
+  submitContext.value = context
+  currentPage.value = 'submit'
+  window.scrollTo(0, 0)
+}
+
+const handleSubmitBack = () => {
+  if (submitContext.value?.mode === 'solution' && submitContext.value?.targetProblemId) {
+    currentPage.value = 'detail'
+    currentDetailId.value = submitContext.value.targetProblemId
+    window.scrollTo(0, 0)
+    return
+  }
+  goBackToList()
+}
+
+const onSubmitted = () => {
+  if (submitContext.value?.mode === 'solution' && submitContext.value?.targetProblemId) {
+    const targetProblemId = submitContext.value.targetProblemId
+    submitContext.value = null
+    currentDetailId.value = targetProblemId
+    currentPage.value = 'detail'
+    window.scrollTo(0, 0)
+    return
+  }
+  submitContext.value = null
+  currentPage.value = 'list'
+  activeTab.value = 'home'
+  window.scrollTo(0, 0)
+}
 
 // ── 个人主页 ──
 const showProfile = ref(false)
@@ -245,6 +261,7 @@ const submitAuth = async () => {
       await login(phone.trim(), password)
     }
     closeAuth()
+    success(authMode.value === 'register' ? '注册成功，已自动登录' : '登录成功')
   } catch (e) {
     authError.value = e.message || e.error_description || String(e)
   } finally {
@@ -256,28 +273,9 @@ const submitAuth = async () => {
 const showAdmin = ref(false)
 const openAdmin = () => { showUserMenu.value = false; showAdmin.value = true; window.scrollTo(0, 0) }
 
-// ── 服务商入驻 ──
-const autoOpenJoinService = ref(false)
-const openJoinService = () => {
-  showUserMenu.value = false
-  activeTab.value = 'services'
-  currentPage.value = 'list'
-  window.scrollTo(0, 0)
-  autoOpenJoinService.value = true
-}
-
 // ── 积分弹窗 ──
 const showPoints = ref(false)
 const openPoints = () => { showUserMenu.value = false; showPoints.value = true }
-
-// ── 关于我们 ──
-const showAbout = ref(false)
-const showMoreMenu = ref(false)
-const moreMenuActive = () => ['services', 'news'].includes(activeTab.value) || showAbout.value
-const openAboutFromMenu = () => {
-  showMoreMenu.value = false
-  showAbout.value = true
-}
 
 // ── 语言切换 ──
 const showLangMenu = ref(false)
@@ -308,7 +306,8 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
   <SubmitProblemView
     v-else-if="currentPage === 'submit'"
     :current-user="currentUser"
-    @back="goBackToList"
+    :context="submitContext"
+    @back="handleSubmitBack"
     @submitted="onSubmitted"
   />
 
@@ -323,21 +322,6 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
           <button :class="['nav-tab', { active: activeTab === 'home' }]"   @click="switchTab('home')">{{ t('nav.home') }}</button>
           <button :class="['nav-tab', { active: activeTab === 'filament' }]"  @click="switchTab('filament')">{{ t('nav.filament') }}</button>
           <button :class="['nav-tab', { active: activeTab === 'market' }]"   @click="switchTab('market')">{{ t('nav.market') }}</button>
-          <button :class="['nav-tab', { active: activeTab === 'calibration' }]" @click="switchTab('calibration')">{{ t('nav.calibration') }}</button>
-          <div class="nav-more-wrap">
-            <button :class="['nav-tab', 'nav-tab-more', { active: moreMenuActive() }]" @click="showMoreMenu = !showMoreMenu">
-              {{ t('nav.resources') }}
-              <span class="nav-more-caret" :class="{ open: showMoreMenu }">▾</span>
-            </button>
-            <Transition name="dropdown">
-              <div v-if="showMoreMenu" class="nav-more-menu">
-                <button class="nav-more-item" @click="switchTab('services')">{{ t('nav.services') }}</button>
-                <button class="nav-more-item" @click="switchTab('news')">{{ t('nav.news') }}</button>
-                <button class="nav-more-item" @click="openAboutFromMenu">{{ t('nav.about') }}</button>
-              </div>
-            </Transition>
-            <div v-if="showMoreMenu" class="menu-backdrop" @click="showMoreMenu = false"></div>
-          </div>
         </div>
         <div class="nav-right">
           <template v-if="!currentUser">
@@ -418,7 +402,10 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
             <!-- 用户菜单 -->
             <div class="user-wrap">
               <div class="nav-user" @click="showUserMenu = !showUserMenu">
-                <div class="user-avatar">{{ currentUser.avatar }}</div>
+                <div class="user-avatar">
+                  <img v-if="currentAvatarIsImage" :src="currentUser.avatar" alt="用户头像" class="avatar-image" />
+                  <span v-else>{{ currentAvatarFallback }}</span>
+                </div>
                 <span class="user-name">{{ currentUser.username }}</span>
                 <span class="menu-caret" :class="{ open: showUserMenu }">▾</span>
               </div>
@@ -427,7 +414,6 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
                   <button v-if="currentUser.isAdmin" class="dropdown-item admin-item" @click="openAdmin">{{ t('nav.admin') }}</button>
                   <div v-if="currentUser.isAdmin" class="dropdown-divider"></div>
                   <button class="dropdown-item" @click="openProfile">{{ t('nav.profile') }}</button>
-                  <button class="dropdown-item" @click="openJoinService">{{ t('nav.joinService') }}</button>
                   <button class="dropdown-item" @click="openPoints">{{ t('user.points') }}</button>
                   <div class="dropdown-divider"></div>
                   <button class="dropdown-item danger" @click="handleLogout">{{ t('nav.logout') }}</button>
@@ -441,21 +427,30 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
     </nav>
 
     <template v-if="appReady">
-      <ProblemsView  v-if="activeTab === 'home'"     :current-user="currentUser" @go-detail="goToDetail" @open-auth="openAuth" @go-submit="goToSubmit" />
-      <NewsView      v-else-if="activeTab === 'news'" />
+      <ProblemsView  v-if="activeTab === 'home'"     :current-user="currentUser" @go-detail="goToDetail" @open-auth="openAuth" @go-submit="goToSubmit" @go-filament="switchTab('filament')" />
       <MarketView    v-else-if="activeTab === 'market'"   :current-user="currentUser" @open-auth="openAuth" />
-      <FilamentView  v-else-if="activeTab === 'filament'" />
-      <CalibrationView v-else-if="activeTab === 'calibration'" @go-detail="goToDetail" />
-      <ServicesView  v-else-if="activeTab === 'services'"
-        :current-user="currentUser"
-        :auto-open-join="autoOpenJoinService"
-        @open-auth="openAuth"
-        @join-opened="autoOpenJoinService = false"
-      />
+      <FilamentView  v-else-if="activeTab === 'filament'" :current-user="currentUser" @open-auth="openAuth" />
     </template>
     <div v-else class="app-loading">
       <span class="loading-spinner"></span>
     </div>
+
+    <footer class="site-footer">
+      <div class="site-footer-inner">
+        <div class="site-footer-brand">
+          <span class="site-footer-mark">▲</span>
+          <div>
+            <div class="site-footer-title">{{ t('app.logo') }}</div>
+            <div class="site-footer-desc">{{ t('about.desc') }}</div>
+          </div>
+        </div>
+        <div class="site-footer-meta">
+          <span>{{ t('about.wechat') }}：crazy0568</span>
+          <span>{{ t('about.phone') }}：+86-17111469098</span>
+          <span>{{ t('about.copy') }}</span>
+        </div>
+      </div>
+    </footer>
   </div>
 
   <ProblemDetailView
@@ -464,6 +459,7 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
     @back="handleDetailBack"
     @go-detail="goToDetail"
     @open-auth="openAuth"
+    @go-submit="goToSubmit"
   />
 
   <!-- 登录/注册弹窗 -->
@@ -577,7 +573,7 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
 
   <!-- 积分弹窗 -->
   <Transition name="modal">
-    <div v-if="showPoints" class="modal-mask" @click.self="showPoints = false">
+    <div v-if="showPoints" class="modal-mask">
       <div class="modal-box">
         <div class="modal-body" style="padding-top:32px;text-align:center">
           <h2 class="modal-title">{{ t('pts.title') }}</h2>
@@ -592,47 +588,20 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
     </div>
   </Transition>
 
-  <!-- 关于我们弹窗 -->
-  <Transition name="modal">
-    <div v-if="showAbout" class="modal-mask" @click.self="showAbout = false">
-      <div class="modal-box about-box">
-        <div class="about-header">
-          <span class="about-logo-mark">▲</span>
-          <span class="about-logo-text">{{ t('app.logo') }}</span>
+  <Teleport to="body">
+    <div class="toast-stack">
+      <TransitionGroup name="toast">
+        <div
+          v-for="toast in toasts"
+          :key="toast.id"
+          :class="['toast-item', toast.type]"
+          @click="removeToast(toast.id)"
+        >
+          {{ toast.message }}
         </div>
-        <div class="modal-body" style="padding-top:20px">
-          <p class="about-desc">{{ t('about.desc') }}</p>
-          <div class="about-contacts">
-            <div class="contact-item">
-              <div class="contact-icon">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <rect x="2" y="4" width="16" height="13" rx="3" stroke="currentColor" stroke-width="1.4"/>
-                  <path d="M7 9c0 2.2 1.6 4 3.5 4a3.3 3.3 0 002.5-1.2V13h1.5V9H12v1.3a1.7 1.7 0 01-1.5.9C9.4 11.2 8.5 10.2 8.5 9c0-1.2.9-2.2 2-2.2.6 0 1.1.3 1.5.7L13 6.4A3.3 3.3 0 0010.5 5C8.6 5 7 6.8 7 9z" fill="currentColor"/>
-                </svg>
-              </div>
-              <div class="contact-info">
-                <span class="contact-label">{{ t('about.wechat') }}</span>
-                <span class="contact-value">crazy0568</span>
-              </div>
-            </div>
-            <div class="contact-item">
-              <div class="contact-icon">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <path d="M4.5 3.5h3l1.5 3.5-1.8 1.1a9 9 0 004.2 4.2L12.5 10.5l3.5 1.5v3c0 .8-.7 1.5-1.5 1.5C6.9 16.5 3.5 13.1 3.5 5c0-.8.7-1.5 1.5-1.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-                </svg>
-              </div>
-              <div class="contact-info">
-                <span class="contact-label">{{ t('about.phone') }}</span>
-                <span class="contact-value">+86-17111469098</span>
-              </div>
-            </div>
-          </div>
-          <p class="about-footer">{{ t('about.copy') }}</p>
-        </div>
-        <button class="modal-close" @click="showAbout = false">✕</button>
-      </div>
+      </TransitionGroup>
     </div>
-  </Transition>
+  </Teleport>
 </template>
 
 <style>
@@ -782,7 +751,8 @@ body { color: var(--lab-text); font-family: -apple-system, 'PingFang SC', 'Helve
 .user-wrap { position: relative; }
 .nav-user { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 8px; border-radius: 100px; transition: background 0.15s; user-select: none; }
 .nav-user:hover { background: rgba(255,255,255,0.72); }
-.user-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #2568e8, #18b5d4); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 8px 18px rgba(37, 104, 232, 0.18); }
+.user-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #2568e8, #18b5d4); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 8px 18px rgba(37, 104, 232, 0.18); overflow: hidden; }
+.avatar-image { width: 100%; height: 100%; object-fit: cover; display: block; }
 .user-name { font-size: 14px; color: var(--lab-text); }
 .menu-caret { font-size: 11px; color: var(--lab-text-soft); transition: transform 0.2s; }
 .menu-caret.open { transform: rotate(180deg); }
@@ -856,23 +826,113 @@ body { color: var(--lab-text); font-family: -apple-system, 'PingFang SC', 'Helve
 .lang-item.active { font-weight: 600; }
 .lang-flag { font-size: 18px; line-height: 1; }
 
-/* 关于我们弹窗 */
-.about-box { max-width: 360px; }
-.about-header { display: flex; align-items: center; gap: 8px; padding: 24px 28px 0; }
-.about-logo-mark { font-size: 20px; color: var(--lab-accent); }
-.about-logo-text { font-size: 17px; font-weight: 700; color: var(--lab-text); letter-spacing: -0.01em; }
-.about-desc { font-size: 14px; color: var(--lab-text-soft); line-height: 1.7; margin-bottom: 24px; }
-.about-contacts { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
-.contact-item { display: flex; align-items: center; gap: 14px; background: rgba(245, 249, 253, 0.96); border: 1px solid var(--lab-line); border-radius: 14px; padding: 14px 16px; }
-.contact-icon { width: 36px; height: 36px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; color: var(--lab-text); flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-.contact-info { display: flex; flex-direction: column; gap: 2px; }
-.contact-label { font-size: 11px; color: var(--lab-text-dim); letter-spacing: 0.04em; }
-.contact-value { font-size: 15px; font-weight: 600; color: var(--lab-text); letter-spacing: 0.01em; }
-.about-footer { font-size: 11px; color: #a3b1c4; text-align: center; }
+/* 页脚 */
+.site-footer {
+  border-top: 1px solid var(--lab-line);
+  background: linear-gradient(180deg, rgba(247, 250, 253, 0.52) 0%, rgba(243, 247, 252, 0.9) 100%);
+  margin-top: 32px;
+}
+.site-footer-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.site-footer-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.site-footer-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #f7fbff;
+  background: linear-gradient(135deg, var(--lab-accent) 0%, var(--lab-accent-2) 100%);
+  box-shadow: 0 8px 18px rgba(37, 104, 232, 0.18);
+  flex-shrink: 0;
+}
+.site-footer-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--lab-text);
+  margin-bottom: 4px;
+}
+.site-footer-desc {
+  font-size: 13px;
+  color: var(--lab-text-soft);
+  line-height: 1.6;
+  max-width: 520px;
+}
+.site-footer-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--lab-text-dim);
+  text-align: right;
+}
 
 /* Auth init loading */
 .app-loading { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 52px); }
 .loading-spinner { width: 28px; height: 28px; border: 2.5px solid rgba(0,0,0,0.1); border-top-color: var(--lab-accent); border-radius: 50%; animation: spin 0.75s linear infinite; }
+
+.toast-stack {
+  position: fixed;
+  top: 84px;
+  right: 20px;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+.toast-item {
+  min-width: 220px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 24, 38, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(14px);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--lab-text);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.toast-item.success {
+  border-color: rgba(30, 157, 102, 0.18);
+  background: rgba(242, 251, 246, 0.98);
+  color: #176b47;
+}
+.toast-item.error {
+  border-color: rgba(219, 77, 92, 0.18);
+  background: rgba(255, 246, 247, 0.98);
+  color: #b42318;
+}
+.toast-item.info {
+  border-color: rgba(82, 116, 217, 0.18);
+  background: rgba(245, 248, 255, 0.98);
+  color: #3555b5;
+}
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.22s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) translateX(10px);
+}
 
 /* ── 移动端导航：上栏(logo+操作) + 下栏(可横滑 tabs) ── */
 @media (max-width: 768px) {
@@ -897,9 +957,24 @@ body { color: var(--lab-text); font-family: -apple-system, 'PingFang SC', 'Helve
   .menu-caret { display: none; }
   .nav-btn { padding: 5px 11px; font-size: 12px; }
   .app-loading { min-height: calc(100vh - 84px); }
+  .site-footer-inner {
+    padding: 20px 16px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .site-footer-meta { text-align: left; }
   /* 下拉面板位置微调 */
   .notif-panel { width: 290px; }
   .user-dropdown { right: 0; }
+  .toast-stack {
+    top: 92px;
+    left: 16px;
+    right: 16px;
+  }
+  .toast-item {
+    min-width: 0;
+    max-width: none;
+  }
 }
 @media (max-width: 400px) {
   .nav-logo { padding: 10px 12px; }

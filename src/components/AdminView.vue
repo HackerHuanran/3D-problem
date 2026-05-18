@@ -28,6 +28,7 @@ const sectionMeta = {
   submissions: { label: '投稿管理', desc: '审核用户提交的问题内容' },
   market: { label: '需求市场', desc: '管理技术求助与代打需求' },
   providers: { label: '服务商审核', desc: '审核服务商入驻申请' },
+  filamentReviews: { label: '耗材评价', desc: '审核耗材评分、体验评价与图片内容' },
   users: { label: '用户管理', desc: '查看用户资料、权限与账号状态' },
   stats: { label: '数据统计', desc: '查看平台核心数据趋势' },
   problems: { label: '故障图片', desc: '给问题库补充封面图' },
@@ -205,6 +206,10 @@ function submissionStatusLabel(status) {
   })[status] || '待审核'
 }
 
+function submissionTypeLabel(type) {
+  return type === 'solution' ? '补充方案' : '问题投稿'
+}
+
 function marketStatusLabel(status) {
   return status || '待解决'
 }
@@ -217,6 +222,15 @@ function providerStatusLabel(status) {
   })[status] || '待审核'
 }
 
+function reviewStatusLabel(status) {
+  return ({
+    pending: '待审核',
+    published: '已展示',
+    hidden: '已隐藏',
+    rejected: '已拒绝',
+  })[status] || '待审核'
+}
+
 function userStatusLabel(status) {
   return status === 'disabled' ? '已禁用' : '正常'
 }
@@ -224,7 +238,7 @@ function userStatusLabel(status) {
 // 投稿管理
 const submissionsLoading = ref(false)
 const submissionSearch = ref('')
-const submissionFilter = ref('all')
+const submissionFilter = ref('pending')
 const submissionItems = ref([])
 const submissionActioningId = ref(null)
 
@@ -239,9 +253,13 @@ async function loadSubmissions() {
     submissionItems.value = (data || []).map((doc) => {
       const createdAt = getTimeValue(doc.created_at)
       const status = doc.status || 'pending'
+      const submissionType = doc.submission_type || 'problem'
       return {
         id: doc._id,
         problemId: doc.problem_id || doc._id,
+        submissionType,
+        parentProblemId: doc.parent_problem_id || '',
+        parentProblemTitle: safeText(doc.parent_problem_title),
         status,
         title: safeText(doc.title),
         subtitle: safeText(doc.subtitle),
@@ -254,6 +272,8 @@ async function loadSubmissions() {
         tips: safeText(doc.tips),
         username: safeText(doc.username) || '匿名用户',
         userId: doc.user_id || '',
+        ratingAvg: Number(doc.rating_avg || 0),
+        ratingCount: Number(doc.rating_count || 0),
         createdAt,
       }
     })
@@ -282,6 +302,9 @@ const filteredSubmissions = computed(() => {
       item.subtitle,
       item.description,
       item.problemId,
+      item.parentProblemId,
+      item.parentProblemTitle,
+      submissionTypeLabel(item.submissionType),
       item.username,
       item.category,
       ...(item.causes || []),
@@ -293,7 +316,7 @@ async function setSubmissionStatus(item, status) {
   submissionActioningId.value = item.id
   try {
     await db.collection('user_problems').doc(item.id).update({ status })
-    if (status === 'published') {
+    if (status === 'published' && item.submissionType === 'problem') {
       await upsertProblemLibraryDoc(item.problemId, {
         category: item.category,
         difficulty: item.difficulty,
@@ -306,7 +329,7 @@ async function setSubmissionStatus(item, status) {
         image_url: item.image_url,
         source: 'user_submitted',
       })
-    } else {
+    } else if (item.submissionType === 'problem') {
       await removeProblemLibraryDoc(item.problemId)
     }
     item.status = status
@@ -320,7 +343,7 @@ async function deleteSubmission(item) {
   submissionActioningId.value = item.id
   try {
     await db.collection('user_problems').doc(item.id).remove()
-    await removeProblemLibraryDoc(item.problemId)
+    if (item.submissionType === 'problem') await removeProblemLibraryDoc(item.problemId)
     submissionItems.value = submissionItems.value.filter((row) => row.id !== item.id)
   } finally {
     submissionActioningId.value = null
@@ -330,7 +353,7 @@ async function deleteSubmission(item) {
 // 需求市场
 const marketLoading = ref(false)
 const marketSearch = ref('')
-const marketFilter = ref('all')
+const marketFilter = ref('待解决')
 const marketItems = ref([])
 const marketActioningId = ref(null)
 
@@ -510,6 +533,97 @@ async function deleteProvider(item) {
     providerItems.value = providerItems.value.filter((row) => row.id !== item.id)
   } finally {
     providerActioningId.value = null
+  }
+}
+
+// 耗材评价审核
+const filamentReviewLoading = ref(false)
+const filamentReviewItems = ref([])
+const filamentReviewSearch = ref('')
+const filamentReviewFilter = ref('pending')
+const filamentReviewActioningId = ref(null)
+
+async function loadFilamentReviews() {
+  filamentReviewLoading.value = true
+  try {
+    const { data } = await db.collection('filament_reviews')
+      .orderBy('created_at', 'desc')
+      .limit(200)
+      .get()
+
+    filamentReviewItems.value = (data || []).map((doc) => ({
+      id: doc._id,
+      status: doc.status || 'pending',
+      filamentId: safeText(doc.filament_id),
+      brand: safeText(doc.filament_brand) || '未知品牌',
+      variant: safeText(doc.filament_variant) || '未知型号',
+      material: safeText(doc.filament_material) || '未知材料',
+      username: safeText(doc.username) || '匿名用户',
+      userId: doc.user_id || '',
+      printerModel: safeText(doc.printer_model),
+      title: safeText(doc.title),
+      content: safeText(doc.content),
+      overallRating: Number(doc.overall_rating || 0),
+      ratings: doc.ratings || {},
+      imageCount: Array.isArray(doc.images) ? doc.images.length : 0,
+      usageRecordId: safeText(doc.usage_record_id),
+      createdAt: getTimeValue(doc.created_at),
+      updatedAt: getTimeValue(doc.updated_at || doc.created_at),
+    }))
+  } catch (error) {
+    if (!error?.code?.includes('COLLECTION_NOT_EXIST') && !error?.message?.includes('not exist')) {
+      console.warn('[Admin filament reviews] load failed:', error?.message || error)
+    }
+  } finally {
+    filamentReviewLoading.value = false
+  }
+}
+
+const filamentReviewStats = computed(() => ({
+  total: filamentReviewItems.value.length,
+  pending: filamentReviewItems.value.filter((item) => item.status === 'pending').length,
+  published: filamentReviewItems.value.filter((item) => item.status === 'published').length,
+  hidden: filamentReviewItems.value.filter((item) => item.status === 'hidden').length,
+  rejected: filamentReviewItems.value.filter((item) => item.status === 'rejected').length,
+}))
+
+const filteredFilamentReviews = computed(() => {
+  const q = filamentReviewSearch.value.trim().toLowerCase()
+  return filamentReviewItems.value.filter((item) => {
+    if (filamentReviewFilter.value !== 'all' && item.status !== filamentReviewFilter.value) return false
+    if (!q) return true
+    return includesKeyword([
+      item.brand,
+      item.variant,
+      item.material,
+      item.username,
+      item.printerModel,
+      item.title,
+      item.content,
+      item.filamentId,
+    ], q)
+  })
+})
+
+async function setFilamentReviewStatus(item, status) {
+  filamentReviewActioningId.value = item.id
+  try {
+    await db.collection('filament_reviews').doc(item.id).update({ status, updated_at: new Date() })
+    item.status = status
+    item.updatedAt = Date.now()
+  } finally {
+    filamentReviewActioningId.value = null
+  }
+}
+
+async function deleteFilamentReview(item) {
+  if (!confirm(`确定删除耗材评价「${item.brand} ${item.variant} / ${item.username}」吗？`)) return
+  filamentReviewActioningId.value = item.id
+  try {
+    await db.collection('filament_reviews').doc(item.id).remove()
+    filamentReviewItems.value = filamentReviewItems.value.filter((row) => row.id !== item.id)
+  } finally {
+    filamentReviewActioningId.value = null
   }
 }
 
@@ -826,6 +940,7 @@ function refreshCurrentSection() {
   if (adminSection.value === 'submissions') loadSubmissions()
   else if (adminSection.value === 'market') loadMarket()
   else if (adminSection.value === 'providers') loadProviders()
+  else if (adminSection.value === 'filamentReviews') loadFilamentReviews()
   else if (adminSection.value === 'users') loadUsers()
   else if (adminSection.value === 'stats') loadStats()
   else if (adminSection.value === 'problems') fetchProblemMeta(true)
@@ -837,6 +952,7 @@ const currentLoading = computed(() => {
   if (adminSection.value === 'submissions') return submissionsLoading.value
   if (adminSection.value === 'market') return marketLoading.value
   if (adminSection.value === 'providers') return providerLoading.value
+  if (adminSection.value === 'filamentReviews') return filamentReviewLoading.value
   if (adminSection.value === 'users') return usersLoading.value
   if (adminSection.value === 'stats') return statsLoading.value
   return false
@@ -861,6 +977,7 @@ onMounted(() => {
         <button :class="['nsec-btn', { active: adminSection === 'submissions' }]" @click="switchSection('submissions')">投稿管理</button>
         <button :class="['nsec-btn', { active: adminSection === 'market' }]" @click="switchSection('market')">需求市场</button>
         <button :class="['nsec-btn', { active: adminSection === 'providers' }]" @click="switchSection('providers')">服务商审核</button>
+        <button :class="['nsec-btn', { active: adminSection === 'filamentReviews' }]" @click="switchSection('filamentReviews')">耗材评价</button>
         <button :class="['nsec-btn', { active: adminSection === 'users' }]" @click="switchSection('users')">用户管理</button>
         <button :class="['nsec-btn', { active: adminSection === 'stats' }]" @click="switchSection('stats')">数据统计</button>
         <button :class="['nsec-btn', { active: adminSection === 'problems' }]" @click="switchSection('problems')">故障图片</button>
@@ -928,6 +1045,7 @@ onMounted(() => {
               <div class="entity-main">
                 <div class="entity-title-row">
                   <h3 class="entity-title">{{ item.title || '未命名投稿' }}</h3>
+                  <span class="mini-flag">{{ submissionTypeLabel(item.submissionType) }}</span>
                   <span :class="['status-badge', item.status]">{{ submissionStatusLabel(item.status) }}</span>
                 </div>
                 <div class="entity-meta">
@@ -935,6 +1053,8 @@ onMounted(() => {
                   <span class="dot">·</span>
                   <span>{{ item.difficulty }}</span>
                   <span class="dot">·</span>
+                  <span v-if="item.submissionType === 'solution'">{{ item.parentProblemTitle || item.parentProblemId || '未关联问题' }}</span>
+                  <span v-if="item.submissionType === 'solution'" class="dot">·</span>
                   <span>{{ item.username }}</span>
                   <span class="dot">·</span>
                   <span>{{ timeAgo(item.createdAt) }}</span>
@@ -969,20 +1089,29 @@ onMounted(() => {
 
             <div class="entity-detail-grid">
               <div class="detail-block">
-                <span class="detail-label">问题描述</span>
+                <span class="detail-label">{{ item.submissionType === 'solution' ? '方案说明' : '问题描述' }}</span>
                 <p class="detail-text">{{ item.description || '未填写描述' }}</p>
               </div>
-              <div class="detail-block">
+              <div v-if="item.submissionType !== 'solution'" class="detail-block">
                 <span class="detail-label">可能原因</span>
                 <p class="detail-text">{{ item.causes.length ? item.causes.join('、') : '未填写' }}</p>
               </div>
               <div class="detail-block">
-                <span class="detail-label">解决步骤</span>
+                <span class="detail-label">{{ item.submissionType === 'solution' ? '补充步骤' : '解决步骤' }}</span>
                 <p class="detail-text">{{ item.solutions.length ? item.solutions.map((solution) => solution.title).join('、') : '未填写' }}</p>
               </div>
               <div class="detail-block">
                 <span class="detail-label">记录信息</span>
-                <p class="detail-text mono-text">ID：{{ item.problemId }}<br>提交时间：{{ formatDateTime(item.createdAt) }}</p>
+                <p class="detail-text mono-text">
+                  ID：{{ item.problemId }}<br>
+                  <template v-if="item.submissionType === 'solution'">
+                    关联问题：{{ item.parentProblemTitle || item.parentProblemId || '未关联' }}<br>
+                    评分：{{ item.ratingAvg ? item.ratingAvg.toFixed(1) : '0.0' }} / {{ item.ratingCount }} 人
+                  </template>
+                  <template v-else>
+                    提交时间：{{ formatDateTime(item.createdAt) }}
+                  </template>
+                </p>
               </div>
             </div>
           </article>
@@ -1157,6 +1286,131 @@ onMounted(() => {
             </div>
 
             <div v-if="item.desc" class="detail-foot">{{ item.desc }}</div>
+          </article>
+        </div>
+      </div>
+
+      <div v-else-if="adminSection === 'filamentReviews'">
+        <div class="stat-cards">
+          <div class="stat-card">
+            <div class="stat-num">{{ filamentReviewStats.total }}</div>
+            <div class="stat-label">评价总数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num pending-color">{{ filamentReviewStats.pending }}</div>
+            <div class="stat-label">待审核</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num approved-color">{{ filamentReviewStats.published }}</div>
+            <div class="stat-label">已展示</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num rejected-color">{{ filamentReviewStats.hidden + filamentReviewStats.rejected }}</div>
+            <div class="stat-label">隐藏/拒绝</div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <input v-model="filamentReviewSearch" class="toolbar-search" placeholder="搜索耗材、型号、用户、机型、评价内容..." />
+          <div class="filter-pills">
+            <button :class="['pill-btn', { active: filamentReviewFilter === 'all' }]" @click="filamentReviewFilter = 'all'">全部</button>
+            <button :class="['pill-btn', { active: filamentReviewFilter === 'pending' }]" @click="filamentReviewFilter = 'pending'">待审核</button>
+            <button :class="['pill-btn', { active: filamentReviewFilter === 'published' }]" @click="filamentReviewFilter = 'published'">已展示</button>
+            <button :class="['pill-btn', { active: filamentReviewFilter === 'hidden' }]" @click="filamentReviewFilter = 'hidden'">已隐藏</button>
+            <button :class="['pill-btn', { active: filamentReviewFilter === 'rejected' }]" @click="filamentReviewFilter = 'rejected'">已拒绝</button>
+          </div>
+        </div>
+
+        <div v-if="filamentReviewLoading" class="loading-state">
+          <span class="spinner"></span>
+          <span>正在加载耗材评价…</span>
+        </div>
+        <div v-else-if="filteredFilamentReviews.length === 0" class="empty-state">
+          <div class="empty-icon">🧪</div>
+          <div>当前没有符合条件的耗材评价</div>
+        </div>
+        <div v-else class="entity-list">
+          <article v-for="item in filteredFilamentReviews" :key="item.id" class="entity-card">
+            <div class="entity-head">
+              <div class="entity-main">
+                <div class="entity-title-row">
+                  <h3 class="entity-title">{{ item.brand }} {{ item.variant }}</h3>
+                  <span :class="['status-badge', item.status]">{{ reviewStatusLabel(item.status) }}</span>
+                </div>
+                <div class="entity-meta">
+                  <span>{{ item.material }}</span>
+                  <span class="dot">·</span>
+                  <span>{{ item.username }}</span>
+                  <span class="dot">·</span>
+                  <span>{{ item.printerModel || '未填写机型' }}</span>
+                  <span class="dot">·</span>
+                  <span>综合 {{ item.overallRating ? item.overallRating.toFixed(1) : '0.0' }}</span>
+                  <span class="dot">·</span>
+                  <span>{{ timeAgo(item.createdAt) }}</span>
+                </div>
+              </div>
+              <div class="entity-actions">
+                <button
+                  class="action-btn approve"
+                  :disabled="filamentReviewActioningId === item.id || item.status === 'published'"
+                  @click="setFilamentReviewStatus(item, 'published')"
+                >
+                  展示
+                </button>
+                <button
+                  class="action-btn neutral"
+                  :disabled="filamentReviewActioningId === item.id || item.status === 'pending'"
+                  @click="setFilamentReviewStatus(item, 'pending')"
+                >
+                  待审
+                </button>
+                <button
+                  class="action-btn warn"
+                  :disabled="filamentReviewActioningId === item.id || item.status === 'hidden'"
+                  @click="setFilamentReviewStatus(item, 'hidden')"
+                >
+                  隐藏
+                </button>
+                <button
+                  class="action-btn reject"
+                  :disabled="filamentReviewActioningId === item.id || item.status === 'rejected'"
+                  @click="setFilamentReviewStatus(item, 'rejected')"
+                >
+                  拒绝
+                </button>
+                <button class="action-btn ghost" :disabled="filamentReviewActioningId === item.id" @click="deleteFilamentReview(item)">删除</button>
+              </div>
+            </div>
+
+            <div class="entity-detail-grid">
+              <div class="detail-block">
+                <span class="detail-label">评价标题</span>
+                <p class="detail-text">{{ item.title || '未填写标题' }}</p>
+              </div>
+              <div class="detail-block">
+                <span class="detail-label">评价内容</span>
+                <p class="detail-text">{{ item.content || '未填写内容' }}</p>
+              </div>
+              <div class="detail-block">
+                <span class="detail-label">维度评分</span>
+                <p class="detail-text">
+                  易打性 {{ item.ratings.printability || 0 }} ·
+                  附着 {{ item.ratings.adhesion || 0 }} ·
+                  抗拉丝 {{ item.ratings.stringing_control || 0 }} ·
+                  表面 {{ item.ratings.surface_quality || 0 }} ·
+                  强度 {{ item.ratings.strength || 0 }} ·
+                  性价比 {{ item.ratings.value || 0 }}
+                </p>
+              </div>
+              <div class="detail-block">
+                <span class="detail-label">记录信息</span>
+                <p class="detail-text mono-text">
+                  耗材 ID：{{ item.filamentId || '未知' }}<br>
+                  使用记录：{{ item.usageRecordId || '未关联' }}<br>
+                  图片 {{ item.imageCount }} 张 · 更新时间 {{ formatDateTime(item.updatedAt) }}
+                </p>
+              </div>
+            </div>
           </article>
         </div>
       </div>
@@ -1364,7 +1618,7 @@ onMounted(() => {
     </div>
 
     <Transition name="drawer-fade">
-      <div v-if="userDetailVisible" class="drawer-mask" @click.self="closeUserDetail">
+      <div v-if="userDetailVisible" class="drawer-mask">
         <aside class="detail-drawer">
           <div class="drawer-head">
             <div>

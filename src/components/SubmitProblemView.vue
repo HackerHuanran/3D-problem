@@ -6,13 +6,21 @@ import { useLocale } from '@/composables/useLocale.js'
 import { app } from '@/lib/tcb.js'
 import { compressImage } from '@/lib/imageUtils.js'
 import { checkContent, checkImage } from '@/lib/moderate.js'
+import { useToast } from '@/composables/useToast.js'
 
-const props = defineProps({ currentUser: Object })
+const props = defineProps({
+  currentUser: Object,
+  context: {
+    type: Object,
+    default: null,
+  },
+})
 const emit  = defineEmits(['back', 'submitted'])
 
 const { submitProblem } = useUserProblems()
 const { ensureUserCanInteract } = useUserGuard()
 const { t } = useLocale()
+const { success, error: toastError } = useToast()
 
 const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
 
@@ -34,6 +42,8 @@ const CAT_META = {
 
 const DIFF_COLOR = { '常见': '#6e6e73', '需处理': '#7048e8', '紧急': '#e03131', '进阶': '#1971c2' }
 const DIFF_BG    = { '常见': 'rgba(255,255,255,0.12)', '需处理': 'rgba(162,155,254,0.25)', '紧急': 'rgba(224,49,49,0.25)', '进阶': 'rgba(25,113,194,0.25)' }
+const isSolutionMode = computed(() => props.context?.mode === 'solution' && props.context?.targetProblemId)
+const targetProblemTitle = computed(() => props.context?.targetProblemTitle || '')
 
 const form = reactive({
   category:    '打印机整机',
@@ -44,7 +54,18 @@ const form = reactive({
   causes:      [''],
   solutions:   [{ title: '', detail: '', imageFile: null, imagePreview: null }],
   tips:        '',
+  solutionNote: '',
 })
+
+if (isSolutionMode.value) {
+  form.category = props.context?.category || '打印质量'
+  form.title = `${targetProblemTitle.value} · 解决方案补充`
+  form.subtitle = '补充一个你验证有效的处理办法'
+  form.solutions = [
+    { title: '', detail: '', imageFile: null, imagePreview: null },
+    { title: '', detail: '', imageFile: null, imagePreview: null },
+  ]
+}
 
 const heroBg    = computed(() => CAT_META[form.category]?.bg || CAT_META['打印机整机'].bg)
 const heroColor = computed(() => CAT_META[form.category]?.color || '#5cba7a')
@@ -96,10 +117,10 @@ const submitting = ref(false)
 
 function validate() {
   const e = {}
-  if (!form.title.trim()) e.title = t('sp.errTitle')
-  if (!form.subtitle.trim()) e.subtitle = t('sp.errSubtitle')
-  if (!form.description.trim()) e.description = t('sp.errDescription')
-  if (!form.causes.some(c => c.trim())) e.causes = t('sp.errCause')
+  if (!isSolutionMode.value && !form.title.trim()) e.title = t('sp.errTitle')
+  if (!isSolutionMode.value && !form.subtitle.trim()) e.subtitle = t('sp.errSubtitle')
+  if (!isSolutionMode.value && !form.description.trim()) e.description = t('sp.errDescription')
+  if (!isSolutionMode.value && !form.causes.some(c => c.trim())) e.causes = t('sp.errCause')
   if (!form.solutions.some(s => s.title.trim())) e.solutions = t('sp.errSolution')
   errors.value = e
   return Object.keys(e).length === 0
@@ -152,13 +173,15 @@ async function submit() {
   submitting.value = true
   try {
     await ensureUserCanInteract(props.currentUser.id, '提交问题')
-    const contentText = [form.title, form.subtitle, form.description, ...form.causes, form.tips].filter(Boolean).join('\n')
+    const contentText = isSolutionMode.value
+      ? [form.solutionNote, ...form.solutions.map((s) => [s.title, s.detail].filter(Boolean).join('\n'))].filter(Boolean).join('\n')
+      : [form.title, form.subtitle, form.description, ...form.causes, form.tips].filter(Boolean).join('\n')
     const { pass, msg } = await checkContent(contentText)
     if (!pass) { errors.value.submit = msg; return }
 
     // 上传问题主图
     let image_url = null
-    if (problemImageFile.value) {
+    if (!isSolutionMode.value && problemImageFile.value) {
       image_url = await uploadOne(problemImageFile.value, 'problem-images')
     }
 
@@ -178,17 +201,24 @@ async function submit() {
     await submitProblem(props.currentUser.id, props.currentUser.username, {
       category:    form.category,
       difficulty:  form.difficulty,
-      title:       form.title.trim(),
-      subtitle:    form.subtitle.trim(),
-      description: form.description.trim(),
-      causes:      form.causes.filter(c => c.trim()),
+      title:       isSolutionMode.value ? `${targetProblemTitle.value} · 方案补充` : form.title.trim(),
+      subtitle:    isSolutionMode.value ? '来自用户补充的处理方案' : form.subtitle.trim(),
+      description: isSolutionMode.value
+        ? [form.solutionNote.trim(), solutions.map((item) => [item.title, item.detail].filter(Boolean).join('：')).join('；')].filter(Boolean).join('；')
+        : form.description.trim(),
+      causes:      isSolutionMode.value ? [] : form.causes.filter(c => c.trim()),
       solutions,
-      tips:        form.tips.trim(),
+      tips:        isSolutionMode.value ? '' : form.tips.trim(),
       image_url,
+      submissionType: isSolutionMode.value ? 'solution' : 'problem',
+      parentProblemId: isSolutionMode.value ? props.context.targetProblemId : '',
+      parentProblemTitle: isSolutionMode.value ? targetProblemTitle.value : '',
     })
+    success(isSolutionMode.value ? '解决方案已提交，等待后台审核后展示' : '问题提交成功，等待后台审核后展示')
     emit('submitted')
   } catch (e) {
     errors.value.submit = e.message || t('sp.errSubmit')
+    toastError(errors.value.submit)
   } finally {
     submitting.value = false
   }
@@ -215,25 +245,33 @@ async function submit() {
         <div class="hero-glow" :style="{ background: heroColor }"></div>
 
         <div class="hero-meta">
-          <!-- 标题输入 -->
-          <input
-            v-model="form.title"
-            class="hero-title-input"
-            :placeholder="t('sp.titlePh')"
-            maxlength="40"
-            :class="{ 'has-error': errors.title }"
-          />
-          <p v-if="errors.title" class="hero-err">{{ errors.title }}</p>
+          <div v-if="isSolutionMode" class="solution-mode-badge">
+            <span>补充方案</span>
+            <strong>{{ targetProblemTitle }}</strong>
+          </div>
+          <template v-if="isSolutionMode">
+            <h1 class="solution-mode-title">补充你的解决步骤</h1>
+            <p class="solution-mode-desc">不用重复填写问题信息，直接把你验证有效的处理步骤补充上来就可以。</p>
+          </template>
+          <template v-else>
+            <input
+              v-model="form.title"
+              class="hero-title-input"
+              :placeholder="t('sp.titlePh')"
+              maxlength="40"
+              :class="{ 'has-error': errors.title }"
+            />
+            <p v-if="errors.title" class="hero-err">{{ errors.title }}</p>
 
-          <!-- 简述输入 -->
-          <input
-            v-model="form.subtitle"
-            class="hero-sub-input"
-            :placeholder="t('sp.subtitlePh')"
-            maxlength="40"
-            :class="{ 'has-error': errors.subtitle }"
-          />
-          <p v-if="errors.subtitle" class="hero-err">{{ errors.subtitle }}</p>
+            <input
+              v-model="form.subtitle"
+              class="hero-sub-input"
+              :placeholder="t('sp.subtitlePh')"
+              maxlength="40"
+              :class="{ 'has-error': errors.subtitle }"
+            />
+            <p v-if="errors.subtitle" class="hero-err">{{ errors.subtitle }}</p>
+          </template>
         </div>
       </div>
     </header>
@@ -242,7 +280,7 @@ async function submit() {
     <div class="detail-content">
 
       <!-- 📝 详细描述 -->
-      <section class="section">
+      <section v-if="!isSolutionMode" class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">📝</span>
           {{ t('sp.detail') }}
@@ -260,7 +298,7 @@ async function submit() {
       </section>
 
       <!-- 🏷️ 问题类型 -->
-      <section class="section">
+      <section v-if="!isSolutionMode" class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">🏷️</span>
           {{ t('sp.category') }}
@@ -276,7 +314,7 @@ async function submit() {
       </section>
 
       <!-- ⚠️ 问题重要性 -->
-      <section class="section">
+      <section v-if="!isSolutionMode" class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">⚠️</span>
           {{ t('sp.difficulty') }}
@@ -294,7 +332,7 @@ async function submit() {
       </section>
 
       <!-- 📷 问题图片 -->
-      <section class="section">
+      <section v-if="!isSolutionMode" class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">📷</span>
           {{ t('sp.image') }}
@@ -319,7 +357,7 @@ async function submit() {
       </section>
 
       <!-- ⚡ 可能原因 -->
-      <section class="section">
+      <section v-if="!isSolutionMode" class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">⚡</span>
           {{ t('sp.causes') }}
@@ -351,8 +389,20 @@ async function submit() {
       <section class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">🔧</span>
-          {{ t('sp.solutions') }}
+          {{ isSolutionMode ? '你的解决步骤' : t('sp.solutions') }}
         </h2>
+        <p v-if="isSolutionMode" class="section-sub solution-sub">建议一条一步，写清楚改了什么参数、怎么操作、结果有什么变化。</p>
+        <div v-if="isSolutionMode" class="solution-note-card">
+          <label class="solution-note-label">这套方法更适合什么情况</label>
+          <textarea
+            v-model="form.solutionNote"
+            class="content-textarea small"
+            placeholder="例如：适用于 PLA 首层轻微翘边、热床已清洁、环境没有明显穿堂风的情况。"
+            rows="3"
+            maxlength="180"
+          ></textarea>
+          <div class="char-hint">{{ form.solutionNote.length }}/180</div>
+        </div>
         <p v-if="errors.solutions" class="field-err" style="margin-bottom:12px">{{ errors.solutions }}</p>
 
         <div class="solutions-edit-list">
@@ -406,12 +456,12 @@ async function submit() {
 
         <button class="add-row-btn" type="button" @click="addSolution" :disabled="form.solutions.length >= 10">
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-          {{ t('sp.addStep') }}
+          {{ isSolutionMode ? '继续添加处理步骤' : t('sp.addStep') }}
         </button>
       </section>
 
       <!-- 💡 小贴士 -->
-      <section class="section">
+      <section v-if="!isSolutionMode" class="section">
         <h2 class="section-title">
           <span class="section-icon" :style="{ background: heroColor + '22', color: heroColor }">💡</span>
           {{ t('sp.tips') }}
@@ -435,7 +485,7 @@ async function submit() {
       <!-- 提交按钮 -->
       <button class="submit-btn" :class="{ loading: submitting }" :disabled="submitting" @click="submit">
         <span v-if="submitting" class="btn-spinner"></span>
-        {{ submitting ? t('sp.submitting') : t('sp.submit') }}
+        {{ submitting ? t('sp.submitting') : (isSolutionMode ? '提交解决方案' : t('sp.submit')) }}
       </button>
 
     </div>
@@ -469,6 +519,38 @@ async function submit() {
 .hero-emoji { font-size: 80px; line-height: 1; flex-shrink: 0; filter: drop-shadow(0 12px 32px rgba(0,0,0,0.5)); font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif; }
 .hero-glow { position: absolute; width: 200px; height: 200px; border-radius: 50%; opacity: 0.2; filter: blur(60px); left: 24px; bottom: 20px; }
 .hero-meta { flex: 1; min-width: 0; }
+.solution-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.92);
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.solution-mode-badge strong {
+  font-weight: 700;
+  color: #fff;
+}
+.solution-mode-title {
+  margin: 0;
+  font-size: clamp(1.7rem, 4vw, 2.5rem);
+  line-height: 1.15;
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.solution-mode-desc {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.75;
+  color: rgba(255,255,255,0.74);
+  max-width: 560px;
+}
 
 /* 分类 / 难度选择器 */
 .hero-chips { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -496,6 +578,21 @@ async function submit() {
 .section-title { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 600; margin-bottom: 16px; letter-spacing: -0.01em; color: #1d1d1f; }
 .section-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
 .section-sub { font-size: 13px; color: #aeaeb2; margin-bottom: 14px; margin-top: -8px; }
+.solution-sub { margin-top: -4px; color: #7c8798; }
+.solution-note-card {
+  margin-bottom: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: #f8fbff;
+  border: 1px solid rgba(37, 104, 232, 0.08);
+}
+.solution-note-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #335b96;
+  margin-bottom: 10px;
+}
 .optional-tag { margin-left: 4px; font-size: 12px; color: #aeaeb2; font-weight: 400; }
 
 /* 通用输入控件 */

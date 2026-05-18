@@ -1,7 +1,25 @@
 import { ref } from 'vue'
 import { auth, db } from '@/lib/tcb.js'
+import { app } from '@/lib/tcb.js'
+import { compressImage } from '@/lib/imageUtils.js'
+import { checkImage } from '@/lib/moderate.js'
 
 const currentUser = ref(null)
+const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
+
+function buildFallbackUser(uid, profile = {}) {
+  const rawName = String(profile?.username || '').trim()
+  const username = rawName || `用户${String(uid || '').slice(-4).toUpperCase()}`
+  return {
+    id: uid,
+    username,
+    avatar: profile?.avatar || username[0]?.toUpperCase() || '?',
+    phone: profile?.phone || '',
+    points: profile?.points ?? 0,
+    isAdmin: profile?.isAdmin === true || profile?.isAdmin === 'true' || profile?.isAdmin === 1,
+    needsProfile: !rawName,
+  }
+}
 
 function isRealUser(loginState) {
   if (!loginState?.user?.uid) return false
@@ -13,19 +31,9 @@ async function loadProfile(uid) {
   try {
     const { data } = await db.collection('profiles').where({ uid }).limit(1).get()
     const profile = data?.[0]
-    if (profile?.username) {
-      currentUser.value = {
-        id:       uid,
-        username: profile.username,
-        avatar:   profile.avatar  || '?',
-        phone:    profile.phone   || '',
-        points:   profile.points  ?? 0,
-        isAdmin:  profile.isAdmin === true || profile.isAdmin === 'true' || profile.isAdmin === 1,
-      }
-    }
-    // 没有 profile = 匿名用户，currentUser 保持 null
+    currentUser.value = buildFallbackUser(uid, profile || {})
   } catch {
-    // 出错也不设 currentUser，避免把匿名用户当作真实用户
+    currentUser.value = buildFallbackUser(uid)
   }
 }
 
@@ -105,7 +113,7 @@ export function useAuth() {
     await db.collection('profiles').doc(uid).set({
       uid, username, avatar: username[0].toUpperCase(), phone, points: 0,
     })
-    currentUser.value = { id: uid, username, avatar: username[0].toUpperCase(), phone, points: 0 }
+    currentUser.value = { id: uid, username, avatar: username[0].toUpperCase(), phone, points: 0, isAdmin: false, needsProfile: false }
   }
 
   const login = async (phone, password) => {
@@ -157,7 +165,46 @@ export function useAuth() {
       ...currentUser.value,
       username: username.trim(),
       avatar:   username.trim()[0].toUpperCase(),
+      needsProfile: false,
     }
+  }
+
+  const updateAvatar = async (file) => {
+    if (!currentUser.value?.id) throw new Error('请先登录')
+    if (!file) throw new Error('请选择头像图片')
+
+    const compressed = await compressImage(file, 360, 0.72)
+    const { pass, msg } = await checkImage(compressed)
+    if (!pass) throw new Error(msg)
+
+    const cloudPath = `avatars/${currentUser.value.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`
+    await app.uploadFile({ cloudPath, filePath: compressed })
+    const avatarUrl = `${CDN_BASE}/${cloudPath}`
+
+    const uid = currentUser.value.id
+    const { data: rows } = await db.collection('profiles').where({ uid }).limit(1).get()
+
+    if (rows?.length > 0) {
+      await db.collection('profiles').doc(rows[0]._id).update({
+        avatar: avatarUrl,
+      })
+    } else {
+      await db.collection('profiles').doc(uid).set({
+        uid,
+        username: currentUser.value.username || `用户${String(uid).slice(-4).toUpperCase()}`,
+        avatar: avatarUrl,
+        phone: currentUser.value.phone || '',
+        points: currentUser.value.points ?? 0,
+        isAdmin: currentUser.value.isAdmin ? true : false,
+      })
+    }
+
+    currentUser.value = {
+      ...currentUser.value,
+      avatar: avatarUrl,
+    }
+
+    return avatarUrl
   }
 
   const changePassword = async (oldPassword, newPassword) => {
@@ -189,5 +236,5 @@ export function useAuth() {
     } catch {}
   }
 
-  return { currentUser, checkUsername, requestPhoneCode, confirmCode, login, setupProfile, changePassword, logout, init }
+  return { currentUser, checkUsername, requestPhoneCode, confirmCode, login, setupProfile, updateAvatar, changePassword, logout, init }
 }

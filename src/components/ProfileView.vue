@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useFavorites } from '@/composables/useFavorites.js'
 import { useProblemMeta } from '@/composables/useProblemMeta.js'
 import { useUserProblems } from '@/composables/useUserProblems.js'
@@ -11,6 +11,8 @@ import { uploadImages, getImageURLs } from '@/composables/useStorage.js'
 import { app } from '@/lib/tcb.js'
 import { compressImage } from '@/lib/imageUtils.js'
 import { checkContent, checkImage } from '@/lib/moderate.js'
+import { useToast } from '@/composables/useToast.js'
+import { isAvatarImage, avatarFallback } from '@/lib/avatar.js'
 
 const props = defineProps({
   currentUser: { type: Object, required: true },
@@ -24,7 +26,8 @@ const { metaMap, fetchProblemMeta } = useProblemMeta()
 const { userProblems, fetchMyProblems, fetchMyProblemsCount, deleteUserProblem, updateUserProblem, fetchUserProblems } = useUserProblems()
 const { posts: myPosts, fetchMyPosts, fetchMyPostsCount, createPost, deletePost, updatePostStatus, updatePost } = useMarket()
 const { getUserActivity } = useCommunity()
-const { setupProfile, changePassword } = useAuth()
+const { setupProfile, updateAvatar, changePassword } = useAuth()
+const { success, error: toastError, info } = useToast()
 
 // ── 全局状态 ──
 const loading     = ref(true)
@@ -223,6 +226,9 @@ watch(activeTab, (tab) => {
   ensureTabData(tab)
 })
 
+const currentAvatarIsImage = computed(() => isAvatarImage(props.currentUser.avatar))
+const currentAvatarFallback = computed(() => avatarFallback(props.currentUser.avatar, props.currentUser.username))
+
 // ════════════════════════════════════════════════════
 // 一、我的投稿（原 MyProblemsView）
 // ════════════════════════════════════════════════════
@@ -365,9 +371,11 @@ async function saveEditProblem() {
     submissionsLoaded.value = false
     await loadSubmittedProblems(props.currentUser.id)
     fetchUserProblems()
+    success('投稿保存成功')
     cancelEditProblem()
   } catch (err) {
     editErrors.value = { submit: err.message || '保存失败，请重试' }
+    toastError(editErrors.value.submit)
   } finally {
     saving.value = false
   }
@@ -426,6 +434,7 @@ async function submitCreate() {
     clearFiles(createImg); showCreate.value = false
     marketLoaded.value = false
     await loadMarketPosts(props.currentUser.id)
+    success('需求发布成功')
   } catch (e) { createError.value = e.message } finally { creating.value = false }
 }
 
@@ -463,6 +472,7 @@ async function submitEditPost() {
     clearFiles(editImg); showEdit.value = false
     marketLoaded.value = false
     await loadMarketPosts(props.currentUser.id)
+    success('需求保存成功')
   } catch (e) { editPostError.value = e.message } finally { editingPost_.value = false }
 }
 
@@ -471,7 +481,10 @@ const actionLoading = ref({})
 async function toggleStatus(post) {
   const next = post.status === '待解决' ? '已解决' : '待解决'
   actionLoading.value[post.id + '_s'] = true
-  try { await updatePostStatus(post.id, next); post.status = next } catch (e) { alert(e.message) }
+  try {
+    await updatePostStatus(post.id, next); post.status = next
+    info(next === '已解决' ? '已标记为已解决' : '已重新开启需求')
+  } catch (e) { toastError(e.message || '状态更新失败') }
   finally { delete actionLoading.value[post.id + '_s'] }
 }
 async function removePost(post) {
@@ -481,7 +494,10 @@ async function removePost(post) {
     await deletePost(post.id)
     marketLoaded.value = false
     await loadMarketPosts(props.currentUser.id)
-  } catch {}
+    success('需求已删除')
+  } catch (e) {
+    toastError(e?.message || '删除失败')
+  }
   finally { delete actionLoading.value[post.id + '_d'] }
 }
 
@@ -492,6 +508,46 @@ const usernameForm    = ref({ username: props.currentUser.username })
 const usernameError   = ref('')
 const usernameSuccess = ref('')
 const usernameLoading = ref(false)
+const avatarError = ref('')
+const avatarSuccess = ref('')
+const avatarLoading = ref(false)
+const showAvatarCropper = ref(false)
+const avatarCropSource = ref('')
+const avatarCropFile = ref(null)
+const avatarCropFrameRef = ref(null)
+const avatarCropFrameSize = ref(280)
+const avatarScale = ref(1)
+const avatarScaleMin = 1
+const avatarScaleMax = 3
+const avatarOffset = reactive({ x: 0, y: 0 })
+const avatarImageMeta = reactive({ width: 0, height: 0 })
+const avatarDragState = reactive({
+  active: false,
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  originX: 0,
+  originY: 0,
+})
+
+const avatarBaseScale = computed(() => {
+  if (!avatarImageMeta.width || !avatarImageMeta.height || !avatarCropFrameSize.value) return 1
+  return Math.max(
+    avatarCropFrameSize.value / avatarImageMeta.width,
+    avatarCropFrameSize.value / avatarImageMeta.height,
+  )
+})
+
+const avatarImageTransform = computed(() => {
+  const scale = avatarBaseScale.value * avatarScale.value
+  return {
+    width: `${avatarImageMeta.width * scale}px`,
+    height: `${avatarImageMeta.height * scale}px`,
+    transform: `translate(calc(-50% + ${avatarOffset.x}px), calc(-50% + ${avatarOffset.y}px))`,
+  }
+})
+
+const avatarZoomPercent = computed(() => `${Math.round(avatarScale.value * 100)}%`)
 
 async function submitUsername() {
   usernameError.value = ''; usernameSuccess.value = ''
@@ -500,8 +556,208 @@ async function submitUsername() {
   try {
     await setupProfile(usernameForm.value.username.trim())
     usernameSuccess.value = '用户名已更新'
+    success('用户名已更新')
   } catch (e) { usernameError.value = e.message || String(e) }
   finally { usernameLoading.value = false }
+}
+
+function revokeAvatarCropSource() {
+  if (avatarCropSource.value?.startsWith('blob:')) {
+    URL.revokeObjectURL(avatarCropSource.value)
+  }
+}
+
+function clampAvatarOffset(x, y) {
+  const frameSize = avatarCropFrameSize.value
+  const displayWidth = avatarImageMeta.width * avatarBaseScale.value * avatarScale.value
+  const displayHeight = avatarImageMeta.height * avatarBaseScale.value * avatarScale.value
+  const limitX = Math.max(0, (displayWidth - frameSize) / 2)
+  const limitY = Math.max(0, (displayHeight - frameSize) / 2)
+
+  return {
+    x: Math.min(limitX, Math.max(-limitX, x)),
+    y: Math.min(limitY, Math.max(-limitY, y)),
+  }
+}
+
+function applyAvatarOffset(x, y) {
+  const next = clampAvatarOffset(x, y)
+  avatarOffset.x = next.x
+  avatarOffset.y = next.y
+}
+
+function resetAvatarDragState() {
+  avatarDragState.active = false
+  avatarDragState.pointerId = null
+}
+
+function resetAvatarCropper({ revoke = true } = {}) {
+  resetAvatarDragState()
+  if (revoke) revokeAvatarCropSource()
+  showAvatarCropper.value = false
+  avatarCropSource.value = ''
+  avatarCropFile.value = null
+  avatarCropFrameSize.value = 280
+  avatarScale.value = 1
+  avatarOffset.x = 0
+  avatarOffset.y = 0
+  avatarImageMeta.width = 0
+  avatarImageMeta.height = 0
+}
+
+function loadAvatarImageMeta(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight })
+    image.onerror = () => reject(new Error('头像图片读取失败，请换一张试试'))
+    image.src = src
+  })
+}
+
+async function openAvatarCropper(file) {
+  avatarError.value = ''
+  avatarSuccess.value = ''
+
+  if (!file?.type?.startsWith('image/')) {
+    avatarError.value = '请选择图片文件'
+    toastError(avatarError.value)
+    return
+  }
+
+  try {
+    resetAvatarCropper()
+    const source = URL.createObjectURL(file)
+    const meta = await loadAvatarImageMeta(source)
+
+    avatarCropSource.value = source
+    avatarCropFile.value = file
+    avatarImageMeta.width = meta.width
+    avatarImageMeta.height = meta.height
+    showAvatarCropper.value = true
+
+    await nextTick()
+    avatarCropFrameSize.value = avatarCropFrameRef.value?.clientWidth || 280
+    avatarScale.value = 1
+    applyAvatarOffset(0, 0)
+  } catch (e) {
+    avatarError.value = e.message || String(e)
+    toastError(avatarError.value)
+  }
+}
+
+async function handleAvatarChange(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  await openAvatarCropper(file)
+}
+
+function closeAvatarCropper() {
+  resetAvatarCropper()
+}
+
+function startAvatarDrag(event) {
+  if (!showAvatarCropper.value || !avatarCropSource.value) return
+
+  event.preventDefault()
+  avatarDragState.active = true
+  avatarDragState.pointerId = event.pointerId
+  avatarDragState.startX = event.clientX
+  avatarDragState.startY = event.clientY
+  avatarDragState.originX = avatarOffset.x
+  avatarDragState.originY = avatarOffset.y
+  event.currentTarget?.setPointerCapture?.(event.pointerId)
+}
+
+function moveAvatarDrag(event) {
+  if (!avatarDragState.active || event.pointerId !== avatarDragState.pointerId) return
+  const deltaX = event.clientX - avatarDragState.startX
+  const deltaY = event.clientY - avatarDragState.startY
+  applyAvatarOffset(avatarDragState.originX + deltaX, avatarDragState.originY + deltaY)
+}
+
+function endAvatarDrag(event) {
+  if (!avatarDragState.active || event.pointerId !== avatarDragState.pointerId) return
+  event.currentTarget?.releasePointerCapture?.(avatarDragState.pointerId)
+  resetAvatarDragState()
+}
+
+function exportAvatarCroppedFile() {
+  return new Promise((resolve, reject) => {
+    if (!avatarCropSource.value || !avatarImageMeta.width || !avatarImageMeta.height) {
+      reject(new Error('头像图片还没准备好，请稍后再试'))
+      return
+    }
+
+    const image = new Image()
+    image.onload = () => {
+      const frameSize = avatarCropFrameSize.value
+      const displayScale = avatarBaseScale.value * avatarScale.value
+      const sourceSize = frameSize / displayScale
+      const sourceX = (avatarImageMeta.width / 2) - (sourceSize / 2) - (avatarOffset.x / displayScale)
+      const sourceY = (avatarImageMeta.height / 2) - (sourceSize / 2) - (avatarOffset.y / displayScale)
+
+      const safeSourceX = Math.min(
+        Math.max(0, sourceX),
+        Math.max(0, avatarImageMeta.width - sourceSize),
+      )
+      const safeSourceY = Math.min(
+        Math.max(0, sourceY),
+        Math.max(0, avatarImageMeta.height - sourceSize),
+      )
+
+      const canvas = document.createElement('canvas')
+      canvas.width = 360
+      canvas.height = 360
+      const context = canvas.getContext('2d')
+      if (!context) {
+        reject(new Error('头像裁剪失败，请稍后再试'))
+        return
+      }
+
+      context.drawImage(
+        image,
+        safeSourceX,
+        safeSourceY,
+        sourceSize,
+        sourceSize,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      )
+
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('头像裁剪失败，请稍后再试'))
+          return
+        }
+        resolve(new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' }))
+      }, 'image/jpeg', 0.82)
+    }
+    image.onerror = () => reject(new Error('头像裁剪失败，请换一张图片试试'))
+    image.src = avatarCropSource.value
+  })
+}
+
+async function confirmAvatarCrop() {
+  if (!avatarCropFile.value) return
+
+  avatarError.value = ''
+  avatarSuccess.value = ''
+  avatarLoading.value = true
+  try {
+    const croppedFile = await exportAvatarCroppedFile()
+    await updateAvatar(croppedFile)
+    avatarSuccess.value = '头像已更新'
+    success('头像已更新')
+    closeAvatarCropper()
+  } catch (e) {
+    avatarError.value = e.message || String(e)
+    toastError(avatarError.value)
+  } finally {
+    avatarLoading.value = false
+  }
 }
 
 const pwdForm    = ref({ oldPassword: '', newPassword: '', confirmPassword: '' })
@@ -519,6 +775,7 @@ async function submitPwd() {
   try {
     await changePassword(oldPassword, newPassword)
     pwdSuccess.value = '密码已修改成功'
+    success('密码修改成功')
     pwdForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' }
   } catch (e) { pwdError.value = e.message || String(e) }
   finally { pwdLoading.value = false }
@@ -535,6 +792,14 @@ const timeAgo = (ts) => {
 }
 const STATUS_CLASS = { '待解决': 'open', '已解决': 'done', '进行中': 'active' }
 const statusClass = (s) => STATUS_CLASS[s] || 'open'
+
+watch(avatarScale, () => {
+  applyAvatarOffset(avatarOffset.x, avatarOffset.y)
+})
+
+onUnmounted(() => {
+  revokeAvatarCropSource()
+})
 </script>
 
 <template>
@@ -694,7 +959,10 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
       <header class="profile-header">
         <div class="header-bg"></div>
         <div class="header-content">
-          <div class="avatar-circle">{{ currentUser.avatar }}</div>
+          <div class="avatar-circle">
+            <img v-if="currentAvatarIsImage" :src="currentUser.avatar" alt="用户头像" class="avatar-image" />
+            <span v-else>{{ currentAvatarFallback }}</span>
+          </div>
           <h1 class="profile-username">{{ currentUser.username }}</h1>
           <p class="profile-subtitle">管理你的收藏、投稿、需求记录和社区互动</p>
           <div class="stats-bar">
@@ -933,16 +1201,31 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
               <p class="account-sub">调整你在社区里显示的用户名和当前身份信息</p>
             </div>
             <div class="account-summary-card">
-              <div class="account-summary-avatar">{{ currentUser.avatar }}</div>
+              <div class="account-summary-avatar">
+                <img v-if="currentAvatarIsImage" :src="currentUser.avatar" alt="用户头像" class="avatar-image" />
+                <span v-else>{{ currentAvatarFallback }}</span>
+              </div>
               <div class="account-summary-main">
                 <div class="account-summary-name">{{ currentUser.username }}</div>
                 <div class="account-summary-meta">积分 {{ contributionStats.points }}</div>
               </div>
             </div>
             <div class="account-field">
+              <label>头像</label>
+              <div class="avatar-upload-row">
+                <label class="avatar-upload-btn" :class="{ disabled: avatarLoading }">
+                  <input type="file" accept="image/*" style="display:none" :disabled="avatarLoading" @change="handleAvatarChange" />
+                  {{ avatarLoading ? '上传中…' : '上传新头像' }}
+                </label>
+                <span class="avatar-upload-hint">支持常见图片格式，建议使用正方形头像</span>
+              </div>
+            </div>
+            <div class="account-field">
               <label>用户名</label>
               <input v-model="usernameForm.username" placeholder="输入新用户名" maxlength="20" @keyup.enter="submitUsername" />
             </div>
+            <p v-if="avatarError" class="form-error">{{ avatarError }}</p>
+            <p v-if="avatarSuccess" class="form-success">{{ avatarSuccess }}</p>
             <p v-if="usernameError" class="form-error">{{ usernameError }}</p>
             <p v-if="usernameSuccess" class="form-success">{{ usernameSuccess }}</p>
             <button class="account-btn" :disabled="usernameLoading" @click="submitUsername">
@@ -978,6 +1261,55 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
         </div>
       </template>
     </template>
+
+    <Transition name="modal">
+      <div v-if="showAvatarCropper" class="modal-mask avatar-crop-modal">
+        <div class="modal-box avatar-crop-box">
+          <div class="modal-head avatar-crop-head">
+            <div>
+              <h2>调整头像</h2>
+              <p class="avatar-crop-sub">拖动图片位置，确认后再上传</p>
+            </div>
+            <button class="close-btn" :disabled="avatarLoading" @click="closeAvatarCropper">✕</button>
+          </div>
+          <div class="modal-body avatar-crop-body">
+            <div
+              ref="avatarCropFrameRef"
+              class="avatar-crop-frame"
+              @pointerdown="startAvatarDrag"
+              @pointermove="moveAvatarDrag"
+              @pointerup="endAvatarDrag"
+              @pointercancel="endAvatarDrag"
+            >
+              <img
+                v-if="avatarCropSource"
+                :src="avatarCropSource"
+                alt="头像预览"
+                class="avatar-crop-image"
+                :style="avatarImageTransform"
+                draggable="false"
+              />
+              <div class="avatar-crop-overlay"></div>
+            </div>
+            <div class="avatar-crop-controls">
+              <div class="avatar-crop-zoom">
+                <span>缩放</span>
+                <input v-model="avatarScale" type="range" :min="avatarScaleMin" :max="avatarScaleMax" step="0.01" />
+                <strong>{{ avatarZoomPercent }}</strong>
+              </div>
+              <p class="avatar-crop-tip">建议把主体放在圆形区域中央，上传后会同步更新全站头像。</p>
+            </div>
+            <div class="avatar-crop-actions">
+              <button class="avatar-crop-btn secondary" :disabled="avatarLoading" @click="closeAvatarCropper">取消</button>
+              <button class="avatar-crop-btn primary" :disabled="avatarLoading" @click="confirmAvatarCrop">
+                <span v-if="avatarLoading" class="btn-spinner dark"></span>
+                {{ avatarLoading ? '上传中…' : '确认上传' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- ── 发布弹窗 ── -->
     <Transition name="modal">
@@ -1137,7 +1469,9 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
   justify-content: center;
   box-shadow: 0 18px 40px rgba(9, 20, 38, 0.34);
   border: 3px solid rgba(255,255,255,.14);
+  overflow: hidden;
 }
+.avatar-image { width: 100%; height: 100%; object-fit: cover; display: block; }
 .profile-username { font-size: 24px; font-weight: 750; color: #fff; letter-spacing: -0.03em; margin: 0; }
 .profile-subtitle {
   margin: 0;
@@ -1324,11 +1658,30 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
 .account-title { font-size: 15px; font-weight: 600; color: #1d1d1f; margin: 0; }
 .account-sub { font-size: 12px; color: #8d8d92; line-height: 1.6; }
 .account-summary-card { display: flex; align-items: center; gap: 12px; background: #f5f5f7; border-radius: 14px; padding: 12px 14px; }
-.account-summary-avatar { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg,#ff6b6b,#ffb347); color: #fff; font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.account-summary-avatar { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg,#ff6b6b,#ffb347); color: #fff; font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .account-summary-name { font-size: 14px; font-weight: 600; color: #1d1d1f; }
 .account-summary-meta { font-size: 12px; color: #8d8d92; margin-top: 2px; }
 .account-field { display: flex; flex-direction: column; gap: 6px; }
 .account-field label { font-size: 12px; color: #6e6e73; letter-spacing: .04em; }
+.avatar-upload-row { display: flex; flex-direction: column; gap: 8px; }
+.avatar-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-width: 120px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #1d1d1f;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .18s, opacity .18s;
+}
+.avatar-upload-btn:hover { background: #3a3a3c; }
+.avatar-upload-btn.disabled { opacity: .6; cursor: not-allowed; }
+.avatar-upload-hint { font-size: 12px; color: #8d8d92; }
 .account-field input { background: #f5f5f7; border: 1px solid rgba(0,0,0,.1); border-radius: 10px; padding: 11px 14px; color: #1d1d1f; font-size: 14px; font-family: inherit; outline: none; transition: border-color .2s; }
 .account-field input:focus { border-color: rgba(0,0,0,.25); }
 .account-field input::placeholder { color: #c7c7cc; }
@@ -1368,6 +1721,146 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
 .img-add:hover { border-color: rgba(0,0,0,.3); }
 .modal-enter-active, .modal-leave-active { transition: all .22s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
+
+.avatar-crop-modal {
+  z-index: 1200;
+  padding: 24px;
+}
+.avatar-crop-box {
+  max-width: 560px;
+  overflow: hidden;
+}
+.avatar-crop-head {
+  padding-bottom: 8px;
+}
+.avatar-crop-sub {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--lab-text-dim);
+}
+.avatar-crop-body {
+  gap: 18px;
+}
+.avatar-crop-frame {
+  position: relative;
+  width: min(100%, 320px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border-radius: 28px;
+  background:
+    linear-gradient(135deg, rgba(14, 26, 43, 0.96), rgba(18, 43, 70, 0.92)),
+    radial-gradient(circle at top, rgba(37, 104, 232, 0.32), transparent 50%);
+  overflow: hidden;
+  border: 1px solid rgba(57, 86, 120, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 18px 40px rgba(15, 31, 56, 0.18);
+  touch-action: none;
+  cursor: grab;
+}
+.avatar-crop-frame:active {
+  cursor: grabbing;
+}
+.avatar-crop-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  max-width: none;
+  max-height: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  transform-origin: center center;
+  pointer-events: none;
+}
+.avatar-crop-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at center, transparent 0 38%, rgba(6, 12, 23, 0.42) 39% 100%),
+    linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-size: auto, 24px 24px, 24px 24px;
+  pointer-events: none;
+}
+.avatar-crop-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 14%;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.68);
+  box-shadow: 0 0 0 999px rgba(8, 17, 31, 0.18);
+}
+.avatar-crop-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.avatar-crop-zoom {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(245, 249, 253, 0.96);
+  border: 1px solid rgba(57, 86, 120, 0.08);
+}
+.avatar-crop-zoom span,
+.avatar-crop-zoom strong {
+  font-size: 13px;
+  color: var(--lab-text);
+}
+.avatar-crop-zoom strong {
+  font-weight: 700;
+}
+.avatar-crop-zoom input[type='range'] {
+  width: 100%;
+  accent-color: var(--lab-accent);
+}
+.avatar-crop-tip {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--lab-text-dim);
+}
+.avatar-crop-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.avatar-crop-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 110px;
+  padding: 11px 16px;
+  border-radius: 12px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform .18s, box-shadow .18s, background .18s, opacity .18s;
+}
+.avatar-crop-btn.secondary {
+  background: rgba(57, 86, 120, 0.08);
+  color: var(--lab-text-soft);
+}
+.avatar-crop-btn.primary {
+  background: linear-gradient(135deg, var(--lab-accent), var(--lab-accent-2));
+  color: #fff;
+  box-shadow: 0 14px 26px rgba(37, 104, 232, 0.22);
+}
+.avatar-crop-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.avatar-crop-btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+.btn-spinner.dark {
+  border-color: rgba(255,255,255,.36);
+  border-top-color: #fff;
+}
 
 /* ── 编辑投稿（内联全屏） ── */
 .edit-wrap { padding-bottom: 60px; }
@@ -1460,5 +1953,11 @@ const statusClass = (s) => STATUS_CLASS[s] || 'open'
   .account-section { padding: 18px 16px 20px; }
   .account-field input { font-size: 16px; }
   .field input, .field textarea { font-size: 16px; }
+  .avatar-crop-modal { padding: 14px; }
+  .avatar-crop-box { border-radius: 20px; }
+  .avatar-crop-frame { width: 100%; border-radius: 24px; }
+  .avatar-crop-zoom { grid-template-columns: 1fr; gap: 8px; }
+  .avatar-crop-actions { flex-direction: column-reverse; }
+  .avatar-crop-btn { width: 100%; }
 }
 </style>

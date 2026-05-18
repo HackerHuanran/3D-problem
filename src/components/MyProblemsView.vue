@@ -4,11 +4,13 @@ import { useUserProblems } from '@/composables/useUserProblems.js'
 import { app } from '@/lib/tcb.js'
 import { compressImage } from '@/lib/imageUtils.js'
 import { checkContent, checkImage } from '@/lib/moderate.js'
+import { useToast } from '@/composables/useToast.js'
 
 const props = defineProps({ currentUser: Object })
 const emit  = defineEmits(['back'])
 
 const { fetchMyProblems, deleteUserProblem, updateUserProblem, fetchUserProblems } = useUserProblems()
+const { success, error: toastError } = useToast()
 
 const CATEGORIES   = ['打印机整机', '喷头热端', '挤出机', '热床', 'AMS送料', '耗材材料', '切片软件', '校准调平', '打印质量', '固件设置']
 const DIFFICULTIES = ['常见', '需处理', '紧急', '进阶']
@@ -53,6 +55,7 @@ async function handleDelete(p) {
   try {
     await deleteUserProblem(p.id)
     myProblems.value = myProblems.value.filter(x => x.id !== p.id)
+    success('投稿已删除')
   } finally {
     deleting.value = null
   }
@@ -167,9 +170,11 @@ async function saveEdit() {
     })
     await load()
     fetchUserProblems()
+    success('投稿保存成功')
     view.value = 'list'; window.scrollTo(0, 0)
   } catch (err) {
     editErrors.value.submit = err.message || '保存失败，请重试'
+    toastError(editErrors.value.submit)
   } finally {
     saving.value = false
   }

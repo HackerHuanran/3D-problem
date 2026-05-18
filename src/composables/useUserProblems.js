@@ -44,9 +44,13 @@ function resolveTempURLs(data) {
 
 function mapDoc(p) {
   const meta = CAT_META[p.category] || { color: '#ff6b6b', bg: 'linear-gradient(135deg,#1a0a0a,#2d0f0f)', emoji: '🔧' }
+  const submissionType = p.submission_type || 'problem'
   return {
     id:          p._id,
     problemId:   p.problem_id || p._id,
+    submissionType,
+    parentProblemId: p.parent_problem_id || '',
+    parentProblemTitle: p.parent_problem_title || '',
     status:      p.status || 'pending',
     category:    p.category,
     title:       p.title,
@@ -61,6 +65,11 @@ function mapDoc(p) {
     causes:      p.causes    || [],
     solutions:   (p.solutions || []).map((s, i) => ({ step: i + 1, title: s.title, detail: s.detail, image_url: s.image_url || null })),
     tips:        p.tips || '',
+    userId:      p.user_id || '',
+    username:    p.username || '',
+    ratingAvg:   Number(p.rating_avg || 0),
+    ratingCount: Number(p.rating_count || 0),
+    ratingTotal: Number(p.rating_total || 0),
     isUserSubmitted: true,
   }
 }
@@ -131,11 +140,13 @@ export function useUserProblems() {
       try {
         const { data } = await db.collection('user_problems')
           .orderBy('created_at', 'desc')
-          .limit(200)
+          .limit(500)
           .get()
 
         const resolved = resolveTempURLs(data)
-        userProblems.value = resolved.map(mapDoc)
+        userProblems.value = resolved
+          .filter((item) => (item.submission_type || 'problem') === 'problem' && (item.status || 'pending') === 'published')
+          .map(mapDoc)
         fetchedAll = true
         return userProblems.value
       } catch (e) {
@@ -149,10 +160,51 @@ export function useUserProblems() {
     return fetchAllPromise
   }
 
-  const submitProblem = async (userId, username, { category, difficulty, title, subtitle, description, causes, solutions, tips, image_url }) => {
-    const problemId = `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const submitProblem = async (
+    userId,
+    username,
+    {
+      category,
+      difficulty,
+      title,
+      subtitle,
+      description,
+      causes,
+      solutions,
+      tips,
+      image_url,
+      submissionType = 'problem',
+      parentProblemId = '',
+      parentProblemTitle = '',
+    },
+  ) => {
+    const normalizedType = submissionType === 'solution' ? 'solution' : 'problem'
+
+    if (normalizedType === 'solution') {
+      if (!parentProblemId) throw new Error('缺少关联问题，暂时无法提交补充方案')
+
+      const { data: existingSolutions } = await db.collection('user_problems')
+        .where({
+          submission_type: 'solution',
+          parent_problem_id: parentProblemId,
+          user_id: userId,
+        })
+        .limit(1)
+        .get()
+
+      if (existingSolutions?.length) {
+        throw new Error('你已经给这个问题提交过一次补充解决方案了')
+      }
+    }
+
+    const problemId = normalizedType === 'solution'
+      ? `solution-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      : `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const payload = {
       problem_id: problemId,
+      submission_type: normalizedType,
+      parent_problem_id: normalizedType === 'solution' ? parentProblemId : '',
+      parent_problem_title: normalizedType === 'solution' ? parentProblemTitle : '',
       status: 'pending',
       category, difficulty, title, subtitle, description,
       image_url: image_url || null,
@@ -161,6 +213,9 @@ export function useUserProblems() {
       tips:      tips.trim(),
       user_id:   userId,
       username,
+      rating_avg: 0,
+      rating_count: 0,
+      rating_total: 0,
       created_at: db.serverDate(),
     }
 
@@ -176,10 +231,12 @@ export function useUserProblems() {
       const { data } = await db.collection('user_problems')
         .where({ user_id: userId })
         .orderBy('created_at', 'desc')
-        .limit(200)
+        .limit(500)
         .get()
       const resolved = resolveTempURLs(data)
-      const rows = resolved.map(p => ({ ...mapDoc(p), _rawCreatedAt: p.created_at }))
+      const rows = resolved
+        .filter((item) => (item.submission_type || 'problem') === 'problem')
+        .map(p => ({ ...mapDoc(p), _rawCreatedAt: p.created_at }))
       myProblemCountCache.set(userId, rows.length)
       return rows
     } catch (e) {
@@ -194,11 +251,13 @@ export function useUserProblems() {
     if (!userId) return 0
     if (!force && myProblemCountCache.has(userId)) return myProblemCountCache.get(userId)
     try {
-      const { total } = await db.collection('user_problems')
+      const { data } = await db.collection('user_problems')
         .where({ user_id: userId })
-        .count()
-      myProblemCountCache.set(userId, total || 0)
-      return total || 0
+        .limit(500)
+        .get()
+      const total = (data || []).filter((item) => (item.submission_type || 'problem') === 'problem').length
+      myProblemCountCache.set(userId, total)
+      return total
     } catch (e) {
       error.value = e.message
       return myProblemCountCache.get(userId) || 0
@@ -208,7 +267,7 @@ export function useUserProblems() {
   const deleteUserProblem = async (id) => {
     const target = userProblems.value.find(p => p.id === id)
     await db.collection('user_problems').doc(id).remove()
-    if (target?.problemId) {
+    if (target?.problemId && target?.submissionType === 'problem') {
       const { data } = await db.collection(REMOTE_PROBLEM_COLLECTION).where({ problem_id: target.problemId }).limit(1).get()
       if (data?.length) await db.collection(REMOTE_PROBLEM_COLLECTION).doc(data[0]._id).remove()
     }
@@ -228,7 +287,7 @@ export function useUserProblems() {
       solutions: solutions.filter(s => s.title.trim()),
       tips:      tips.trim(),
     })
-    if (target?.problemId && target?.status === 'published') {
+    if (target?.problemId && target?.status === 'published' && target?.submissionType === 'problem') {
       await upsertProblemLibraryDoc(target.problemId, buildProblemLibraryDoc(target.problemId, { category, difficulty, title, subtitle, description, causes, solutions, tips, image_url }))
     }
     fetchedAll = false
