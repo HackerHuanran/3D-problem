@@ -34,10 +34,10 @@ const M = {
     // points
     'pts.title': '我的积分', 'pts.unit': '积分', 'pts.sub': '发布内容和参与互动可获得积分',
     // about
-    'about.desc': '专注于 3D 打印故障排查与工具资源，帮助每一位打印爱好者解决问题、共享经验。',
-    'about.wechat': '合作微信', 'about.phone': '联系电话',
+    'about.desc': '个人3D打印常见故障排查指南，涵盖翘边、拉丝、堵嘴等问题的分步解决方案，同时提供耗材参数参考。',
+    'about.wechat': '交流微信', 'about.phone': '联系说明',
     'about.icp': 'ICP备案号', 'about.publicSecurity': '公安备案号',
-    'about.copy': '© 2026 3D 故障库 · 版权所有',
+    'about.copy': '© 2026 个人3D打印故障库 · 版权所有',
     // lang
     'lang.zh': '中文', 'lang.en': 'English',
     // common / time
@@ -57,11 +57,11 @@ const M = {
     'v.usernameMax': '用户名最多 20 个字符',
     'v.codeRequired': '请输入验证码',
     // app / seo
-    'app.logo': '3D 故障库',
-    'seo.baseTitle': '3D打印故障排查 · 3D故障库',
-    'seo.baseDesc': '3D打印故障排查指南，收录翘边、拉丝、堵嘴等30+常见问题的分步解决方案',
-    'seo.filament': '耗材参数库 | 3D故障库',
-    'seo.market': '需求广场 | 3D故障库',
+    'app.logo': '个人3D打印故障库',
+    'seo.baseTitle': '个人3D打印故障库 · 3D打印常见故障排查指南',
+    'seo.baseDesc': '个人3D打印常见故障排查指南，涵盖翘边、拉丝、堵嘴等问题的分步解决方案，同时提供耗材参数参考。',
+    'seo.filament': '耗材参数参考 | 个人3D打印故障库',
+    'seo.market': '问题交流区 | 个人3D打印故障库',
     // problems
     'p.eyebrow': '3D 打印 · 故障排查',
     'p.h1a': '遇到问题了？', 'p.h1b': '这里帮你解决。',
@@ -268,10 +268,10 @@ const M = {
     'pts.title': 'My Points', 'pts.unit': 'pts',
     'pts.sub': 'Earn points by posting and engaging',
     // about
-    'about.desc': 'Focused on 3D printing troubleshooting and the maker community, helping every enthusiast solve problems and share experiences.',
-    'about.wechat': 'WeChat', 'about.phone': 'Phone',
+    'about.desc': 'A personal 3D printing troubleshooting guide covering step-by-step fixes for warping, stringing, nozzle clogs and other common issues, plus filament parameter references.',
+    'about.wechat': 'WeChat', 'about.phone': 'Contact',
     'about.icp': 'ICP Filing', 'about.publicSecurity': 'Public Security Filing',
-    'about.copy': '© 2026 3D Fault Library · All Rights Reserved',
+    'about.copy': '© 2026 Personal 3D Printing Fault Library. All Rights Reserved',
     // lang
     'lang.zh': '中文', 'lang.en': 'English',
     // common / time
@@ -291,11 +291,11 @@ const M = {
     'v.usernameMax': 'Username can be up to 20 characters',
     'v.codeRequired': 'Please enter the verification code',
     // app / seo
-    'app.logo': '3D Fault Library',
-    'seo.baseTitle': '3D Printing Troubleshooting · 3D Fault Library',
-    'seo.baseDesc': 'Step-by-step 3D printing troubleshooting guides for warping, stringing, clogs and 30+ common failures.',
-    'seo.filament': 'Filament Library | 3D Fault Library',
-    'seo.market': 'Marketplace | 3D Fault Library',
+    'app.logo': 'Personal 3D Printing Fault Library',
+    'seo.baseTitle': 'Personal 3D Printing Fault Library · Common Troubleshooting Guide',
+    'seo.baseDesc': 'A personal 3D printing troubleshooting guide with step-by-step fixes for warping, stringing, nozzle clogs and other common issues, plus filament parameter references.',
+    'seo.filament': 'Filament Reference | Personal 3D Printing Fault Library',
+    'seo.market': 'Issue Exchange | Personal 3D Printing Fault Library',
     // problems
     'p.eyebrow': '3D Printing · Troubleshooting',
     'p.h1a': 'Got a problem?', 'p.h1b': "We'll help you fix it.",

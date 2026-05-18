@@ -50,14 +50,14 @@
 
     <section id="workbench" class="workbench-section">
       <div class="workbench-shell">
-        <div class="workbench-head">
+        <div class="workbench-head" :class="{ compact: isMobile }">
           <div>
-            <p class="workbench-kicker">{{ t('p.quickEntry') }}</p>
-            <h2 class="workbench-title">{{ t('p.startMethod') }}</h2>
+            <p v-if="!isMobile" class="workbench-kicker">{{ t('p.quickEntry') }}</p>
+            <h2 class="workbench-title">{{ isMobile ? t('p.pathSearchTitle') : t('p.startMethod') }}</h2>
             <p class="workbench-subtitle">{{ workbenchTitle }}</p>
             <p class="workbench-desc">{{ workbenchDesc }}</p>
           </div>
-          <div class="workbench-switch">
+          <div v-if="!isMobile" class="workbench-switch">
             <button
               :class="['workbench-tab', { active: workbenchMode === 'diagnosis' }]"
               @click="activateWorkbench('diagnosis', false)"
@@ -141,7 +141,17 @@
           </div>
         </div>
 
-        <div v-else class="workbench-card">
+        <div v-else class="workbench-card" :class="{ 'mobile-diagnosis-card': isMobile }">
+          <div v-if="isMobile" class="mobile-diagnosis-head">
+            <div>
+              <p class="mobile-diagnosis-kicker">{{ t('p.modeDiagnosis') }}</p>
+              <h3 class="mobile-diagnosis-title">{{ t('p.modeDiagnosisTitle') }}</h3>
+              <p class="mobile-diagnosis-desc">{{ t('p.modeDiagnosisDesc') }}</p>
+            </div>
+            <button class="mobile-diagnosis-back" @click="activateWorkbench('search', false)">
+              返回搜索
+            </button>
+          </div>
           <div class="diagnosis-panel diagnosis-panel-home">
             <div class="diag-step">
               <span class="diag-label">1. 出问题的阶段</span>
@@ -440,7 +450,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useLocale } from '@/composables/useLocale.js'
 import { useUserProblems } from '@/composables/useUserProblems.js'
 import { useCommunity } from '@/composables/useCommunity.js'
@@ -459,11 +469,24 @@ const { metaMap, fetchProblemMeta } = useProblemMeta()
 const showFavOnly = ref(false)
 const currentPage = ref(1)
 const pageSize = 12
-const workbenchMode = ref('diagnosis')
+const isMobile = ref(false)
+const workbenchMode = ref('search')
 const diagnosisListFilterActive = ref(true)
 const libraryItems = ref([])
 const libraryTotal = ref(0)
 const libraryLoading = ref(false)
+
+function syncViewportMode() {
+  if (typeof window === 'undefined') return
+  const nextIsMobile = window.innerWidth <= 768
+  const wasMobile = isMobile.value
+  isMobile.value = nextIsMobile
+
+  if (!wasMobile && nextIsMobile) {
+    workbenchMode.value = 'search'
+    diagnosisListFilterActive.value = false
+  }
+}
 
 const handleFav = async (e, problemId) => {
   e.stopPropagation()
@@ -494,6 +517,8 @@ const encounterCounts = ref({})
 const encounterReady  = ref(false)
 
 onMounted(async () => {
+  syncViewportMode()
+  window.addEventListener('resize', syncViewportMode, { passive: true })
   fetchUserProblems()
   fetchProblemMeta()
   const ids = getAllProblemSummaries().map(p => p.id)
@@ -501,6 +526,10 @@ onMounted(async () => {
   encounterReady.value = true
   if (props.currentUser) fetchFavorites(props.currentUser.id)
   await loadLibraryPage()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', syncViewportMode)
 })
 
 // 热门排行：按遇到人数排序取 Top 6；无数据时用编辑推荐前 6 条
@@ -1356,9 +1385,13 @@ function selectDiagStage(stageId) {
   diagnosisListFilterActive.value = true
 }
 
-function activateWorkbench(mode) {
+function activateWorkbench(mode, shouldScroll = true) {
   workbenchMode.value = mode
-  document.getElementById('workbench')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  if (mode === 'search') diagnosisListFilterActive.value = false
+  else if (mode === 'diagnosis' && topDiagnosis.value) diagnosisListFilterActive.value = true
+  if (shouldScroll) {
+    document.getElementById('workbench')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 }
 
 function stageLabel(stageId) {
@@ -1920,6 +1953,51 @@ const catLabel = (c) => {
   background: linear-gradient(135deg, #215ed3 0%, #1f87d0 100%);
   color: #f8fbff;
   box-shadow: 0 10px 20px rgba(38, 93, 210, 0.22);
+}
+.workbench-head.compact {
+  align-items: flex-start;
+}
+.mobile-diagnosis-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.mobile-diagnosis-head {
+  display: none;
+}
+.mobile-diagnosis-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(33, 94, 211, 0.1);
+  color: #215ed3;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+.mobile-diagnosis-title {
+  margin: 0 0 6px;
+  font-size: 18px;
+  line-height: 1.35;
+  color: var(--text-main);
+}
+.mobile-diagnosis-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.68;
+  color: var(--text-soft);
+}
+.mobile-diagnosis-back {
+  border: none;
+  background: transparent;
+  color: #5d6ad4;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
 }
 .workbench-card {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 250, 255, 0.96) 100%);
@@ -2700,7 +2778,7 @@ const catLabel = (c) => {
   .hot-scroll { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 768px) {
-  .hero-actions { grid-template-columns: 1fr; }
+  .hero-actions { display: none; }
 }
 @media (max-width: 640px) {
   .hero { padding: 40px 20px 28px; }
@@ -2715,6 +2793,19 @@ const catLabel = (c) => {
   .diagnosis-section { padding: 16px 16px 6px; }
   .workbench-shell,
   .diagnosis-copy, .diagnosis-panel { padding: 18px; border-radius: 20px; }
+  .workbench-subtitle,
+  .workbench-desc {
+    display: none;
+  }
+  .workbench-title {
+    font-size: 18px;
+    margin: 0;
+  }
+  .mobile-diagnosis-head {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
   .diag-options { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
   .diag-options::-webkit-scrollbar { display: none; }
   .diag-option { white-space: nowrap; }

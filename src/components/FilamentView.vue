@@ -2054,6 +2054,16 @@ onBeforeUnmount(() => {
 @media (max-width: 768px) {
   .hero { padding: 38px 16px 30px; }
   .content { padding: 20px 16px 44px; }
+  .filter-grid {
+    gap: 12px;
+  }
+  .filter-block {
+    padding: 14px 14px 12px;
+    overflow: hidden;
+  }
+  .filter-label {
+    margin-bottom: 8px;
+  }
   .cards-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
@@ -2077,10 +2087,16 @@ onBeforeUnmount(() => {
   .chips {
     flex-wrap: nowrap;
     overflow-x: auto;
+    overflow-y: hidden;
     scrollbar-width: none;
     padding-bottom: 2px;
+    width: calc(100% + 2px);
+    -webkit-overflow-scrolling: touch;
   }
   .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: 0 0 auto;
+  }
   .results-meta,
   .section-head,
   .auth-hint-box,
