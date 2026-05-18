@@ -24,7 +24,17 @@ const getProblems = async () => {
   return _problemsCache
 }
 
-const { currentUser, checkUsername, requestPhoneCode, confirmCode, login, logout, init } = useAuth()
+const {
+  currentUser,
+  checkUsername,
+  requestPhoneCode,
+  confirmCode,
+  login,
+  requestPasswordReset,
+  confirmPasswordReset,
+  logout,
+  init,
+} = useAuth()
 const { notifications, unreadCount, fetchNotifications, markAllRead } = useNotifications()
 const { lang, t } = useLocale()
 const { toasts, removeToast, success, error, info } = useToast()
@@ -178,7 +188,7 @@ const showUserMenu = ref(false)
 
 // ── 登录/注册弹窗 ──
 const showAuthModal = ref(false)
-const authMode      = ref('login')  // 'login' | 'register'
+const authMode      = ref('login')  // 'login' | 'register' | 'reset'
 const authForm      = ref({ username: '', phone: '', password: '', code: '' })
 const authError     = ref('')
 const authLoading   = ref(false)
@@ -186,6 +196,7 @@ const codeSent      = ref(false)
 const countdown     = ref(0)
 let   countdownTimer = null
 let   verifyOtpFn    = null
+let   resetPasswordFn = null
 
 // ── 密码可见性 ──
 const showRegPwd   = ref(false)
@@ -220,6 +231,7 @@ const openAuth = (mode = 'login') => {
   codeSent.value     = false
   countdown.value    = 0
   verifyOtpFn        = null
+  resetPasswordFn    = null
   showUserMenu.value = false
   clearInterval(countdownTimer)
   showAuthModal.value = true
@@ -227,7 +239,12 @@ const openAuth = (mode = 'login') => {
   showRegPwd.value    = false
   showLoginPwd.value  = false
 }
-const closeAuth = () => { showAuthModal.value = false; verifyOtpFn = null; clearInterval(countdownTimer) }
+const closeAuth = () => {
+  showAuthModal.value = false
+  verifyOtpFn = null
+  resetPasswordFn = null
+  clearInterval(countdownTimer)
+}
 
 const startCountdown = () => {
   countdown.value = 60
@@ -238,11 +255,21 @@ const handleSendCode = async () => {
   authError.value = ''
   authTouched.value = { username: true, phone: true, password: true }
   const { username, phone, password } = authForm.value
-  if (validateUsername(username) || validatePhone(phone) || validateRegPassword(password)) return
-  try { await checkUsername(username.trim()) } catch (e) { authError.value = e.message; return }
+
+  if (authMode.value === 'reset') {
+    if (validatePhone(phone) || validateRegPassword(password)) return
+  } else {
+    if (validateUsername(username) || validatePhone(phone) || validateRegPassword(password)) return
+    try { await checkUsername(username.trim()) } catch (e) { authError.value = e.message; return }
+  }
+
   authLoading.value = true
   try {
-    verifyOtpFn    = await requestPhoneCode(phone.trim(), password)
+    if (authMode.value === 'reset') {
+      resetPasswordFn = await requestPasswordReset(phone.trim())
+    } else {
+      verifyOtpFn = await requestPhoneCode(phone.trim(), password)
+    }
     codeSent.value = true
     startCountdown()
   } catch (e) {
@@ -260,13 +287,23 @@ const submitAuth = async () => {
     if (authMode.value === 'register') {
       if (!code.trim()) { authError.value = t('v.codeRequired'); return }
       await confirmCode(verifyOtpFn, code.trim(), username.trim(), phone.trim())
+    } else if (authMode.value === 'reset') {
+      if (!code.trim()) { authError.value = t('v.codeRequired'); return }
+      if (validatePhone(phone) || validateRegPassword(password)) return
+      await confirmPasswordReset(resetPasswordFn, code.trim(), password)
     } else {
       if (!phone.trim()) { authError.value = t('v.phoneRequired'); return }
       if (!password)     { authError.value = t('v.passwordRequired'); return }
       await login(phone.trim(), password)
     }
     closeAuth()
-    success(authMode.value === 'register' ? '注册成功，已自动登录' : '登录成功')
+    success(
+      authMode.value === 'register'
+        ? '注册成功，已自动登录'
+        : authMode.value === 'reset'
+          ? '密码重置成功，已自动登录'
+          : '登录成功',
+    )
   } catch (e) {
     authError.value = e.message || e.error_description || String(e)
   } finally {
@@ -492,8 +529,8 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
     <div v-if="showAuthModal" class="modal-mask">
       <div class="modal-box">
         <div class="modal-tabs">
-          <button :class="['tab', { active: authMode === 'login' }]"    @click="authMode = 'login';    authError = ''">{{ t('nav.login') }}</button>
-          <button :class="['tab', { active: authMode === 'register' }]" @click="authMode = 'register'; authError = ''; codeSent = false">{{ t('nav.register') }}</button>
+          <button :class="['tab', { active: authMode === 'login' || authMode === 'reset' }]" @click="openAuth('login')">{{ t('nav.login') }}</button>
+          <button :class="['tab', { active: authMode === 'register' }]" @click="openAuth('register')">{{ t('nav.register') }}</button>
         </div>
         <div class="modal-body">
           <template v-if="authMode === 'login'">
@@ -526,9 +563,10 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
                 </div>
               </div>
             </div>
+            <button class="text-link-btn" @click="openAuth('reset')">{{ t('auth.forgotPwd') }}</button>
           </template>
 
-          <template v-else>
+          <template v-else-if="authMode === 'register'">
             <h2 class="modal-title">{{ t('auth.regTitle') }}</h2>
             <p class="modal-sub">{{ t('auth.regSub') }}</p>
             <div class="form-fields">
@@ -584,11 +622,60 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
             </div>
           </template>
 
+          <template v-else>
+            <h2 class="modal-title">{{ t('auth.resetTitle') }}</h2>
+            <p class="modal-sub">{{ t('auth.resetSub') }}</p>
+            <div class="form-fields">
+              <div class="field">
+                <label>{{ t('auth.phone') }}</label>
+                <div class="phone-row">
+                  <input v-model="authForm.phone" type="tel" :placeholder="t('auth.regPhonePh')" class="phone-input" required
+                    :disabled="codeSent" @blur="authTouched.phone = true" />
+                  <button class="send-btn"
+                    :disabled="authLoading || countdown > 0 || !!validatePhone(authForm.phone) || !!validateRegPassword(authForm.password)"
+                    @click="handleSendCode">
+                    {{ countdown > 0 ? countdown + 's' : (codeSent ? t('auth.resend') : t('auth.getCode')) }}
+                  </button>
+                </div>
+                <span v-if="authTouched.phone && validatePhone(authForm.phone)" class="field-error">
+                  {{ validatePhone(authForm.phone) }}
+                </span>
+              </div>
+              <div class="field">
+                <label>{{ t('auth.password') }}</label>
+                <div class="pwd-wrap">
+                  <input v-model="authForm.password" :type="showRegPwd ? 'text' : 'password'"
+                    :placeholder="t('auth.resetPwdPh')" required :disabled="codeSent"
+                    @blur="authTouched.password = true" />
+                  <button type="button" class="eye-btn" tabindex="-1" :disabled="codeSent"
+                    @click="showRegPwd = !showRegPwd">
+                    <svg v-if="showRegPwd" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M2 2l12 12M6.5 6.6A2 2 0 0110 9.4M4.2 4.3C2.8 5.3 1.8 6.5 1 8c1.3 2.6 4 4.5 7 4.5 1.2 0 2.4-.3 3.4-.9M7 3.6C7.3 3.5 7.7 3.5 8 3.5c3 0 5.7 1.9 7 4.5-.4.8-1 1.6-1.7 2.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                    </svg>
+                    <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M1 8c1.3-2.6 4-4.5 7-4.5S13.7 5.4 15 8c-1.3 2.6-4 4.5-7 4.5S2.3 10.6 1 8z" stroke="currentColor" stroke-width="1.3"/>
+                      <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/>
+                    </svg>
+                  </button>
+                </div>
+                <span v-if="authTouched.password && validateRegPassword(authForm.password)" class="field-error">
+                  {{ validateRegPassword(authForm.password) }}
+                </span>
+              </div>
+              <div v-if="codeSent" class="field">
+                <label>{{ t('auth.codeLab') }}</label>
+                <input v-model="authForm.code" :placeholder="t('auth.codePh')" maxlength="6" required
+                  @keyup.enter="submitAuth" autofocus />
+              </div>
+            </div>
+            <button class="text-link-btn" @click="openAuth('login')">{{ t('auth.backToLogin') }}</button>
+          </template>
+
           <div v-if="authError" class="auth-error">{{ authError }}</div>
           <button class="submit-btn" :class="{ loading: authLoading }" @click="submitAuth"
-            :disabled="authLoading || (authMode === 'register' && (!codeSent || !authForm.code.trim())) || (authMode === 'login' && (!authForm.phone.trim() || !authForm.password))">
+            :disabled="authLoading || ((authMode === 'register' || authMode === 'reset') && (!codeSent || !authForm.code.trim())) || (authMode === 'login' && (!authForm.phone.trim() || !authForm.password))">
             <span v-if="authLoading" class="btn-spinner"></span>
-            {{ authLoading ? t('auth.loading') : (authMode === 'login' ? t('auth.loginBtn') : t('auth.regBtn')) }}
+            {{ authLoading ? t('auth.loading') : (authMode === 'login' ? t('auth.loginBtn') : authMode === 'register' ? t('auth.regBtn') : t('auth.resetBtn')) }}
           </button>
         </div>
         <button class="modal-close" @click="closeAuth">✕</button>
@@ -800,6 +887,18 @@ body { color: var(--lab-text); font-family: -apple-system, 'PingFang SC', 'Helve
 .tab { flex: 1; padding: 16px; background: transparent; border: none; color: var(--lab-text-soft); font-size: 15px; font-family: inherit; cursor: pointer; transition: all 0.18s; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tab.active { color: var(--lab-text); border-bottom-color: var(--lab-accent); }
 .tab:hover:not(.active) { color: var(--lab-text); }
+.text-link-btn {
+  margin-top: -4px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--lab-accent);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.text-link-btn:hover { color: var(--lab-accent-2); }
 .modal-body { padding: 28px 28px 32px; }
 .modal-title { font-size: 22px; font-weight: 700; color: var(--lab-text); margin-bottom: 6px; letter-spacing: -0.02em; }
 .modal-sub { font-size: 13px; color: var(--lab-text-soft); margin-bottom: 24px; line-height: 1.5; }

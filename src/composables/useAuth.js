@@ -7,6 +7,31 @@ import { checkImage } from '@/lib/moderate.js'
 const currentUser = ref(null)
 const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
 
+function normalizeAdminFlag(profile = {}) {
+  const direct = profile?.isAdmin
+  if (direct === true || direct === 1) return true
+  const text = String(direct ?? '').trim().toLowerCase()
+  if (['true', '1', 'yes', 'admin', 'root'].includes(text)) return true
+
+  const role = String(profile?.role ?? '').trim().toLowerCase()
+  if (['admin', 'administrator', 'root'].includes(role)) return true
+
+  const roles = Array.isArray(profile?.roles) ? profile.roles : []
+  return roles.some((item) => ['admin', 'administrator', 'root'].includes(String(item).trim().toLowerCase()))
+}
+
+function scoreProfile(profile = {}, uid = '') {
+  let score = 0
+  if (!profile || typeof profile !== 'object') return score
+  if (profile._id === uid) score += 6
+  if (profile.uid === uid) score += 6
+  if (normalizeAdminFlag(profile)) score += 20
+  if (String(profile.username || '').trim()) score += 3
+  if (String(profile.avatar || '').trim()) score += 2
+  if (String(profile.phone || '').trim()) score += 1
+  return score
+}
+
 function buildFallbackUser(uid, profile = {}) {
   const rawName = String(profile?.username || '').trim()
   const username = rawName || `用户${String(uid || '').slice(-4).toUpperCase()}`
@@ -16,15 +41,27 @@ function buildFallbackUser(uid, profile = {}) {
     avatar: profile?.avatar || username[0]?.toUpperCase() || '?',
     phone: profile?.phone || '',
     points: profile?.points ?? 0,
-    isAdmin: profile?.isAdmin === true || profile?.isAdmin === 'true' || profile?.isAdmin === 1,
+    isAdmin: normalizeAdminFlag(profile),
     needsProfile: !rawName,
   }
 }
 
 async function findProfile(uid) {
   try {
-    const { data } = await db.collection('profiles').where({ uid }).limit(1).get()
-    return data?.[0] || null
+    const { data } = await db.collection('profiles').where({ uid }).limit(20).get()
+    const matches = Array.isArray(data) ? data.filter(Boolean) : []
+    if (matches.length > 0) {
+      return matches
+        .slice()
+        .sort((a, b) => scoreProfile(b, uid) - scoreProfile(a, uid))[0] || null
+    }
+
+    try {
+      const record = await db.collection('profiles').doc(uid).get()
+      return record?.data?.[0] || record?.data || null
+    } catch {
+      return null
+    }
   } catch {
     return null
   }
@@ -153,6 +190,33 @@ export function useAuth() {
     if (loginState?.user?.uid) await loadProfile(loginState.user.uid)
   }
 
+  const requestPasswordReset = async (phone) => {
+    if (!phone) throw new Error('请输入手机号')
+    const res = await auth.resetPasswordForEmail(phone)
+    if (res?.error) {
+      const msg = res.error?.error_description || res.error?.message || '验证码发送失败，请重试'
+      throw new Error(msg)
+    }
+    if (!res?.data?.updateUser) throw new Error('验证码发送失败，请重试')
+    return res.data.updateUser
+  }
+
+  const confirmPasswordReset = async (updateUserFn, code, password) => {
+    if (!updateUserFn) throw new Error('请先获取验证码')
+    if (!code?.trim()) throw new Error('请输入验证码')
+    if (!password) throw new Error('请输入新密码')
+
+    const res = await updateUserFn({ nonce: code.trim(), password })
+    if (res?.error) {
+      const msg = res.error?.error_description || res.error?.message || '重置失败，请重试'
+      throw new Error(msg)
+    }
+
+    const loginState = await auth.getLoginState()
+    if (loginState?.user?.uid) await loadProfile(loginState.user.uid)
+    return true
+  }
+
   const setupProfile = async (username) => {
     if (!currentUser.value?.id) throw new Error('请先登录')
     if (!username?.trim()) throw new Error('请输入用户名')
@@ -261,5 +325,18 @@ export function useAuth() {
     } catch {}
   }
 
-  return { currentUser, checkUsername, requestPhoneCode, confirmCode, login, setupProfile, updateAvatar, changePassword, logout, init }
+  return {
+    currentUser,
+    checkUsername,
+    requestPhoneCode,
+    confirmCode,
+    login,
+    requestPasswordReset,
+    confirmPasswordReset,
+    setupProfile,
+    updateAvatar,
+    changePassword,
+    logout,
+    init,
+  }
 }
