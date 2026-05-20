@@ -1,11 +1,11 @@
 import { ref } from 'vue'
 import { db } from '@/lib/tcb.js'
-import { app } from '@/lib/tcb.js'
+import { app, TCB_CDN_BASE } from '@/lib/tcb.js'
 import { compressImage } from '@/lib/imageUtils.js'
 import { checkImage } from '@/lib/moderate.js'
 
 // CloudBase CDN 永久地址（tcb.qcloud.la，不带签名，不会过期）
-const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
+const CDN_BASE = TCB_CDN_BASE
 
 function cdnUrl(cloudPath) {
   return `${CDN_BASE}/${cloudPath}`

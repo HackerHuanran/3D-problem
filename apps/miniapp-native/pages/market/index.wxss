@@ -1,6 +1,0 @@
-.empty-box {
-  min-height: 280rpx;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}

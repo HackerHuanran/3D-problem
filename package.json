@@ -8,7 +8,11 @@
     "build": "vite build && node scripts/generate-sitemap.cjs",
     "preview": "vite preview",
     "sync:problems": "node scripts/sync-problems.cjs",
+    "sync:problem-meta": "node scripts/sync-problem-meta.cjs",
     "sync:user-problems": "node scripts/sync-user-problems-to-library.cjs",
+    "export:cloudbase": "node scripts/export-cloudbase-collections.cjs",
+    "migrate:cloudbase": "node scripts/migrate-cloudbase-env.cjs",
+    "dedupe:problems": "node scripts/dedupe-problems.cjs",
     "cleanup:user-problems": "node scripts/cleanup-unpublished-user-problems.cjs",
     "postinstall": "patch-package"
   },

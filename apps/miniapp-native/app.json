@@ -1,11 +1,11 @@
 {
   "pages": [
     "pages/home/index",
+    "pages/library/index",
     "pages/filament/index",
-    "pages/market/index",
-    "pages/market-detail/index",
     "pages/diagnosis/index",
     "pages/problem-detail/index",
+    "pages/knowledge/index",
     "pages/account/index"
   ],
   "tabBar": {
@@ -17,14 +17,6 @@
       {
         "pagePath": "pages/home/index",
         "text": "首页"
-      },
-      {
-        "pagePath": "pages/filament/index",
-        "text": "耗材库"
-      },
-      {
-        "pagePath": "pages/market/index",
-        "text": "需求"
       },
       {
         "pagePath": "pages/account/index",

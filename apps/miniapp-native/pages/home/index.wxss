@@ -1,3 +1,116 @@
-.chip-row {
-  white-space: nowrap;
+.home-search-card {
+  padding: 30rpx 28rpx 28rpx;
+  background:
+    radial-gradient(circle at top right, rgba(61, 157, 255, 0.16), transparent 32%),
+    linear-gradient(145deg, #fbfdff 0%, #edf4fb 62%, #e8f1fb 100%);
+  border-radius: 32rpx;
+  box-shadow: 0 18rpx 48rpx rgba(21, 42, 77, 0.08);
+}
+
+.home-title {
+  font-size: 42rpx;
+  letter-spacing: -0.03em;
+}
+
+.home-subtitle {
+  margin-top: 14rpx;
+  font-size: 24rpx;
+}
+
+.home-search-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+.home-search-input {
+  flex: 1;
+  height: 84rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.search-btn {
+  min-width: 140rpx;
+  height: 84rpx;
+  line-height: 84rpx;
+  border-radius: 24rpx;
+}
+
+.share-btn {
+  width: 100%;
+  margin-top: 18rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 999rpx;
+}
+
+.entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20rpx;
+}
+
+.entry-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 260rpx;
+  border-radius: 30rpx;
+  box-shadow: 0 18rpx 48rpx rgba(21, 42, 77, 0.08);
+}
+
+.entry-card-hero {
+  grid-column: 1 / -1;
+  min-height: 360rpx;
+}
+
+.entry-card-half {
+  min-height: 300rpx;
+}
+
+.entry-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.entry-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 26rpx 24rpx 24rpx;
+  background: linear-gradient(180deg, rgba(4, 10, 18, 0) 0%, rgba(6, 14, 24, 0.84) 100%);
+}
+
+.entry-title {
+  display: block;
+  color: #ffffff;
+  font-size: 38rpx;
+  font-weight: 700;
+}
+
+.entry-desc {
+  display: block;
+  margin-top: 10rpx;
+  color: rgba(236, 244, 252, 0.82);
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
+.diagnosis-panel {
+  background: linear-gradient(145deg, #f9fbff 0%, #eef5fe 100%);
+  margin-top: 20rpx;
+}
+
+.diagnosis-btn {
+  margin-top: 22rpx;
 }

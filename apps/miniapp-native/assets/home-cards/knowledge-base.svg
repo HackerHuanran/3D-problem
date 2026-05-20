@@ -1,0 +1,36 @@
+<svg width="760" height="760" viewBox="0 0 760 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="58" y1="64" x2="696" y2="700" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#17161B"/>
+      <stop offset=".52" stop-color="#2C2537"/>
+      <stop offset="1" stop-color="#11161F"/>
+    </linearGradient>
+    <linearGradient id="book" x1="191" y1="172" x2="579" y2="554" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4F7FC"/>
+      <stop offset="1" stop-color="#C8D6EA"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#9A7BFF"/>
+      <stop offset="1" stop-color="#5EBBFF"/>
+    </linearGradient>
+  </defs>
+  <rect width="760" height="760" rx="40" fill="url(#bg)"/>
+  <circle cx="618" cy="128" r="116" fill="#8F74FF" fill-opacity=".16"/>
+  <circle cx="124" cy="142" r="82" fill="#66D2FF" fill-opacity=".10"/>
+  <rect x="84" y="86" width="592" height="592" rx="32" fill="rgba(19,19,28,.86)" stroke="rgba(212,224,255,.14)"/>
+  <path d="M202 200C202 177 220 158 243 158H491C514 158 532 177 532 200V494C532 517 514 536 491 536H243C220 536 202 517 202 494V200Z" fill="url(#book)"/>
+  <path d="M368 158H395V536H368V158Z" fill="#D9E2EF"/>
+  <rect x="244" y="214" width="104" height="18" rx="9" fill="#A8B9CE"/>
+  <rect x="244" y="254" width="176" height="14" rx="7" fill="#B7C6D8"/>
+  <rect x="244" y="286" width="144" height="14" rx="7" fill="#B7C6D8"/>
+  <rect x="414" y="214" width="76" height="76" rx="20" fill="url(#accent)"/>
+  <path d="M434 252H472" stroke="#F8FBFF" stroke-width="8" stroke-linecap="round"/>
+  <path d="M453 233V271" stroke="#F8FBFF" stroke-width="8" stroke-linecap="round"/>
+  <rect x="244" y="340" width="246" height="120" rx="24" fill="#EEF3FB"/>
+  <path d="M274 428L320 392L356 414L406 370L460 402" stroke="#7E93AF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="316" cy="392" r="13" fill="#6F8DB3"/>
+  <circle cx="406" cy="370" r="13" fill="#6F8DB3"/>
+  <rect x="108" y="566" width="544" height="96" rx="24" fill="rgba(9,14,25,.54)" stroke="rgba(255,255,255,.08)"/>
+  <text x="142" y="618" fill="#F4F8FE" font-family="PingFang SC, Arial, sans-serif" font-size="42" font-weight="700">知识库</text>
+  <text x="142" y="652" fill="#A4B2D6" font-family="PingFang SC, Arial, sans-serif" font-size="24">新手入门、参数解释与维护常识</text>
+</svg>

@@ -1,0 +1,21 @@
+.chip-row {
+  white-space: nowrap;
+}
+
+.loading-box {
+  padding: 36rpx 0 24rpx;
+  text-align: center;
+}
+
+.loading-text {
+  color: #7a8fa8;
+  font-size: 26rpx;
+}
+
+.problem-cover {
+  width: 100%;
+  height: 220rpx;
+  margin-bottom: 18rpx;
+  border-radius: 22rpx;
+  background: #eef4fb;
+}

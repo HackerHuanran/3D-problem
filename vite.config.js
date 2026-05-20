@@ -6,6 +6,8 @@ import vueJsx from '@vitejs/plugin-vue-jsx'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const COS_PROXY_TARGET = process.env.VITE_TCB_COS_ORIGIN || ''
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -66,12 +68,12 @@ export default defineConfig({
     },
   },
   server: {
-    proxy: {
+    proxy: COS_PROXY_TARGET ? {
       '/cos-proxy': {
-        target: 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.cos.ap-shanghai.myqcloud.com',
+        target: COS_PROXY_TARGET,
         changeOrigin: true,
         rewrite: path => path.replace(/^\/cos-proxy/, ''),
       },
-    },
+    } : {},
   },
 })

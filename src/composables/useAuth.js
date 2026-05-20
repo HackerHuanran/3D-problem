@@ -1,11 +1,11 @@
 import { ref } from 'vue'
 import { auth, db } from '@/lib/tcb.js'
-import { app } from '@/lib/tcb.js'
+import { app, TCB_CDN_BASE } from '@/lib/tcb.js'
 import { compressImage } from '@/lib/imageUtils.js'
 import { checkImage } from '@/lib/moderate.js'
 
 const currentUser = ref(null)
-const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
+const CDN_BASE = TCB_CDN_BASE
 let logoutInFlight = false
 
 function normalizeAdminFlag(profile = {}) {

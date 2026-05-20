@@ -1,4 +1,44 @@
 const db = wx.cloud.database()
+const PROBLEM_META_COLLECTION = 'problem_meta'
+
+function uniqueProblemsById(list = []) {
+  const map = new Map()
+  list.forEach((item) => {
+    const key = item?.id || item?.problem_id || item?.docId
+    if (!key) return
+    if (!map.has(key)) map.set(key, item)
+  })
+  return [...map.values()]
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, '')
+}
+
+function buildSearchText(doc) {
+  const solutionText = (doc.solutions || [])
+    .map((solution) => [solution.title, solution.detail].filter(Boolean).join(' '))
+    .filter(Boolean)
+    .join(' ')
+
+  return [
+    doc.title,
+    doc.subtitle,
+    doc.description,
+    doc.tips,
+    doc.category,
+    doc.printerType,
+    ...(doc.causes || []),
+    ...(doc.stages || []),
+    ...(doc.materials || []),
+    solutionText,
+    doc.search_text,
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
 
 function mapProblem(doc) {
   const solutions = (doc.solutions || []).map((solution, index) => ({
@@ -23,38 +63,146 @@ function mapProblem(doc) {
     solutions,
     tips: doc.tips || '',
     image_url: doc.image_url || '',
-    searchText: doc.search_text || [
-      doc.title,
-      doc.subtitle,
-      doc.description,
-      ...(doc.causes || []),
-    ].filter(Boolean).join(' '),
+    searchText: doc.search_text || buildSearchText(doc),
   }
 }
 
-async function listProblems({ query = '', category = '全部', page = 1, pageSize = 20 } = {}) {
+async function fetchProblemMetaMap() {
+  const metaMap = {}
+  const pageSize = 100
+  let offset = 0
+  const rawRows = []
+
+  try {
+    while (true) {
+      const { data } = await db.collection(PROBLEM_META_COLLECTION)
+        .orderBy('problem_id', 'asc')
+        .skip(offset)
+        .limit(pageSize)
+        .get()
+
+      const rows = data || []
+      rawRows.push(...rows)
+
+      if (rows.length < pageSize) break
+      offset += pageSize
+    }
+
+    const fileIds = rawRows
+      .map((row) => row?.file_id)
+      .filter(Boolean)
+
+    let tempUrlMap = {}
+    if (fileIds.length) {
+      try {
+        const { fileList = [] } = await wx.cloud.getTempFileURL({
+          fileList: [...new Set(fileIds)],
+        })
+        tempUrlMap = fileList.reduce((acc, item) => {
+          if (item?.fileID && item?.tempFileURL) acc[item.fileID] = item.tempFileURL
+          return acc
+        }, {})
+      } catch (tempError) {
+        console.warn('getTempFileURL failed', tempError?.message || tempError)
+      }
+    }
+
+    rawRows.forEach((row) => {
+      if (!row?.problem_id) return
+      const image_url = tempUrlMap[row.file_id] || row.image_url || ''
+      if (image_url) metaMap[row.problem_id] = { ...row, image_url }
+    })
+  } catch (error) {
+    console.warn('fetchProblemMetaMap failed', error?.message || error)
+  }
+
+  return metaMap
+}
+
+async function hydrateProblemImages(list = []) {
+  try {
+    const metaMap = await fetchProblemMetaMap()
+    return list.map((item) => ({
+      ...item,
+      image_url: metaMap[item.id]?.image_url || item.image_url || '',
+    }))
+  } catch (error) {
+    console.warn('hydrateProblemImages failed', error?.message || error)
+    return list
+  }
+}
+
+async function fetchAllProblems(category = '全部') {
   let collection = db.collection('problems')
 
   if (category !== '全部') {
     collection = collection.where({ category })
   }
 
-  const { data } = await collection
-    .orderBy('problem_id', 'asc')
-    .skip(Math.max(0, (page - 1) * pageSize))
-    .limit(pageSize)
-    .get()
+  const pageSize = 20
+  const all = []
+  let offset = 0
 
-  const mapped = (data || []).map(mapProblem)
-  const q = String(query || '').trim().toLowerCase()
+  while (true) {
+    const { data } = await collection
+      .orderBy('problem_id', 'asc')
+      .skip(offset)
+      .limit(pageSize)
+      .get()
 
-  if (!q) return mapped
+    const rows = data || []
+    all.push(...rows)
+    if (rows.length < pageSize) break
+    offset += pageSize
+  }
 
-  return mapped.filter((item) =>
-    [item.title, item.subtitle, item.description, item.searchText]
+  const hydrated = await hydrateProblemImages(all.map(mapProblem))
+  return uniqueProblemsById(hydrated)
+}
+
+async function countProblems(category = '全部') {
+  const problems = await fetchAllProblems(category)
+  return problems.length
+}
+
+async function listProblems({ query = '', category = '全部', page = 1, pageSize = 20 } = {}) {
+  const mapped = await fetchAllProblems(category)
+  const q = normalizeText(query)
+
+  if (q) {
+    const scored = mapped
+      .map((item) => {
+        const title = normalizeText(item.title)
+        const subtitle = normalizeText(item.subtitle)
+        const description = normalizeText(item.description)
+        const searchText = normalizeText(item.searchText)
+        const tokens = q.split(/\s+/).filter(Boolean)
+        const matchesAllTokens = tokens.length
+          ? tokens.every((token) => searchText.includes(token))
+          : searchText.includes(q)
+
+        if (!matchesAllTokens) return null
+
+        let score = 0
+        if (title === q) score += 100
+        else if (title.startsWith(q)) score += 90
+        else if (title.includes(q)) score += 80
+
+        if (subtitle.includes(q)) score += 60
+        if (description.includes(q)) score += 40
+        if (searchText.includes(q)) score += 20
+        score += Math.max(0, 20 - item.title.length)
+
+        return { ...item, _score: score }
+      })
       .filter(Boolean)
-      .some((text) => String(text).toLowerCase().includes(q)),
-  )
+      .sort((a, b) => b._score - a._score)
+
+    return scored
+  }
+
+  const start = Math.max(0, (page - 1) * pageSize)
+  return mapped.slice(start, start + pageSize)
 }
 
 async function getProblemDetail(problemId) {
@@ -71,12 +219,18 @@ async function getProblemDetail(problemId) {
       .limit(1)
       .get()
 
-    if (data && data.length) return mapProblem(data[0])
+    if (data && data.length) {
+      const [hydrated] = await hydrateProblemImages([mapProblem(data[0])])
+      return hydrated
+    }
   }
 
   try {
     const res = await db.collection('problems').doc(problemId).get()
-    if (res?.data) return mapProblem(res.data)
+    if (res?.data) {
+      const [hydrated] = await hydrateProblemImages([mapProblem(res.data)])
+      return hydrated
+    }
   } catch (error) {
     console.warn('getProblemDetail by doc id failed', error)
   }
@@ -119,6 +273,7 @@ async function getDiagnosisCandidates({ stageId = '', printer = 'all', material 
 
 module.exports = {
   listProblems,
+  countProblems,
   getProblemDetail,
   getRelatedProblems,
   getDiagnosisCandidates,

@@ -2,13 +2,27 @@ const {
   getCurrentUser,
   ensureUser,
   logoutCurrentUser,
+  saveCurrentUser,
+  loadCurrentUserCache,
   fetchFavorites,
   fetchHistory,
   fetchFavoriteProblems,
   fetchHistoryProblems,
   fetchMyProblemSubmissions,
-  fetchMyMarketPosts,
 } = require('../../utils/user-service')
+
+function normalizeUser(user) {
+  if (!user) return null
+  const username = user.username || user.nickName || '微信用户'
+  const avatarUrl = user.avatarUrl || user.avatar_url || ''
+  return {
+    ...user,
+    username,
+    avatarUrl,
+    displayName: username,
+    avatarText: user.avatar || username.slice(0, 1) || '微',
+  }
+}
 
 Page({
   data: {
@@ -16,16 +30,12 @@ Page({
     favoriteCount: 0,
     historyCount: 0,
     submissionCount: 0,
-    marketCount: 0,
     loading: false,
     activeTab: 'favorites',
     favoriteProblems: [],
     historyProblems: [],
     problemSubmissions: [],
-    marketPosts: [],
     secondaryLoading: false,
-    marketMissingCollection: '',
-    marketLoadError: '',
   },
 
   async onLoad() {
@@ -37,7 +47,7 @@ Page({
   },
 
   async loadAccountData() {
-    const user = await getCurrentUser()
+    const user = normalizeUser(await getCurrentUser() || loadCurrentUserCache())
     this.setData({ currentUser: user })
     if (!user?.id) return
 
@@ -56,17 +66,12 @@ Page({
       fetchFavoriteProblems(user.id),
       fetchHistoryProblems(user.id),
       fetchMyProblemSubmissions(user.id),
-      fetchMyMarketPosts(user.id),
-    ]).then(([favoriteProblems, historyProblems, problemSubmissions, marketResult]) => {
+    ]).then(([favoriteProblems, historyProblems, problemSubmissions]) => {
         this.setData({
           submissionCount: problemSubmissions.length,
-          marketCount: (marketResult.list || []).length,
           favoriteProblems,
           historyProblems,
           problemSubmissions,
-          marketPosts: marketResult.list || [],
-          marketMissingCollection: marketResult.missingCollection || '',
-          marketLoadError: marketResult.error || '',
           secondaryLoading: false,
         })
       }).catch((error) => {
@@ -92,7 +97,22 @@ Page({
         return
       }
 
-      const user = await ensureUser(profile)
+      const localUser = normalizeUser({
+        username: profile?.nickName || '',
+        nickName: profile?.nickName || '',
+        avatarUrl: profile?.avatarUrl || '',
+        avatar: profile?.nickName ? profile.nickName.slice(0, 1) : '微',
+      })
+
+      this.setData({
+        currentUser: localUser,
+      })
+      saveCurrentUser(localUser)
+
+      const user = normalizeUser({
+        ...(await ensureUser(profile)),
+        ...localUser,
+      })
       if (!user?.id) {
         this.setData({ loading: false })
         wx.showToast({ title: '微信登录失败，请稍后重试', icon: 'none' })
@@ -106,11 +126,13 @@ Page({
 
       this.setData({
         currentUser: user,
+        currentUserDisplay: user,
         favoriteCount: favorites.length,
         historyCount: history.length,
         loading: false,
         secondaryLoading: true,
       })
+      saveCurrentUser(user)
 
       wx.showToast({
         title: user.profileSynced === false ? '登录成功，资料同步中' : '登录成功',
@@ -121,17 +143,12 @@ Page({
         fetchFavoriteProblems(user.id),
         fetchHistoryProblems(user.id),
         fetchMyProblemSubmissions(user.id),
-        fetchMyMarketPosts(user.id),
-      ]).then(([favoriteProblems, historyProblems, problemSubmissions, marketResult]) => {
+      ]).then(([favoriteProblems, historyProblems, problemSubmissions]) => {
         this.setData({
           submissionCount: problemSubmissions.length,
-          marketCount: (marketResult.list || []).length,
           favoriteProblems,
           historyProblems,
           problemSubmissions,
-          marketPosts: marketResult.list || [],
-          marketMissingCollection: marketResult.missingCollection || '',
-          marketLoadError: marketResult.error || '',
           secondaryLoading: false,
         })
       }).catch((error) => {
@@ -159,12 +176,6 @@ Page({
     wx.navigateTo({ url: `/pages/problem-detail/index?id=${id}` })
   },
 
-  openMarketDetail(e) {
-    const id = e.currentTarget.dataset.id
-    if (!id) return
-    wx.navigateTo({ url: `/pages/market-detail/index?id=${id}` })
-  },
-
   logout() {
     wx.showModal({
       title: '退出登录',
@@ -177,14 +188,10 @@ Page({
           favoriteCount: 0,
           historyCount: 0,
           submissionCount: 0,
-          marketCount: 0,
           favoriteProblems: [],
           historyProblems: [],
           problemSubmissions: [],
-          marketPosts: [],
           secondaryLoading: false,
-          marketMissingCollection: '',
-          marketLoadError: '',
           activeTab: 'favorites',
         })
         wx.showToast({ title: '已退出', icon: 'success' })

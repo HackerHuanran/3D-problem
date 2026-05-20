@@ -1,6 +1,23 @@
 const db = wx.cloud.database()
 const { getProblemDetail } = require('./problem-service')
-const MISSING_COLLECTION_CODE = -502005
+const CURRENT_USER_KEY = 'current_user_profile'
+
+function saveCurrentUser(user) {
+  if (!user) return
+  try {
+    wx.setStorageSync(CURRENT_USER_KEY, user)
+  } catch (error) {
+    console.warn('saveCurrentUser failed', error)
+  }
+}
+
+function loadCurrentUserCache() {
+  try {
+    return wx.getStorageSync(CURRENT_USER_KEY) || null
+  } catch (error) {
+    return null
+  }
+}
 
 async function ensureUser(profile = null) {
   try {
@@ -18,6 +35,7 @@ async function ensureUser(profile = null) {
       user.profileSynced = res?.result?.profileSynced !== false
     }
     getApp().globalData.currentUser = user
+    saveCurrentUser(user)
     return user
   } catch (error) {
     console.error('miniappAuth failed', error)
@@ -27,7 +45,11 @@ async function ensureUser(profile = null) {
 }
 
 async function getCurrentUser() {
-  return getApp().globalData.currentUser || null
+  const current = getApp().globalData.currentUser || loadCurrentUserCache()
+  if (current && !getApp().globalData.currentUser) {
+    getApp().globalData.currentUser = current
+  }
+  return current || null
 }
 
 async function fetchFavorites(userId) {
@@ -89,7 +111,7 @@ async function fetchHistory(userId) {
   const { data } = await db.collection('problem_history')
     .where({ user_id: userId })
     .orderBy('viewed_at', 'desc')
-    .limit(20)
+    .limit(10)
     .get()
 
   return data || []
@@ -139,46 +161,32 @@ async function fetchMyProblemSubmissions(userId) {
       parentProblemTitle: item.parent_problem_title || '',
     }))
   } catch (error) {
+    if (String(error?.errMsg || error?.message || '').includes('DATABASE_COLLECTION_NOT_EXIST')) {
+      return []
+    }
+    if (error?.errCode === -502005) {
+      return []
+    }
     console.warn('fetchMyProblemSubmissions failed', error)
     return []
   }
 }
 
-async function fetchMyMarketPosts(userId) {
-  if (!userId) return []
-  try {
-    const { data } = await db.collection('market_posts')
-      .where({ user_id: userId })
-      .orderBy('created_at', 'desc')
-      .limit(50)
-      .get()
-
-    return (data || []).map((item) => ({
-      id: item._id,
-      title: item.title || '',
-      description: item.description || '',
-      category: item.category || '未分类',
-      status: item.status || '待解决',
-      budget: item.budget || '',
-      createdAt: item.created_at || null,
-    }))
-  } catch (error) {
-    if (error?.errCode === MISSING_COLLECTION_CODE) {
-      return { list: [], missingCollection: 'market_posts' }
-    }
-    console.warn('fetchMyMarketPosts failed', error)
-    return { list: [], error: error?.message || '加载我的需求失败' }
-  }
-}
-
 function logoutCurrentUser() {
   getApp().globalData.currentUser = null
+  try {
+    wx.removeStorageSync(CURRENT_USER_KEY)
+  } catch (error) {
+    console.warn('logoutCurrentUser failed', error)
+  }
 }
 
 module.exports = {
   ensureUser,
   getCurrentUser,
   logoutCurrentUser,
+  saveCurrentUser,
+  loadCurrentUserCache,
   fetchFavorites,
   fetchFavoriteProblems,
   fetchHistoryProblems,
@@ -186,5 +194,4 @@ module.exports = {
   recordHistory,
   fetchHistory,
   fetchMyProblemSubmissions,
-  fetchMyMarketPosts,
 }

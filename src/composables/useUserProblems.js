@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { app, db } from '@/lib/tcb.js'
+import { app, db, TCB_CDN_BASE } from '@/lib/tcb.js'
 
 // 模块级单例，ProblemsView 和 ProblemDetailView 共享同一份数据
 const userProblems = ref([])
@@ -17,7 +17,7 @@ const CAT_META = {
   '固件设置':   { color: '#55efc4', bg: 'linear-gradient(135deg,#0a1a14 0%,#0f2d1e 100%)', emoji: '⚡' },
 }
 
-const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
+const CDN_BASE = TCB_CDN_BASE
 const REMOTE_PROBLEM_COLLECTION = 'problems'
 let fetchAllPromise = null
 let fetchedAll = false

@@ -1,0 +1,42 @@
+<svg width="1200" height="760" viewBox="0 0 1200 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="70" x2="1000" y2="690" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E1A2E"/>
+      <stop offset="0.52" stop-color="#183456"/>
+      <stop offset="1" stop-color="#0B1422"/>
+    </linearGradient>
+    <linearGradient id="bed" x1="274" y1="470" x2="890" y2="614" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1D74FF"/>
+      <stop offset="1" stop-color="#32C8FF"/>
+    </linearGradient>
+    <linearGradient id="print" x1="370" y1="388" x2="706" y2="560" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F79F3B"/>
+      <stop offset="1" stop-color="#FF6E3A"/>
+    </linearGradient>
+    <linearGradient id="nozzle" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#DCE6F2"/>
+      <stop offset="1" stop-color="#8FA5BF"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="760" rx="48" fill="url(#bg)"/>
+  <circle cx="1002" cy="125" r="142" fill="#2C8DFF" fill-opacity=".15"/>
+  <circle cx="198" cy="106" r="104" fill="#6CD7FF" fill-opacity=".10"/>
+  <rect x="180" y="146" width="840" height="468" rx="32" fill="#10233C" fill-opacity=".9" stroke="rgba(179,210,255,.22)"/>
+  <rect x="236" y="198" width="728" height="324" rx="24" fill="#0C1828" stroke="rgba(179,210,255,.18)"/>
+  <path d="M310 518L876 518L812 610H374L310 518Z" fill="url(#bed)" fill-opacity=".92"/>
+  <path d="M452 448C489 416 547 392 608 392C670 392 727 416 764 448V518H452V448Z" fill="url(#print)"/>
+  <path d="M491 419C521 393 563 378 608 378C654 378 695 393 725 419" stroke="#FFD28F" stroke-width="14" stroke-linecap="round"/>
+  <rect x="575" y="178" width="66" height="122" rx="24" fill="url(#nozzle)"/>
+  <path d="M590 286H626L611 356L590 286Z" fill="#C8D5E3"/>
+  <path d="M608 356V393" stroke="#FF8C49" stroke-width="12" stroke-linecap="round"/>
+  <path d="M430 262L492 262" stroke="#4CC6FF" stroke-width="8" stroke-linecap="round"/>
+  <path d="M430 292L556 292" stroke="#4CC6FF" stroke-width="8" stroke-linecap="round" opacity=".55"/>
+  <path d="M720 238H826" stroke="#79D7FF" stroke-width="8" stroke-linecap="round"/>
+  <path d="M720 268H862" stroke="#79D7FF" stroke-width="8" stroke-linecap="round" opacity=".6"/>
+  <path d="M742 330C777 302 828 309 853 344C878 379 868 429 829 452C790 475 739 463 716 425" stroke="#6BFFCF" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="781" cy="391" r="30" stroke="#6BFFCF" stroke-width="10"/>
+  <path d="M842 447L892 495" stroke="#6BFFCF" stroke-width="12" stroke-linecap="round"/>
+  <rect x="270" y="586" width="266" height="92" rx="22" fill="rgba(8,20,35,.54)" stroke="rgba(255,255,255,.08)"/>
+  <text x="314" y="636" fill="#F4F8FD" font-family="PingFang SC, Arial, sans-serif" font-size="42" font-weight="700">查找问题</text>
+  <text x="314" y="670" fill="#8FB1D6" font-family="PingFang SC, Arial, sans-serif" font-size="24">先搜索现象，再快速进入问题库</text>
+</svg>

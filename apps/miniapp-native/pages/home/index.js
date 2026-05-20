@@ -1,39 +1,58 @@
-const { listProblems, getProblemDetail } = require('../../utils/problem-service')
-const { getCurrentUser, fetchFavorites, fetchHistory } = require('../../utils/user-service')
+const { getCurrentUser, fetchHistory } = require('../../utils/user-service')
+const { countProblems } = require('../../utils/problem-service')
 
 Page({
   data: {
-    query: '',
-    activeCategory: '全部',
-    categories: ['全部', '新手', '进阶', '维护', '材料', '树脂'],
-    problems: [],
     currentUser: null,
-    favoriteMap: {},
     historyProblems: [],
     loading: false,
+    searchValue: '',
+    problemCount: 0,
+    entryCards: [
+      {
+        id: 'library',
+        title: '查找问题',
+        desc: '翘边、拉丝、堵嘴、层移，先来这里查',
+        image: '/assets/home-cards/problem-search.svg',
+        layout: 'hero',
+      },
+      {
+        id: 'filament',
+        title: '耗材库',
+        desc: '查推荐温度、速度和材料特性',
+        image: '/assets/home-cards/filament-library.svg',
+        layout: 'half',
+      },
+      {
+        id: 'knowledge',
+        title: '知识库',
+        desc: '新手入门、参数解释与维护常识',
+        image: '/assets/home-cards/knowledge-base.svg',
+        layout: 'half',
+      },
+    ],
   },
 
-  async onLoad() {
+  async loadHomeData() {
     this.setData({ loading: true })
     try {
-      const user = await getCurrentUser()
-      const [problems, favorites, history] = await Promise.all([
-        listProblems({ page: 1, pageSize: 12 }),
-        fetchFavorites(user?.id),
-        fetchHistory(user?.id),
+      const [user, problemCount] = await Promise.all([
+        getCurrentUser(),
+        countProblems(),
       ])
+      const history = await fetchHistory(user?.id)
 
       const historyProblems = []
       for (const row of history) {
+        const { getProblemDetail } = require('../../utils/problem-service')
         const detail = await getProblemDetail(row.problem_id)
         if (detail) historyProblems.push(detail)
       }
 
       this.setData({
         currentUser: user,
-        problems,
-        favoriteMap: favorites.reduce((acc, id) => ({ ...acc, [id]: true }), {}),
         historyProblems,
+        problemCount,
         loading: false,
       })
     } catch (error) {
@@ -43,48 +62,32 @@ Page({
     }
   },
 
+  async onLoad() {
+    await this.loadHomeData()
+  },
+
   async onShow() {
-    const user = await getCurrentUser()
-    const [favorites, history] = await Promise.all([
-      fetchFavorites(user?.id),
-      fetchHistory(user?.id),
-    ])
+    await this.loadHomeData()
+  },
 
-    const historyProblems = []
-    for (const row of history) {
-      const detail = await getProblemDetail(row.problem_id)
-      if (detail) historyProblems.push(detail)
+  openEntry(e) {
+    const id = e.currentTarget.dataset.id
+    if (id === 'library') {
+      wx.navigateTo({ url: '/pages/library/index' })
+      return
     }
-
-    this.setData({
-      currentUser: user,
-      favoriteMap: favorites.reduce((acc, id) => ({ ...acc, [id]: true }), {}),
-      historyProblems,
-    })
-  },
-
-  async refreshProblems() {
-    const problems = await listProblems({
-      query: this.data.query,
-      category: this.data.activeCategory,
-      page: 1,
-      pageSize: 12,
-    })
-    this.setData({ problems })
-  },
-
-  onQueryInput(e) {
-    this.setData({ query: e.detail.value })
-    this.refreshProblems()
-  },
-
-  selectCategory(e) {
-    this.setData({ activeCategory: e.currentTarget.dataset.category })
-    this.refreshProblems()
+    if (id === 'filament') {
+      wx.navigateTo({ url: '/pages/filament/index' })
+      return
+    }
+    if (id === 'knowledge') {
+      wx.navigateTo({ url: '/pages/knowledge/index' })
+    }
   },
 
   openDetail(e) {
     const id = e.currentTarget.dataset.id
+    if (!id) return
     wx.navigateTo({ url: `/pages/problem-detail/index?id=${id}` })
   },
 
@@ -94,5 +97,20 @@ Page({
 
   goAccount() {
     wx.navigateTo({ url: '/pages/account/index' })
+  },
+
+  onSearchInput(e) {
+    this.setData({ searchValue: e.detail.value })
+  },
+
+  searchProblems() {
+    const keyword = String(this.data.searchValue || '').trim()
+    wx.navigateTo({
+      url: `/pages/library/index${keyword ? `?q=${encodeURIComponent(keyword)}` : ''}`,
+    })
+  },
+
+  goShareProblem() {
+    wx.navigateTo({ url: '/pages/problem-submit/index' })
   },
 })

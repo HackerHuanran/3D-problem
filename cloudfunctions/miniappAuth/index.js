@@ -9,7 +9,7 @@ function buildFallbackUser(openid, profile = {}) {
   return {
     id: uid,
     username: profile.username || `微信用户${String(openid).slice(-4).toUpperCase()}`,
-    avatar: profile.avatar || '微',
+    avatar: profile.avatar || (profile.username ? profile.username.slice(0, 1) : '微'),
     avatarUrl: profile.avatarUrl || '',
     points: profile.points || 0,
     phone: profile.phone || '',
@@ -41,7 +41,7 @@ exports.main = async (event) => {
     let profile = {
       uid,
       username: wechatProfile.nickName || `微信用户${String(openid).slice(-4).toUpperCase()}`,
-      avatar: '微',
+      avatar: wechatProfile.nickName ? wechatProfile.nickName.slice(0, 1) : '微',
       avatarUrl: wechatProfile.avatarUrl || '',
       phone: '',
       points: 0,
@@ -63,12 +63,14 @@ exports.main = async (event) => {
             ...profile,
             ...existed,
             username: wechatProfile.nickName || existed.username || profile.username,
+            avatar: wechatProfile.nickName ? wechatProfile.nickName.slice(0, 1) : (existed.avatar || profile.avatar),
             avatarUrl: wechatProfile.avatarUrl || existed.avatarUrl || profile.avatarUrl,
           }
           if (wechatProfile.nickName || wechatProfile.avatarUrl) {
             await db.collection('profiles').doc(existed._id).update({
               data: {
                 username: profile.username,
+                avatar: profile.avatar,
                 avatarUrl: profile.avatarUrl,
                 updated_at: db.serverDate(),
               },

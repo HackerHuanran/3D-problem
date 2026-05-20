@@ -9,7 +9,7 @@
 
 const cloudbase = require('@cloudbase/node-sdk')
 
-const ENV_ID = process.env.VITE_TCB_ENV_ID || 'problem-d1gg06meg3dd7da6b'
+const ENV_ID = process.env.VITE_TCB_ENV_ID || 'cloud1-d0gqkk2h2dea42d2b'
 
 if (!process.env.CLOUDBASE_SECRET_ID || !process.env.CLOUDBASE_SECRET_KEY) {
   console.error('缺少 CLOUDBASE_SECRET_ID / CLOUDBASE_SECRET_KEY 环境变量，无法同步 problems 集合。')
