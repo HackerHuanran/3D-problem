@@ -5,6 +5,7 @@ import { problems as allProblems } from '@/data/problems.js'
 import { useProblemMeta } from '@/composables/useProblemMeta.js'
 import { invalidateProblemLibraryCache } from '@/composables/useProblemLibrary.js'
 import { invalidateUserStatusCache } from '@/composables/useUserGuard.js'
+import { invalidateRealnameCache } from '@/composables/useRealname.js'
 
 const props = defineProps({ currentUser: Object })
 const emit = defineEmits(['back'])
@@ -29,6 +30,7 @@ const sectionMeta = {
   market: { label: '需求市场', desc: '管理技术求助与代打需求' },
   providers: { label: '服务商审核', desc: '审核服务商入驻申请' },
   filamentReviews: { label: '耗材评价', desc: '审核耗材评分、体验评价与图片内容' },
+  realname: { label: '实名认证', desc: '审核用户实名资料并控制发布权限' },
   users: { label: '用户管理', desc: '查看用户资料、权限与账号状态' },
   stats: { label: '数据统计', desc: '查看平台核心数据趋势' },
   problems: { label: '故障图片', desc: '给问题库补充封面图' },
@@ -227,6 +229,14 @@ function reviewStatusLabel(status) {
     pending: '待审核',
     published: '已展示',
     hidden: '已隐藏',
+    rejected: '已拒绝',
+  })[status] || '待审核'
+}
+
+function realnameStatusLabel(status) {
+  return ({
+    pending: '待审核',
+    verified: '已通过',
     rejected: '已拒绝',
   })[status] || '待审核'
 }
@@ -823,6 +833,147 @@ function closeUserDetail() {
   userDetail.value = null
 }
 
+// 实名认证审核
+const realnameLoading = ref(false)
+const realnameSearch = ref('')
+const realnameFilter = ref('pending')
+const realnameItems = ref([])
+const realnameActioningId = ref('')
+
+async function loadRealnameRequests() {
+  realnameLoading.value = true
+  try {
+    const { data } = await db.collection('realname_requests')
+      .orderBy('created_at', 'desc')
+      .limit(200)
+      .get()
+
+    realnameItems.value = (data || []).map((item) => ({
+      id: item._id,
+      userId: item.user_id || '',
+      username: safeText(item.username) || '未命名用户',
+      realname: safeText(item.realname),
+      idNumber: safeText(item.id_number),
+      phone: safeText(item.phone),
+      status: safeText(item.status) || 'pending',
+      reviewNote: safeText(item.review_note),
+      reviewerName: safeText(item.reviewer_name),
+      submittedAt: getTimeValue(item.submitted_at || item.created_at),
+      updatedAt: getTimeValue(item.updated_at || item.created_at),
+    }))
+  } catch (error) {
+    console.warn('[Admin realname] load failed:', error?.message || error)
+  } finally {
+    realnameLoading.value = false
+  }
+}
+
+const realnameStats = computed(() => ({
+  total: realnameItems.value.length,
+  pending: realnameItems.value.filter((item) => item.status === 'pending').length,
+  verified: realnameItems.value.filter((item) => item.status === 'verified').length,
+  rejected: realnameItems.value.filter((item) => item.status === 'rejected').length,
+}))
+
+const filteredRealnameItems = computed(() => {
+  const q = realnameSearch.value.trim().toLowerCase()
+  return realnameItems.value.filter((item) => {
+    if (realnameFilter.value !== 'all' && item.status !== realnameFilter.value) return false
+    if (!q) return true
+    return includesKeyword([
+      item.username,
+      item.userId,
+      item.realname,
+      item.idNumber,
+      item.phone,
+    ], q)
+  })
+})
+
+async function updateProfileRealnameState(userId, payload) {
+  const { data } = await db.collection('profiles').where({ uid: userId }).limit(1).get()
+  if (!data?.length) return
+  await db.collection('profiles').doc(data[0]._id).update(payload)
+  invalidateRealnameCache(userId)
+}
+
+async function approveRealname(item) {
+  realnameActioningId.value = item.id
+  try {
+    await db.collection('realname_requests').doc(item.id).update({
+      status: 'verified',
+      review_note: '',
+      reviewer_id: props.currentUser?.id || '',
+      reviewer_name: props.currentUser?.username || '管理员',
+      reviewed_at: new Date(),
+      updated_at: new Date(),
+    })
+    await updateProfileRealnameState(item.userId, {
+      realname_status: 'verified',
+      realname_masked_name: item.realname ? `${item.realname[0]}${item.realname.length > 2 ? '*'.repeat(item.realname.length - 2) : '*'}${item.realname[item.realname.length - 1] || ''}` : '',
+      realname_masked_id: item.idNumber ? `${item.idNumber.slice(0, 3)}********${item.idNumber.slice(-4)}` : '',
+      realname_verified_at: new Date(),
+      realname_rejected_reason: '',
+      updated_at: new Date(),
+    })
+    item.status = 'verified'
+    item.reviewNote = ''
+  } finally {
+    realnameActioningId.value = ''
+  }
+}
+
+async function rejectRealname(item) {
+  const reason = window.prompt('请输入驳回原因（会展示给用户）', item.reviewNote || '身份证信息与账号资料不一致')
+  if (reason === null) return
+  const reviewNote = safeText(reason)
+  if (!reviewNote) return
+
+  realnameActioningId.value = item.id
+  try {
+    await db.collection('realname_requests').doc(item.id).update({
+      status: 'rejected',
+      review_note: reviewNote,
+      reviewer_id: props.currentUser?.id || '',
+      reviewer_name: props.currentUser?.username || '管理员',
+      reviewed_at: new Date(),
+      updated_at: new Date(),
+    })
+    await updateProfileRealnameState(item.userId, {
+      realname_status: 'rejected',
+      realname_rejected_reason: reviewNote,
+      updated_at: new Date(),
+    })
+    item.status = 'rejected'
+    item.reviewNote = reviewNote
+  } finally {
+    realnameActioningId.value = ''
+  }
+}
+
+async function resetRealnameToPending(item) {
+  realnameActioningId.value = item.id
+  try {
+    await db.collection('realname_requests').doc(item.id).update({
+      status: 'pending',
+      review_note: '',
+      reviewer_id: '',
+      reviewer_name: '',
+      reviewed_at: null,
+      updated_at: new Date(),
+    })
+    await updateProfileRealnameState(item.userId, {
+      realname_status: 'pending',
+      realname_rejected_reason: '',
+      updated_at: new Date(),
+    })
+    item.status = 'pending'
+    item.reviewNote = ''
+  } finally {
+    realnameActioningId.value = ''
+  }
+}
+
 // 数据统计
 const statsLoading = ref(false)
 const stats = ref({
@@ -941,6 +1092,7 @@ function refreshCurrentSection() {
   else if (adminSection.value === 'market') loadMarket()
   else if (adminSection.value === 'providers') loadProviders()
   else if (adminSection.value === 'filamentReviews') loadFilamentReviews()
+  else if (adminSection.value === 'realname') loadRealnameRequests()
   else if (adminSection.value === 'users') loadUsers()
   else if (adminSection.value === 'stats') loadStats()
   else if (adminSection.value === 'problems') fetchProblemMeta(true)
@@ -953,6 +1105,7 @@ const currentLoading = computed(() => {
   if (adminSection.value === 'market') return marketLoading.value
   if (adminSection.value === 'providers') return providerLoading.value
   if (adminSection.value === 'filamentReviews') return filamentReviewLoading.value
+  if (adminSection.value === 'realname') return realnameLoading.value
   if (adminSection.value === 'users') return usersLoading.value
   if (adminSection.value === 'stats') return statsLoading.value
   return false
@@ -978,6 +1131,7 @@ onMounted(() => {
         <button :class="['nsec-btn', { active: adminSection === 'market' }]" @click="switchSection('market')">需求市场</button>
         <button :class="['nsec-btn', { active: adminSection === 'providers' }]" @click="switchSection('providers')">服务商审核</button>
         <button :class="['nsec-btn', { active: adminSection === 'filamentReviews' }]" @click="switchSection('filamentReviews')">耗材评价</button>
+        <button :class="['nsec-btn', { active: adminSection === 'realname' }]" @click="switchSection('realname')">实名认证</button>
         <button :class="['nsec-btn', { active: adminSection === 'users' }]" @click="switchSection('users')">用户管理</button>
         <button :class="['nsec-btn', { active: adminSection === 'stats' }]" @click="switchSection('stats')">数据统计</button>
         <button :class="['nsec-btn', { active: adminSection === 'problems' }]" @click="switchSection('problems')">故障图片</button>
@@ -1409,6 +1563,95 @@ onMounted(() => {
                   使用记录：{{ item.usageRecordId || '未关联' }}<br>
                   图片 {{ item.imageCount }} 张 · 更新时间 {{ formatDateTime(item.updatedAt) }}
                 </p>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div v-else-if="adminSection === 'realname'">
+        <div class="stat-cards">
+          <div class="stat-card">
+            <div class="stat-num">{{ realnameStats.total }}</div>
+            <div class="stat-label">申请总数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num pending-color">{{ realnameStats.pending }}</div>
+            <div class="stat-label">待审核</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num approved-color">{{ realnameStats.verified }}</div>
+            <div class="stat-label">已通过</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num rejected-color">{{ realnameStats.rejected }}</div>
+            <div class="stat-label">已拒绝</div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <input v-model="realnameSearch" class="toolbar-search" placeholder="搜索用户名、UID、姓名、身份证号、手机号..." />
+          <div class="filter-pills">
+            <button :class="['pill-btn', { active: realnameFilter === 'all' }]" @click="realnameFilter = 'all'">全部</button>
+            <button :class="['pill-btn', { active: realnameFilter === 'pending' }]" @click="realnameFilter = 'pending'">待审核</button>
+            <button :class="['pill-btn', { active: realnameFilter === 'verified' }]" @click="realnameFilter = 'verified'">已通过</button>
+            <button :class="['pill-btn', { active: realnameFilter === 'rejected' }]" @click="realnameFilter = 'rejected'">已拒绝</button>
+          </div>
+        </div>
+
+        <div v-if="realnameLoading" class="loading-state">
+          <span class="spinner"></span>
+          <span>正在加载实名认证申请…</span>
+        </div>
+        <div v-else-if="filteredRealnameItems.length === 0" class="empty-state">
+          <div class="empty-icon">🪪</div>
+          <div>当前没有符合条件的实名认证申请</div>
+        </div>
+        <div v-else class="entity-list">
+          <article v-for="item in filteredRealnameItems" :key="item.id" class="entity-card">
+            <div class="entity-head">
+              <div class="entity-main">
+                <div class="entity-title-row">
+                  <h3 class="entity-title">{{ item.username }}</h3>
+                  <span :class="['status-badge', item.status === 'verified' ? 'published' : item.status === 'rejected' ? 'rejected' : 'pending']">
+                    {{ realnameStatusLabel(item.status) }}
+                  </span>
+                </div>
+                <div class="entity-meta">
+                  <span>UID {{ item.userId }}</span>
+                  <span class="dot">·</span>
+                  <span>{{ item.phone }}</span>
+                  <span class="dot">·</span>
+                  <span>{{ timeAgo(item.submittedAt) }}</span>
+                </div>
+              </div>
+              <div class="entity-actions">
+                <button class="action-btn approve" :disabled="realnameActioningId === item.id || item.status === 'verified'" @click="approveRealname(item)">通过</button>
+                <button class="action-btn reject" :disabled="realnameActioningId === item.id" @click="rejectRealname(item)">拒绝</button>
+                <button class="action-btn neutral" :disabled="realnameActioningId === item.id || item.status === 'pending'" @click="resetRealnameToPending(item)">退回待审</button>
+              </div>
+            </div>
+
+            <div class="entity-detail-grid">
+              <div class="detail-block">
+                <span class="detail-label">实名资料</span>
+                <p class="detail-text mono-text">
+                  真实姓名：{{ item.realname || '未填写' }}<br>
+                  身份证号：{{ item.idNumber || '未填写' }}<br>
+                  手机号：{{ item.phone || '未填写' }}
+                </p>
+              </div>
+              <div class="detail-block">
+                <span class="detail-label">审核信息</span>
+                <p class="detail-text mono-text">
+                  当前状态：{{ realnameStatusLabel(item.status) }}<br>
+                  审核人：{{ item.reviewerName || '未审核' }}<br>
+                  更新时间：{{ formatDateTime(item.updatedAt || item.submittedAt) }}
+                </p>
+              </div>
+              <div class="detail-block">
+                <span class="detail-label">驳回说明</span>
+                <p class="detail-text">{{ item.reviewNote || '无' }}</p>
               </div>
             </div>
           </article>

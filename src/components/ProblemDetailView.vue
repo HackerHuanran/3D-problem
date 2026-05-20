@@ -36,7 +36,6 @@
           <p class="hero-subtitle">{{ problem.subtitle }}</p>
           <div class="hero-stats">
             <span class="stat-badge" :class="'diff-' + diffClass(problem.difficulty)">{{ problem.difficulty }}</span>
-            <span class="stat-badge neutral">{{ t('pd.comments', { n: comments.length }) }}</span>
           </div>
           <div class="hero-actions">
             <button
@@ -129,140 +128,6 @@
             </div>
           </section>
 
-          <section class="section solution-cta-section">
-            <div class="solution-cta-card">
-              <div>
-                <h2 class="section-title solution-cta-title">
-                  <span class="section-icon" style="background:rgba(92,186,122,0.15);color:#5cba7a">➕</span>
-                  添加解决方案
-                </h2>
-                <p class="solution-cta-desc">如果你有这个问题的处理经验，可以补充到问题库里，帮助后面的人更快解决。</p>
-              </div>
-              <button
-                class="solution-cta-btn"
-                @click="currentUser ? $emit('go-submit', { mode: 'solution', targetProblemId: problem.id, targetProblemTitle: problem.title, category: problem.category }) : $emit('open-auth', 'login')"
-              >
-                {{ currentUser ? '去添加解决方案' : '登录后添加' }}
-              </button>
-            </div>
-          </section>
-
-          <section class="section solution-submissions-section">
-            <h2 class="section-title">
-              <span class="section-icon" style="background:rgba(37,104,232,0.12);color:#2568e8">★</span>
-              补充解决方案
-              <span class="count-badge">{{ solutionSubmissionCountText }}</span>
-            </h2>
-
-            <div v-if="loadingSolutionSubmissions" class="loading-state">
-              <span class="spinner"></span>
-              <span>正在加载补充方案…</span>
-            </div>
-
-            <div v-else-if="solutionSubmissions.length" class="solution-submission-grid">
-              <article
-                v-for="item in solutionSubmissions"
-                :key="item.id"
-                class="solution-submission-card"
-                @click="openSolutionModal(item)"
-              >
-                <div class="submission-card-head">
-                  <div class="submission-head-main">
-                    <h3 class="submission-title">{{ item.title }}</h3>
-                    <p class="submission-meta">{{ item.username }} · {{ formatTime(item.createdAt) }}</p>
-                  </div>
-                  <span v-if="item.likeCount > 0" class="submission-like-count">👍 {{ item.likeCount }}</span>
-                </div>
-
-                <p class="submission-desc">{{ item.description || item.subtitle || '投稿者补充了一个可复现的处理方案。' }}</p>
-
-                <div v-if="item.solutions?.length" class="submission-steps compact">
-                  <div v-for="step in item.solutions" :key="`${item.id}-${step.step}`" class="submission-step">
-                    <span class="submission-step-index">{{ step.step }}</span>
-                    <div class="submission-step-body">
-                      <div class="submission-step-title">{{ step.title }}</div>
-                      <p v-if="step.detail" class="submission-step-detail">{{ step.detail }}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="submission-footer">
-                  <button
-                    class="like-btn submission-like-btn"
-                    :class="{ liked: item.likedByCurrentUser, pending: likingSolutionId === item.id }"
-                    :disabled="likingSolutionId === item.id"
-                    @click.stop="handleSolutionLike(item)"
-                  >
-                    {{ item.likedByCurrentUser ? '已点赞' : '点赞' }}
-                    <span>{{ item.likeCount > 0 ? item.likeCount : '' }}</span>
-                  </button>
-                  <span class="submission-footer-hint">
-                    {{ currentUser ? '每个账号可点赞一次，再点可取消' : '登录后可点赞这个方案' }}
-                  </span>
-                </div>
-              </article>
-            </div>
-
-            <div v-else class="community-empty">
-              <span>🧩</span>
-              <p>还没有补充方案，你可以成为第一个完善这个问题的人。</p>
-            </div>
-          </section>
-
-          <!-- ── 评论区 ── -->
-          <section class="section community-section">
-            <h2 class="section-title">
-              <span class="section-icon" style="background:rgba(116,185,255,0.15);color:#74b9ff">💬</span>
-              {{ t('pd.discussion') }}
-              <span class="count-badge">{{ comments.length }}</span>
-            </h2>
-
-            <div v-if="currentUser" class="comment-input-wrap">
-              <div class="avatar">
-                <img v-if="isAvatarImage(currentUser.avatar)" :src="currentUser.avatar" alt="用户头像" class="avatar-image" />
-                <span v-else>{{ avatarFallback(currentUser.avatar, currentUser.username) }}</span>
-              </div>
-              <div class="comment-input-inner">
-                <textarea v-model="newComment" class="comment-textarea" :placeholder="t('pd.cmtPh', { u: currentUser.username })" rows="2" maxlength="300" @keydown.ctrl.enter="submitComment"></textarea>
-                <div class="form-footer">
-                  <span class="char-count">{{ t('pd.charHint', { n: newComment.length }) }}</span>
-                  <button class="submit-btn" @click="submitComment" :disabled="submittingComment || !newComment.trim()">
-                    <span v-if="submittingComment" class="btn-spinner"></span>
-                    {{ submittingComment ? t('pd.sending') : t('pd.send') }}
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div v-else class="login-prompt" @click="$emit('open-auth', 'login')">
-              <span>✏️</span><span>{{ t('pd.loginComment') }}</span><span class="prompt-arrow">→</span>
-            </div>
-
-            <div v-if="loadingComments" class="loading-state">
-              <span class="spinner"></span>{{ t('pd.loadingCmt') }}
-            </div>
-            <div v-else-if="comments.length > 0" class="comments-list">
-              <div v-for="comment in comments" :key="comment.id" class="comment-item">
-                <div class="avatar">
-                  <img v-if="isAvatarImage(comment.avatar)" :src="comment.avatar" alt="用户头像" class="avatar-image" />
-                  <span v-else>{{ avatarFallback(comment.avatar, comment.username) }}</span>
-                </div>
-                <div class="comment-body">
-                  <div class="comment-head">
-                    <span class="comment-user">{{ comment.username }}</span>
-                    <span class="comment-time">{{ formatTime(comment.createdAt) }}</span>
-                  </div>
-                  <p class="comment-text">{{ comment.content }}</p>
-                  <div class="comment-actions">
-                    <button class="like-btn small" :class="{ liked: comment.likes.includes(currentUser?.id) }" @click="handleCommentLike(comment.id)">
-                      👍 {{ comment.likes.length > 0 ? comment.likes.length : '' }}
-                    </button>
-                    <button v-if="currentUser?.id === comment.userId" class="delete-btn" @click="handleDeleteComment(comment.id)">{{ t('pd.delete') }}</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div v-else-if="currentUser" class="community-empty"><span>💭</span><p>{{ t('pd.noCmt') }}</p></div>
-          </section>
         </div>
 
         <aside class="detail-side">
@@ -348,61 +213,6 @@
     </div>
   </Transition>
 
-  <Transition name="report-fade">
-    <div v-if="activeSolutionSubmission" class="solution-modal-mask">
-      <div class="solution-modal">
-        <div class="solution-modal-head">
-          <div class="solution-modal-head-copy">
-            <div class="solution-modal-kicker">补充方案详情</div>
-            <h3 class="solution-modal-title">{{ activeSolutionSubmission.title }}</h3>
-            <p class="solution-modal-meta">
-              {{ activeSolutionSubmission.username }} · {{ formatTime(activeSolutionSubmission.createdAt) }}
-            </p>
-          </div>
-          <button class="pd-close-btn" @click="closeSolutionModal">✕</button>
-        </div>
-
-        <div class="solution-modal-body">
-          <p v-if="activeSolutionSubmission.description || activeSolutionSubmission.subtitle" class="solution-modal-desc">
-            {{ activeSolutionSubmission.description || activeSolutionSubmission.subtitle }}
-          </p>
-
-          <div v-if="activeSolutionSubmission.solutions?.length" class="solution-modal-steps">
-            <div
-              v-for="step in activeSolutionSubmission.solutions"
-              :key="`${activeSolutionSubmission.id}-${step.step}`"
-              class="solution-modal-step"
-            >
-              <span class="solution-modal-step-index">{{ step.step }}</span>
-              <div class="solution-modal-step-body">
-                <div class="solution-modal-step-title">{{ step.title }}</div>
-                <p v-if="step.detail" class="solution-modal-step-detail">{{ step.detail }}</p>
-                <img
-                  v-if="step.image_url"
-                  :src="step.image_url"
-                  class="solution-modal-step-image"
-                  alt="方案步骤图片"
-                  loading="lazy"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div class="solution-modal-actions">
-            <button
-              class="like-btn submission-like-btn"
-              :class="{ liked: activeSolutionSubmission.likedByCurrentUser, pending: likingSolutionId === activeSolutionSubmission.id }"
-              :disabled="likingSolutionId === activeSolutionSubmission.id"
-              @click="handleSolutionLike(activeSolutionSubmission)"
-            >
-              {{ activeSolutionSubmission.likedByCurrentUser ? '已点赞' : '点赞' }}
-              <span>{{ activeSolutionSubmission.likeCount > 0 ? activeSolutionSubmission.likeCount : '' }}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </Transition>
 </template>
 
 <script setup>
@@ -414,24 +224,20 @@ import { useLocale } from '@/composables/useLocale.js'
 import { useReport } from '@/composables/useReport.js'
 import { useFavorites } from '@/composables/useFavorites.js'
 import { useProblemMeta } from '@/composables/useProblemMeta.js'
-import { useUserGuard } from '@/composables/useUserGuard.js'
 import { getProblemDetail, getRelatedProblemSummaries } from '@/composables/useProblemLibrary.js'
-import { useProblemSolutions } from '@/composables/useProblemSolutions.js'
 import { useToast } from '@/composables/useToast.js'
 import { isAvatarImage, avatarFallback } from '@/lib/avatar.js'
 
 const props = defineProps({ problemId: { type: String, required: true } })
-const emit = defineEmits(['back', 'go-detail', 'open-auth', 'go-submit'])
+const emit = defineEmits(['back', 'go-detail', 'open-auth'])
 
 const { currentUser } = useAuth()
 const { userProblems } = useUserProblems()
 const { favorites, fetchFavorites, toggleFavorite } = useFavorites()
 const { metaMap, fetchProblemMeta } = useProblemMeta()
-const { getProblemCommunity, getComments, addComment, deleteComment, toggleCommentLike, toggleEncounter } = useCommunity()
-const { getProblemSolutions, toggleProblemSolutionLike, invalidateProblemSolutionCache } = useProblemSolutions()
+const { getEncounterData, toggleEncounter } = useCommunity()
 const { t } = useLocale()
 const { submitReport } = useReport()
-const { ensureUserCanInteract } = useUserGuard()
 const { success, error: toastError, info } = useToast()
 
 const REPORT_REASONS = ['色情低俗', '赌博内容', '毒品违禁品', '虚假欺诈', '垃圾广告', '其他违规']
@@ -524,13 +330,7 @@ const handleFavorite = async () => {
 }
 
 // ── 社区数据 ──
-const comments = ref([])
-const loadingComments = ref(true)
 const relatedProblems = ref([])
-const solutionSubmissions = ref([])
-const loadingSolutionSubmissions = ref(true)
-const likingSolutionId = ref('')
-const activeSolutionSubmission = ref(null)
 
 async function loadProblem() {
   if (loadedProblemId.value === props.problemId && problem.value) return
@@ -545,60 +345,17 @@ async function loadProblem() {
 }
 
 const loadData = async () => {
-  loadingComments.value = true
-  loadingSolutionSubmissions.value = true
   try {
-    const [community, solutionRows] = await Promise.all([
-      getProblemCommunity(props.problemId, currentUser.value?.id),
-      getProblemSolutions(props.problemId, currentUser.value?.id, { force: true }),
-    ])
-    comments.value = community.comments
-    encounterCount.value = community.encounter.count
-    hasEncountered.value = community.encounter.hasEncountered
-    solutionSubmissions.value = solutionRows
+    const encounter = await getEncounterData(props.problemId, currentUser.value?.id, { force: true })
+    encounterCount.value = encounter.count
+    hasEncountered.value = encounter.hasEncountered
   } finally {
-    loadingComments.value = false
-    loadingSolutionSubmissions.value = false
   }
 }
 loadProblem().then(() => {
   initExpanded()
   loadData()
 })
-
-// ── 评论 ──
-const newComment = ref('')
-const submittingComment = ref(false)
-const submitComment = async () => {
-  if (!newComment.value.trim() || !currentUser.value) return
-  submittingComment.value = true
-  try {
-    await ensureUserCanInteract(currentUser.value.id, '发表评论')
-    const content = newComment.value.trim()
-    await addComment(props.problemId, currentUser.value.id, content)
-    newComment.value = ''
-    comments.value = await getComments(props.problemId, { force: true })
-    success('评论发表成功')
-  } catch (e) {
-    toastError(e.message || '评论提交失败')
-  }
-  finally { submittingComment.value = false }
-}
-const handleCommentLike = async (id) => {
-  if (!currentUser.value) return
-  const target = comments.value.find(comment => comment.id === id)
-  if (!target) return
-  const liked = target.likes.includes(currentUser.value.id)
-  target.likes = liked
-    ? target.likes.filter(userId => userId !== currentUser.value.id)
-    : [...target.likes, currentUser.value.id]
-  await toggleCommentLike(id, currentUser.value.id, props.problemId)
-}
-const handleDeleteComment = async (id) => {
-  if (!confirm('确定删除这条评论？')) return
-  await deleteComment(id, props.problemId)
-  comments.value = comments.value.filter(comment => comment.id !== id)
-}
 
 const formatTime = (ts) => {
   const diff = Date.now() - ts
@@ -607,63 +364,6 @@ const formatTime = (ts) => {
   if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`
   if (diff < 2592000000) return `${Math.floor(diff / 86400000)} 天前`
   return new Date(ts).toLocaleDateString('zh-CN')
-}
-
-const solutionSubmissionCountText = computed(() => `${solutionSubmissions.value.length} 个补充方案`)
-
-function openSolutionModal(solution) {
-  activeSolutionSubmission.value = solution
-}
-
-function closeSolutionModal() {
-  activeSolutionSubmission.value = null
-}
-
-async function handleSolutionLike(solution) {
-  if (!currentUser.value) {
-    emit('open-auth', 'login')
-    return
-  }
-
-  likingSolutionId.value = solution.id
-  const previousRows = solutionSubmissions.value.map((item) => ({ ...item, likes: [...(item.likes || [])] }))
-  const target = solutionSubmissions.value.find((item) => item.id === solution.id)
-  if (target) {
-    const liked = !!target.likedByCurrentUser
-    const nextLikes = liked
-      ? (target.likes || []).filter((userId) => userId !== currentUser.value.id)
-      : [...new Set([...(target.likes || []), currentUser.value.id])]
-    target.likes = nextLikes
-    target.likeCount = nextLikes.length
-    target.likedByCurrentUser = !liked
-  }
-
-  try {
-    await ensureUserCanInteract(currentUser.value.id, '点赞解决方案')
-    const nextRow = await toggleProblemSolutionLike(solution, currentUser.value.id)
-    solutionSubmissions.value = solutionSubmissions.value.map((item) => (
-      item.id === solution.id
-        ? {
-            ...item,
-            ...nextRow,
-            likes: [...(nextRow.likes || [])],
-          }
-        : item
-    ))
-    if (activeSolutionSubmission.value?.id === solution.id) {
-      activeSolutionSubmission.value = solutionSubmissions.value.find((item) => item.id === solution.id) || null
-    }
-    invalidateProblemSolutionCache(props.problemId)
-    success(nextRow.likedByCurrentUser ? '点赞成功' : '已取消点赞')
-  } catch (e) {
-    solutionSubmissions.value = previousRows
-    if (activeSolutionSubmission.value?.id === solution.id) {
-      activeSolutionSubmission.value = previousRows.find((item) => item.id === solution.id) || null
-    }
-    toastError(e?.message || '点赞失败，请稍后重试')
-  } finally {
-    likingSolutionId.value = ''
-  }
 }
 
 const diffClass = (d) => { if (d === '紧急') return 'urgent'; if (d === '需处理') return 'warn'; if (d === '进阶') return 'advanced'; return 'normal' }
@@ -1091,14 +791,6 @@ onUnmounted(() => {
   font-size: 15px;
   flex-shrink: 0;
 }
-.count-badge {
-  background: rgba(37, 104, 232, 0.08);
-  color: var(--lab-text-soft);
-  font-size: 12px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-weight: 500;
-}
 .toggle-all-btn {
   margin-left: auto;
   background: rgba(37, 104, 232, 0.06);
@@ -1244,327 +936,7 @@ onUnmounted(() => {
   object-fit: cover;
   display: block;
 }
-.solution-cta-section {
-  padding: 0;
-  border: none;
-  background: transparent;
-  box-shadow: none;
-}
-.solution-cta-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 22px 24px;
-  border-radius: 22px;
-  border: 1px solid rgba(57, 86, 120, 0.08);
-  background: linear-gradient(135deg, rgba(246, 250, 255, 0.96) 0%, rgba(255, 255, 255, 0.98) 100%);
-  box-shadow: 0 12px 30px rgba(15, 31, 56, 0.05);
-}
-.solution-cta-title {
-  margin-bottom: 8px;
-}
-.solution-cta-desc {
-  font-size: 14px;
-  color: var(--lab-text-soft);
-  line-height: 1.75;
-}
-.solution-cta-btn {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 999px;
-  padding: 12px 20px;
-  background: linear-gradient(135deg, var(--lab-accent), var(--lab-accent-2));
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  box-shadow: 0 12px 26px rgba(37, 104, 232, 0.18);
-  transition: transform 0.18s, box-shadow 0.18s, filter 0.18s;
-}
-.solution-cta-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(37, 104, 232, 0.24);
-}
-.solution-submission-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 12px;
-}
-.solution-submission-card {
-  border: 1px solid rgba(57, 86, 120, 0.08);
-  border-radius: 20px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,250,255,0.95));
-  padding: 14px;
-  box-shadow: 0 10px 26px rgba(15, 31, 56, 0.05);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  cursor: pointer;
-  transition: box-shadow 0.18s, transform 0.18s, border-color 0.18s;
-}
-.solution-submission-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(37, 104, 232, 0.16);
-  box-shadow: 0 14px 30px rgba(15, 31, 56, 0.08);
-}
-.submission-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-.submission-head-main {
-  min-width: 0;
-}
-.submission-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--lab-text);
-  margin: 0 0 4px;
-  line-height: 1.45;
-}
-.submission-meta {
-  margin: 0;
-  font-size: 11px;
-  color: var(--lab-text-dim);
-}
-.submission-like-count {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 48px;
-  padding: 5px 8px;
-  border-radius: 999px;
-  background: rgba(255, 214, 0, 0.12);
-  border: 1px solid rgba(200, 160, 0, 0.18);
-  color: #8c6900;
-  font-size: 11px;
-  font-weight: 700;
-}
-.submission-desc {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.68;
-  color: var(--lab-text-soft);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.submission-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.submission-steps.compact {
-  max-height: 148px;
-  overflow: auto;
-  padding-right: 2px;
-}
-.submission-step {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  padding: 8px 10px;
-  border-radius: 12px;
-  background: rgba(247, 251, 253, 0.9);
-  border: 1px solid rgba(57, 86, 120, 0.06);
-}
-.submission-step-index {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--lab-accent), var(--lab-accent-2));
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-}
-.submission-step-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--lab-text);
-  margin-bottom: 3px;
-}
-.submission-step-detail {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.55;
-  color: var(--lab-text-soft);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.submission-footer {
-  margin-top: auto;
-  padding-top: 10px;
-  border-top: 1px solid rgba(57, 86, 120, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.submission-footer-hint {
-  font-size: 11px;
-  color: var(--lab-text-soft);
-  text-align: right;
-}
-.submission-like-btn {
-  flex-shrink: 0;
-  padding: 6px 10px;
-  font-size: 11px;
-  font-weight: 600;
-}
-.submission-like-btn.pending {
-  opacity: 0.7;
-  cursor: wait;
-}
-.solution-modal-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 1100;
-  background: rgba(7, 16, 28, 0.48);
-  backdrop-filter: blur(10px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-.solution-modal {
-  width: min(880px, 100%);
-  max-height: min(86vh, 920px);
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid rgba(57, 86, 120, 0.12);
-  border-radius: 28px;
-  box-shadow: 0 28px 68px rgba(15, 31, 56, 0.2);
-  display: flex;
-  flex-direction: column;
-}
-.solution-modal-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 24px 26px 18px;
-  background: rgba(255, 255, 255, 0.98);
-  border-bottom: 1px solid rgba(57, 86, 120, 0.08);
-  flex-shrink: 0;
-}
-.solution-modal-head-copy {
-  min-width: 0;
-}
-.solution-modal-kicker {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: var(--lab-accent);
-  margin-bottom: 8px;
-}
-.solution-modal-body {
-  overflow-y: auto;
-  padding: 18px 26px 24px;
-}
-.solution-modal-title {
-  margin: 0 0 8px;
-  font-size: 22px;
-  line-height: 1.35;
-  color: var(--lab-text);
-}
-.solution-modal-meta {
-  margin: 0;
-  font-size: 13px;
-  color: var(--lab-text-dim);
-}
-.solution-modal-desc {
-  margin: 0 0 18px;
-  font-size: 14px;
-  line-height: 1.82;
-  color: var(--lab-text-soft);
-}
-.solution-modal-steps {
-  display: grid;
-  gap: 12px;
-}
-.solution-modal-step {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  gap: 14px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(247, 251, 253, 0.92);
-  border: 1px solid rgba(57, 86, 120, 0.08);
-}
-.solution-modal-step-index {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--lab-accent), var(--lab-accent-2));
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-}
-.solution-modal-step-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--lab-text);
-  margin-bottom: 6px;
-}
-.solution-modal-step-detail {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.76;
-  color: var(--lab-text-soft);
-}
-.solution-modal-step-image {
-  width: 100%;
-  margin-top: 12px;
-  border-radius: 16px;
-  border: 1px solid rgba(57, 86, 120, 0.08);
-  background: #fff;
-  padding: 10px;
-  display: block;
-}
-.solution-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 18px;
-  padding-top: 4px;
-}
-.like-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(37, 104, 232, 0.04);
-  border: 1px solid rgba(57, 86, 120, 0.12);
-  color: var(--lab-text-soft);
-  padding: 5px 10px;
-  border-radius: 999px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.18s;
-  font-family: inherit;
-}
-.like-btn:hover { border-color: rgba(37, 104, 232, 0.24); color: var(--lab-accent); }
-.like-btn.liked { background: rgba(255,214,0,0.12); border-color: rgba(200,160,0,0.3); color: #8c6900; }
-.like-btn.small { padding: 3px 8px; font-size: 12px; }
-.delete-btn { background: transparent; border: none; color: var(--lab-text-dim); font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: color 0.15s; font-family: inherit; }
-.delete-btn:hover { color: #ff3b30; }
-.form-input, .form-textarea, .comment-textarea {
+.form-input, .form-textarea {
   width: 100%;
   background: rgba(244, 248, 252, 0.96);
   border: 1px solid rgba(57, 86, 120, 0.12);
@@ -1577,12 +949,12 @@ onUnmounted(() => {
   resize: vertical;
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
-.form-input:focus, .form-textarea:focus, .comment-textarea:focus {
+.form-input:focus, .form-textarea:focus {
   border-color: rgba(37, 104, 232, 0.28);
   box-shadow: 0 0 0 4px rgba(37, 104, 232, 0.08);
   background: rgba(255, 255, 255, 0.98);
 }
-.form-input::placeholder, .form-textarea::placeholder, .comment-textarea::placeholder { color: #9aa8bc; }
+.form-input::placeholder, .form-textarea::placeholder { color: #9aa8bc; }
 .form-input { margin-bottom: 10px; resize: none; }
 .form-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
 .char-count { font-size: 11px; color: var(--lab-text-dim); }
@@ -1623,26 +995,6 @@ onUnmounted(() => {
 }
 .login-prompt:hover { border-color: rgba(37, 104, 232, 0.24); color: var(--lab-text); }
 .prompt-arrow { margin-left: auto; color: var(--lab-accent); }
-.comment-input-wrap { display: flex; gap: 12px; margin-bottom: 20px; }
-.comment-input-inner { flex: 1; }
-.comment-textarea { min-height: 70px; }
-.comments-list { display: flex; flex-direction: column; gap: 16px; }
-.comment-item {
-  display: flex;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(248,250,253,0.94);
-  border: 1px solid rgba(57, 86, 120, 0.06);
-}
-.comment-body { flex: 1; min-width: 0; }
-.comment-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.comment-user { font-size: 13px; font-weight: 600; color: var(--lab-text); }
-.comment-time { font-size: 11px; color: var(--lab-text-dim); }
-.comment-text { font-size: 14px; color: var(--lab-text-soft); line-height: 1.72; margin-bottom: 8px; word-break: break-word; }
-.comment-actions { display: flex; align-items: center; gap: 8px; }
-.community-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 32px; color: var(--lab-text-dim); font-size: 14px; text-align: center; }
-.community-empty span { font-size: 24px; }
 .side-section {
   padding: 22px;
 }
@@ -1749,39 +1101,6 @@ onUnmounted(() => {
   .hero-emoji { font-size: 56px; }
   .detail-content { padding: 18px 16px 40px; }
   .section { padding: 20px 18px; border-radius: 20px; }
-  .solution-cta-card {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .solution-cta-btn {
-    width: 100%;
-  }
-  .submission-card-head,
-  .submission-footer {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .submission-footer-hint {
-    text-align: left;
-  }
-  .solution-modal {
-    border-radius: 22px;
-  }
-  .solution-modal-head {
-    padding: 20px 20px 16px;
-  }
-  .solution-modal-body {
-    padding: 16px 20px 20px;
-  }
-  .solution-modal-step {
-    grid-template-columns: 30px minmax(0, 1fr);
-    gap: 12px;
-    padding: 12px 14px;
-  }
-  .solution-modal-step-index {
-    width: 30px;
-    height: 30px;
-  }
   .side-section {
     padding: 18px;
   }
@@ -1802,13 +1121,6 @@ onUnmounted(() => {
   .sol-step { width: 24px; height: 24px; font-size: 11px; }
   .sol-title { font-size: 14px; }
   .sol-detail { padding: 0 12px 12px 44px; }
-  .comment-input-wrap { gap: 8px; }
   .causes-grid { grid-template-columns: 1fr; }
-  .solution-modal-mask {
-    padding: 14px;
-  }
-  .solution-modal-title {
-    font-size: 18px;
-  }
   }
 </style>

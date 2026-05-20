@@ -6,8 +6,6 @@ const solutionsCache = new Map()
 const solutionsPromiseCache = new Map()
 const encounterCache = new Map()
 const encounterCountsCache = new Map()
-const problemCommunityCache = new Map()
-const problemCommunityPromiseCache = new Map()
 
 function normalizeCreatedAt(value) {
   return value instanceof Date ? value.getTime() : new Date(value).getTime()
@@ -19,144 +17,10 @@ function invalidateProblemCommunity(problemId) {
   commentsPromiseCache.delete(problemId)
   solutionsCache.delete(problemId)
   solutionsPromiseCache.delete(problemId)
-  problemCommunityCache.delete(problemId)
-  problemCommunityPromiseCache.delete(problemId)
   encounterCache.delete(`${problemId}:guest`)
 }
 
 export function useCommunity() {
-  const getProblemCommunity = async (problemId, userId, { force = false } = {}) => {
-    if (!force && problemCommunityCache.has(problemId)) {
-      const cached = problemCommunityCache.get(problemId)
-      return {
-        comments: cached.comments,
-        solutions: cached.solutions,
-        encounter: {
-          count: cached.encounterCount,
-          hasEncountered: userId ? cached.encounteredUsers.has(userId) : false,
-        },
-      }
-    }
-    if (!force && problemCommunityPromiseCache.has(problemId)) {
-      const pending = await problemCommunityPromiseCache.get(problemId)
-      return {
-        comments: pending.comments,
-        solutions: pending.solutions,
-        encounter: {
-          count: pending.encounterCount,
-          hasEncountered: userId ? pending.encounteredUsers.has(userId) : false,
-        },
-      }
-    }
-
-    const loadPromise = (async () => {
-      try {
-        const [commentRes, solutionRes, encounterCountRes, userEncounterRes] = await Promise.all([
-          db.collection('comments').where({ problem_id: problemId }).orderBy('created_at', 'desc').limit(100).get(),
-          db.collection('solutions').where({ problem_id: problemId }).orderBy('created_at', 'desc').limit(100).get(),
-          db.collection('encounters').where({ problem_id: problemId }).count(),
-          userId
-            ? db.collection('encounters').where({ problem_id: problemId, user_id: userId }).limit(1).get()
-            : Promise.resolve({ data: [] }),
-        ])
-
-        const comments = commentRes.data || []
-        const solutions = solutionRes.data || []
-        const userIds = [...new Set([
-          ...comments.map(item => item.user_id),
-          ...solutions.map(item => item.user_id),
-        ].filter(Boolean))]
-        const targetIds = [
-          ...comments.map(item => item._id),
-          ...solutions.map(item => item._id),
-        ]
-
-        const [profileRes, likesRes] = await Promise.all([
-          userIds.length
-            ? db.collection('profiles').where({ uid: cmd.in(userIds) }).limit(userIds.length).get()
-            : Promise.resolve({ data: [] }),
-          targetIds.length
-            ? db.collection('likes').where({ target_id: cmd.in(targetIds) }).limit(500).get()
-            : Promise.resolve({ data: [] }),
-        ])
-
-        const profileMap = {}
-        ;(profileRes.data || []).forEach((profile) => {
-          profileMap[profile.uid] = profile
-        })
-
-        const likesByTarget = {}
-        ;(likesRes.data || []).forEach((like) => {
-          if (!likesByTarget[like.target_id]) likesByTarget[like.target_id] = []
-          likesByTarget[like.target_id].push(like.user_id)
-        })
-
-        const mappedComments = comments.map((item) => ({
-          id: item._id,
-          userId: item.user_id,
-          username: profileMap[item.user_id]?.username || '匿名用户',
-          avatar: profileMap[item.user_id]?.avatar || '?',
-          content: item.content,
-          createdAt: normalizeCreatedAt(item.created_at),
-          likes: likesByTarget[item._id] || [],
-        }))
-
-        const mappedSolutions = solutions
-          .map((item) => ({
-            id: item._id,
-            userId: item.user_id,
-            username: profileMap[item.user_id]?.username || '匿名用户',
-            avatar: profileMap[item.user_id]?.avatar || '?',
-            title: item.title,
-            detail: item.detail,
-            createdAt: normalizeCreatedAt(item.created_at),
-            likes: likesByTarget[item._id] || [],
-          }))
-          .sort((a, b) => b.likes.length - a.likes.length || b.createdAt - a.createdAt)
-
-        const payload = {
-          comments: mappedComments,
-          solutions: mappedSolutions,
-          encounterCount: encounterCountRes.total || 0,
-          encounteredUsers: new Set((userEncounterRes.data || []).map(item => item.user_id).filter(Boolean)),
-        }
-
-        problemCommunityCache.set(problemId, payload)
-        commentsCache.set(problemId, mappedComments)
-        solutionsCache.set(problemId, mappedSolutions)
-        encounterCache.set(`${problemId}:guest`, { count: payload.encounterCount, hasEncountered: false })
-        if (userId) {
-          encounterCache.set(`${problemId}:${userId}`, {
-            count: payload.encounterCount,
-            hasEncountered: payload.encounteredUsers.has(userId),
-          })
-        }
-        return payload
-      } catch (e) {
-        console.error('getProblemCommunity:', e)
-        return problemCommunityCache.get(problemId) || {
-          comments: commentsCache.get(problemId) || [],
-          solutions: solutionsCache.get(problemId) || [],
-          encounterCount: encounterCache.get(`${problemId}:guest`)?.count || 0,
-          encounteredUsers: new Set(),
-        }
-      } finally {
-        problemCommunityPromiseCache.delete(problemId)
-      }
-    })()
-
-    problemCommunityPromiseCache.set(problemId, loadPromise)
-    const payload = await loadPromise
-    return {
-      comments: payload.comments,
-      solutions: payload.solutions,
-      encounter: {
-        count: payload.encounterCount,
-        hasEncountered: userId ? payload.encounteredUsers.has(userId) : false,
-      },
-    }
-  }
-
   // ── 评论 ──
   const getComments = async (problemId, { force = false } = {}) => {
     if (!force && commentsCache.has(problemId)) return commentsCache.get(problemId)
@@ -396,22 +260,19 @@ export function useCommunity() {
 
   const getUserActivity = async (userId) => {
     try {
-      const [commentRes, solutionRes, encounterRes] = await Promise.all([
-        db.collection('comments').where({ user_id: userId }).orderBy('created_at', 'desc').limit(100).get(),
+      const [solutionRes, encounterRes] = await Promise.all([
         db.collection('solutions').where({ user_id: userId }).orderBy('created_at', 'desc').limit(100).get(),
         db.collection('encounters').where({ user_id: userId }).orderBy('created_at', 'desc').limit(100).get(),
       ])
 
-      const comments = commentRes.data || []
       const solutions = solutionRes.data || []
       const encounters = encounterRes.data || []
       const solutionIds = solutions.map(item => item._id)
-      const commentIds = comments.map(item => item._id)
 
-      const likes = solutionIds.length || commentIds.length
+      const likes = solutionIds.length
         ? await db.collection('likes')
             .where({
-              target_id: cmd.in([...solutionIds, ...commentIds]),
+              target_id: cmd.in(solutionIds),
             })
             .limit(500)
             .get()
@@ -423,13 +284,6 @@ export function useCommunity() {
       })
 
       return {
-        comments: comments.map((item) => ({
-          id: item._id,
-          problemId: item.problem_id,
-          content: item.content,
-          createdAt: normalizeCreatedAt(item.created_at),
-          likes: likesByTarget[item._id] || 0,
-        })),
         solutions: solutions.map((item) => ({
           id: item._id,
           problemId: item.problem_id,
@@ -444,7 +298,6 @@ export function useCommunity() {
           createdAt: normalizeCreatedAt(item.created_at),
         })),
         stats: {
-          commentCount: comments.length,
           solutionCount: solutions.length,
           encounterCount: encounters.length,
           receivedLikes: Object.values(likesByTarget).reduce((sum, count) => sum + count, 0),
@@ -453,16 +306,14 @@ export function useCommunity() {
     } catch (e) {
       console.error('getUserActivity:', e)
       return {
-        comments: [],
         solutions: [],
         encounters: [],
-        stats: { commentCount: 0, solutionCount: 0, encounterCount: 0, receivedLikes: 0 },
+        stats: { solutionCount: 0, encounterCount: 0, receivedLikes: 0 },
       }
     }
   }
 
   return {
-    getProblemCommunity,
     getComments, addComment, deleteComment, toggleCommentLike,
     getSolutions, addSolution, deleteSolution, toggleSolutionLike,
     getEncounterData, toggleEncounter, getEncounterCounts, getUserActivity,

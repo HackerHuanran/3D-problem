@@ -1,0 +1,34 @@
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "3D故障库"
+      }
+    },
+    {
+      "path": "pages/diagnosis/index",
+      "style": {
+        "navigationBarTitleText": "移动端初筛"
+      }
+    },
+    {
+      "path": "pages/problem-detail/index",
+      "style": {
+        "navigationBarTitleText": "问题详情"
+      }
+    },
+    {
+      "path": "pages/account/index",
+      "style": {
+        "navigationBarTitleText": "账号中心"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "3D故障库",
+    "navigationBarBackgroundColor": "#f7fafd",
+    "backgroundColor": "#f4f8fc"
+  }
+}

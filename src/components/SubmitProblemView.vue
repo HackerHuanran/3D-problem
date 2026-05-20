@@ -18,7 +18,7 @@ const props = defineProps({
 const emit  = defineEmits(['back', 'submitted'])
 
 const { submitProblem } = useUserProblems()
-const { ensureUserCanInteract } = useUserGuard()
+const { ensureUserCanPublish } = useUserGuard()
 const { t } = useLocale()
 const { success, error: toastError } = useToast()
 
@@ -172,7 +172,7 @@ async function submit() {
   if (!validate()) { window.scrollTo({ top: 0, behavior: 'smooth' }); return }
   submitting.value = true
   try {
-    await ensureUserCanInteract(props.currentUser.id, '提交问题')
+    await ensureUserCanPublish(props.currentUser.id, isSolutionMode.value ? '提交补充方案' : '提交问题')
     const contentText = isSolutionMode.value
       ? [form.solutionNote, ...form.solutions.map((s) => [s.title, s.detail].filter(Boolean).join('\n'))].filter(Boolean).join('\n')
       : [form.title, form.subtitle, form.description, ...form.causes, form.tips].filter(Boolean).join('\n')

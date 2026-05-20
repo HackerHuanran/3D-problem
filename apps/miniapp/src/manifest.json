@@ -1,0 +1,13 @@
+{
+  "name": "3D故障库",
+  "appid": "",
+  "description": "3D打印常见故障排查与问题库",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false
+    }
+  }
+}

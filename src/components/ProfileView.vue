@@ -46,18 +46,16 @@ const submissionsLoaded = ref(false)
 const marketLoaded = ref(false)
 const activityLoaded = ref(false)
 const communityActivity = ref({
-  comments: [],
   solutions: [],
   encounters: [],
   timeline: [],
-  stats: { commentCount: 0, solutionCount: 0, encounterCount: 0, receivedLikes: 0 },
+  stats: { solutionCount: 0, encounterCount: 0, receivedLikes: 0 },
 })
 
 // ── Tab 定义 ──
 const TABS = [
   { id: 'fav',       label: '我的收藏' },
   { id: 'submitted', label: '我的投稿' },
-  { id: 'market',    label: '需求发布' },
   { id: 'achievements', label: '成就中心' },
   { id: 'account',   label: '账号设置' },
 ]
@@ -81,9 +79,7 @@ const favProblems = computed(() => {
 const contributionStats = computed(() => ({
   favorites: favTotal.value,
   submissions: myProblems.value.length,
-  marketPosts: myPosts.value.length,
   solutions: communityActivity.value.stats.solutionCount,
-  comments: communityActivity.value.stats.commentCount,
   encounters: communityActivity.value.stats.encounterCount,
   receivedLikes: communityActivity.value.stats.receivedLikes,
   points: props.currentUser.points ?? 0,
@@ -97,7 +93,6 @@ const achievementBadges = computed(() => {
     { key: 'contributor', label: '经验投稿者', desc: '投稿 1 个问题', unlocked: stats.submissions >= 1 },
     { key: 'builder', label: '题库建设者', desc: '投稿 5 个问题', unlocked: stats.submissions >= 5 },
     { key: 'helper', label: '热心解答者', desc: '发布 3 条社区方案', unlocked: stats.solutions >= 3 },
-    { key: 'speaker', label: '交流达人', desc: '发表评论 5 条', unlocked: stats.comments >= 5 },
     { key: 'resonance', label: '同路人', desc: '标记“我也遇到过” 5 次', unlocked: stats.encounters >= 5 },
     { key: 'trusted', label: '被认可', desc: '累计获得 10 个点赞', unlocked: stats.receivedLikes >= 10 },
   ]
@@ -112,13 +107,14 @@ const activityTimeline = computed(() =>
 const tabCount = (id) => {
   if (id === 'fav')       return favTotal.value
   if (id === 'submitted') return submissionsLoaded.value ? myProblems.value.length : myProblemCount.value
-  if (id === 'market')    return marketLoaded.value ? myPosts.value.length : myPostCount.value
   if (id === 'achievements') return unlockedBadgeCount.value
   return 0
 }
 
 watch(() => props.initialTab, (tab) => {
-  if (tab && tab !== activeTab.value) activeTab.value = tab
+  if (!tab) return
+  const nextTab = tab === 'market' ? 'fav' : tab
+  if (nextTab !== activeTab.value) activeTab.value = nextTab
 })
 
 function openProblemDetail(id) {
@@ -157,23 +153,19 @@ async function loadCommunityActivity(uid) {
   if (activityLoaded.value) return
   const raw = await getUserActivity(uid)
   const problemMap = await hydrateProblemsByIds([
-    ...raw.comments.map(item => item.problemId),
     ...raw.solutions.map(item => item.problemId),
     ...raw.encounters.map(item => item.problemId),
   ])
 
-  const comments = raw.comments.map((item) => ({ ...item, problem: problemMap.get(item.problemId) || null }))
   const solutions = raw.solutions.map((item) => ({ ...item, problem: problemMap.get(item.problemId) || null }))
   const encounters = raw.encounters.map((item) => ({ ...item, problem: problemMap.get(item.problemId) || null }))
 
   communityActivity.value = {
-    comments,
     solutions,
     encounters,
     stats: raw.stats,
     timeline: [
       ...solutions.map(item => ({ ...item, type: 'solution' })),
-      ...comments.map(item => ({ ...item, type: 'comment' })),
       ...encounters.map(item => ({ ...item, type: 'encounter' })),
     ],
   }
@@ -185,13 +177,6 @@ async function loadSubmittedProblems(uid) {
   myProblems.value = await fetchMyProblems(uid)
   myProblemCount.value = myProblems.value.length
   submissionsLoaded.value = true
-}
-
-async function loadMarketPosts(uid) {
-  if (marketLoaded.value) return
-  await fetchMyPosts(uid)
-  myPostCount.value = myPosts.value.length
-  marketLoaded.value = true
 }
 
 async function loadInitialProfileData(uid) {
@@ -209,13 +194,13 @@ async function ensureTabData(tab) {
   const uid = props.currentUser.id
   if (tab === 'fav') return loadFavoriteProblems()
   if (tab === 'submitted') return loadSubmittedProblems(uid)
-  if (tab === 'market') return loadMarketPosts(uid)
   if (tab === 'achievements') return loadCommunityActivity(uid)
 }
 
 onMounted(async () => {
   window.addEventListener('scroll', onScroll, { passive: true })
   const uid = props.currentUser.id
+  if (activeTab.value === 'market') activeTab.value = 'fav'
   await loadInitialProfileData(uid)
   await ensureTabData(activeTab.value)
   loading.value = false
@@ -223,6 +208,10 @@ onMounted(async () => {
 onUnmounted(() => window.removeEventListener('scroll', onScroll))
 
 watch(activeTab, (tab) => {
+  if (tab === 'market') {
+    activeTab.value = 'fav'
+    return
+  }
   ensureTabData(tab)
 })
 
@@ -964,7 +953,7 @@ onUnmounted(() => {
             <span v-else>{{ currentAvatarFallback }}</span>
           </div>
           <h1 class="profile-username">{{ currentUser.username }}</h1>
-          <p class="profile-subtitle">管理你的收藏、投稿、需求记录和社区互动</p>
+          <p class="profile-subtitle">管理你的收藏、投稿和处理经验</p>
           <div class="stats-bar">
             <div class="stat-item">
               <span class="stat-num">{{ contributionStats.favorites }}</span>
@@ -977,19 +966,12 @@ onUnmounted(() => {
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
-              <span class="stat-num">{{ marketLoaded ? myPosts.length : myPostCount }}</span>
-              <span class="stat-lbl">需求</span>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat-item">
               <span class="stat-num">{{ contributionStats.receivedLikes }}</span>
               <span class="stat-lbl">获赞</span>
             </div>
           </div>
           <div class="profile-summary-strip">
             <span class="summary-chip">投稿 {{ submissionsLoaded ? myProblems.length : myProblemCount }}</span>
-            <span class="summary-chip">需求 {{ marketLoaded ? myPosts.length : myPostCount }}</span>
-            <span class="summary-chip">评论 {{ contributionStats.comments }}</span>
             <span class="summary-chip">方案 {{ contributionStats.solutions }}</span>
           </div>
         </div>
@@ -1103,51 +1085,6 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div v-else-if="activeTab === 'market'" class="tab-body">
-          <div class="tab-header-row">
-            <div>
-              <span class="tab-header-title">我的需求</span>
-              <span class="tab-header-sub block">管理你发布的求助、代打和求购信息</span>
-            </div>
-            <button class="create-btn" @click="openCreate">
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-              发布需求
-            </button>
-          </div>
-          <div v-if="myPosts.length === 0" class="empty" style="padding-top:40px">
-            <span class="empty-icon">🛒</span>
-            <p class="empty-title">还没有需求记录</p>
-            <p class="empty-sub">发布你的打印需求、技术求助或耗材求购信息。</p>
-            <div class="empty-actions">
-              <button class="empty-btn primary" @click="openCreate">立即发布需求</button>
-              <button class="empty-btn" @click="emit('go-market')">去需求市场看看</button>
-            </div>
-          </div>
-          <div v-else class="post-list">
-            <div v-for="post in myPosts" :key="post.id" class="post-row">
-              <div class="row-top">
-                <span class="badge" :style="CAT_STYLE[post.category]">{{ post.category }}</span>
-                <span :class="['status-tag', post.status === '待解决' ? 'status-open' : 'status-done']">{{ post.status }}</span>
-                <span class="row-time">{{ timeAgo(post.createdAt) }}</span>
-              </div>
-              <h3 class="row-title">{{ post.title }}</h3>
-              <p class="row-desc">{{ post.description }}</p>
-              <div class="market-metrics">
-                <span class="metric-chip">浏览 {{ post.viewCount || 0 }}</span>
-                <span class="metric-chip">意向 {{ post.interestCount || 0 }}</span>
-                <span v-if="post.budget" class="metric-chip">预算 {{ post.budget }}</span>
-              </div>
-              <div class="row-actions">
-                <button class="act-btn edit" @click="openEditPost(post)">编辑</button>
-                <button class="act-btn" :disabled="actionLoading[post.id + '_s']" @click="toggleStatus(post)">
-                  {{ post.status === '待解决' ? '标记已解决' : '重新开启' }}
-                </button>
-                <button class="act-btn del" :disabled="actionLoading[post.id + '_d']" @click="removePost(post)">删除</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div v-else-if="activeTab === 'achievements'" class="tab-body achievements-tab">
           <section class="achievement-section">
             <div class="tab-header-row compact">
@@ -1166,26 +1103,25 @@ onUnmounted(() => {
           <section class="achievement-section">
             <div class="tab-header-row compact">
               <span class="tab-header-title">我的互动</span>
-              <span class="tab-header-sub">评论、方案和“我也遇到过”都会沉淀在这里</span>
+              <span class="tab-header-sub">你补充过的方案和“我也遇到过”记录都会沉淀在这里</span>
             </div>
             <div v-if="activityTimeline.length === 0" class="empty compact-empty">
               <span class="empty-icon">🌱</span>
               <p class="empty-title">还没有互动记录</p>
-              <p class="empty-sub">去问题详情页评论、补方案，或者点一下“我也遇到过”。</p>
+              <p class="empty-sub">去问题详情页补方案，或者点一下“我也遇到过”。</p>
             </div>
             <div v-else class="activity-list">
               <div v-for="item in activityTimeline" :key="item.type + item.id" class="activity-item">
                 <div class="activity-dot" :class="item.type"></div>
                 <div class="activity-body">
                   <div class="activity-top">
-                    <span class="activity-type">{{ item.type === 'solution' ? '发布方案' : item.type === 'comment' ? '发表评论' : '标记遇到过' }}</span>
+                    <span class="activity-type">{{ item.type === 'solution' ? '发布方案' : '标记遇到过' }}</span>
                     <span class="activity-time">{{ timeAgo(item.createdAt) }}</span>
                   </div>
                   <div v-if="item.problem" class="activity-problem" @click="openProblemDetail(item.problem.id)">
                     {{ item.problem.title }}
                   </div>
                   <p v-if="item.type === 'solution'" class="activity-text">{{ item.title }}</p>
-                  <p v-else-if="item.type === 'comment'" class="activity-text">{{ item.content }}</p>
                   <p v-else class="activity-text">这个问题我也遇到过，留下了一次有效反馈。</p>
                   <div v-if="item.likes?.length" class="activity-like">获得 {{ item.likes.length }} 个赞</div>
                 </div>
@@ -1237,7 +1173,7 @@ onUnmounted(() => {
           <div class="account-section">
             <div class="account-section-head">
               <h3 class="account-title">安全设置</h3>
-              <p class="account-sub">更新密码，保护你的投稿、收藏和需求记录</p>
+              <p class="account-sub">更新密码，保护你的投稿和收藏记录</p>
             </div>
             <div class="account-field">
               <label>原密码</label>
@@ -1306,69 +1242,6 @@ onUnmounted(() => {
                 {{ avatarLoading ? '上传中…' : '确认上传' }}
               </button>
             </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- ── 发布弹窗 ── -->
-    <Transition name="modal">
-      <div v-if="showCreate" class="modal-mask">
-        <div class="modal-box">
-          <div class="modal-head"><h2>发布需求</h2><button class="close-btn" @click="showCreate = false">✕</button></div>
-          <div class="modal-body">
-            <div class="field"><label>类型 <span class="req">*</span></label>
-              <div class="radio-group">
-                <label v-for="c in FORM_CATEGORIES" :key="c" class="radio-item">
-                  <input type="radio" :value="c" v-model="createForm.category" />
-                  <span :style="CAT_STYLE[c]" class="radio-label">{{ c }}</span>
-                </label>
-              </div>
-            </div>
-            <div class="field"><label>标题 <span class="req">*</span></label><input v-model="createForm.title" placeholder="简洁描述你的需求" maxlength="60" /><span class="char-count">{{ createForm.title.length }}/60</span></div>
-            <div class="field"><label>详细描述 <span class="req">*</span></label><textarea v-model="createForm.description" rows="4" maxlength="500"></textarea><span class="char-count">{{ createForm.description.length }}/500</span></div>
-            <div class="field"><label>预算</label><input v-model="createForm.budget" placeholder="如：100元以内" /></div>
-            <div class="field">
-              <label>图片</label>
-              <div class="img-grid">
-                <div v-for="(url, i) in createImg.previews.value" :key="i" class="img-thumb"><img :src="url" /><button type="button" class="img-remove" @click="removeFile(createImg, i)">✕</button></div>
-                <label v-if="createImg.previews.value.length < 5" class="img-add"><input type="file" accept="image/*" multiple style="display:none" @change="addFiles(createImg, $event)" /><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></label>
-              </div>
-            </div>
-            <div v-if="createError" class="form-error">{{ createError }}</div>
-            <button class="submit-btn" :disabled="creating" @click="submitCreate">{{ creating ? '发布中…' : '发布' }}</button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- ── 编辑弹窗 ── -->
-    <Transition name="modal">
-      <div v-if="showEdit" class="modal-mask">
-        <div class="modal-box">
-          <div class="modal-head"><h2>编辑需求</h2><button class="close-btn" @click="showEdit = false">✕</button></div>
-          <div class="modal-body">
-            <div class="field"><label>类型 <span class="req">*</span></label>
-              <div class="radio-group">
-                <label v-for="c in FORM_CATEGORIES" :key="c" class="radio-item">
-                  <input type="radio" :value="c" v-model="editPostForm.category" />
-                  <span :style="CAT_STYLE[c]" class="radio-label">{{ c }}</span>
-                </label>
-              </div>
-            </div>
-            <div class="field"><label>标题 <span class="req">*</span></label><input v-model="editPostForm.title" maxlength="60" /><span class="char-count">{{ editPostForm.title.length }}/60</span></div>
-            <div class="field"><label>详细描述 <span class="req">*</span></label><textarea v-model="editPostForm.description" rows="4" maxlength="500"></textarea><span class="char-count">{{ editPostForm.description.length }}/500</span></div>
-            <div class="field"><label>预算</label><input v-model="editPostForm.budget" /></div>
-            <div class="field">
-              <label>图片</label>
-              <div class="img-grid">
-                <div v-for="(img, i) in editExistingImgs" :key="img.id" class="img-thumb"><img :src="img.url" /><button type="button" class="img-remove" @click="removeExistingImg(i)">✕</button></div>
-                <div v-for="(url, i) in editImg.previews.value" :key="'n'+i" class="img-thumb"><img :src="url" /><button type="button" class="img-remove" @click="removeFile(editImg, i)">✕</button></div>
-                <label v-if="editExistingImgs.length + editImg.previews.value.length < 5" class="img-add"><input type="file" accept="image/*" multiple style="display:none" @change="addFiles(editImg, $event)" /><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></label>
-              </div>
-            </div>
-            <div v-if="editPostError" class="form-error">{{ editPostError }}</div>
-            <button class="submit-btn" :disabled="editingPost_" @click="submitEditPost">{{ editingPost_ ? '保存中…' : '保存' }}</button>
           </div>
         </div>
       </div>
@@ -1641,7 +1514,6 @@ onUnmounted(() => {
 .activity-item { display: flex; gap: 12px; }
 .activity-dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 8px; flex-shrink: 0; }
 .activity-dot.solution { background: #16a34a; }
-.activity-dot.comment { background: #0ea5e9; }
 .activity-dot.encounter { background: #f59e0b; }
 .activity-body { flex: 1; min-width: 0; background: rgba(245, 249, 253, 0.96); border: 1px solid rgba(57, 86, 120, 0.06); border-radius: 16px; padding: 13px 14px; }
 .activity-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }

@@ -9,7 +9,6 @@ import { siteRecordInfo } from './lib/site.js'
 
 const ProblemsView      = defineAsyncComponent(() => import('./components/ProblemsView.vue'))
 const ProblemDetailView = defineAsyncComponent(() => import('./components/ProblemDetailView.vue'))
-const MarketView        = defineAsyncComponent(() => import('./components/MarketView.vue'))
 const FilamentView      = defineAsyncComponent(() => import('./components/FilamentView.vue'))
 const AdminView         = defineAsyncComponent(() => import('./components/AdminView.vue'))
 const SubmitProblemView = defineAsyncComponent(() => import('./components/SubmitProblemView.vue'))
@@ -62,8 +61,8 @@ onMounted(async () => {
     activeTab.value = 'filament'
     setMeta(t('seo.filament'), BASE_DESC.value, path)
   } else if (path === '/market') {
-    activeTab.value = 'market'
-    setMeta(t('seo.market'), BASE_DESC.value, path)
+    activeTab.value = 'home'
+    setMeta(BASE_TITLE.value, BASE_DESC.value, '/')
   }
   await init()
   appReady.value = true
@@ -342,7 +341,6 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
     @go-detail="({ id, tab }) => { profileInitialTab = tab || 'fav'; showProfile = false; goToDetail(id, { from: 'profile', profileTab: profileInitialTab }) }"
     @go-submit="() => { showProfile = false; goToSubmit() }"
     @go-home="() => { showProfile = false; goBackToList() }"
-    @go-market="() => { showProfile = false; switchTab('market') }"
   />
 
   <SubmitProblemView
@@ -363,7 +361,6 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
         <div class="nav-tabs">
           <button :class="['nav-tab', { active: activeTab === 'home' }]"   @click="switchTab('home')">{{ t('nav.home') }}</button>
           <button :class="['nav-tab', { active: activeTab === 'filament' }]"  @click="switchTab('filament')">{{ t('nav.filament') }}</button>
-          <button :class="['nav-tab', { active: activeTab === 'market' }]"   @click="switchTab('market')">{{ t('nav.market') }}</button>
         </div>
         <div class="nav-right">
           <template v-if="!currentUser">
@@ -470,7 +467,6 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
 
     <template v-if="appReady">
       <ProblemsView  v-if="activeTab === 'home'"     :current-user="currentUser" @go-detail="goToDetail" @open-auth="openAuth" @go-submit="goToSubmit" @go-filament="switchTab('filament')" />
-      <MarketView    v-else-if="activeTab === 'market'"   :current-user="currentUser" @open-auth="openAuth" />
       <FilamentView  v-else-if="activeTab === 'filament'" :current-user="currentUser" @open-auth="openAuth" />
     </template>
     <div v-else class="app-loading">
@@ -569,6 +565,7 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
           <template v-else-if="authMode === 'register'">
             <h2 class="modal-title">{{ t('auth.regTitle') }}</h2>
             <p class="modal-sub">{{ t('auth.regSub') }}</p>
+            <div class="auth-tip-card">{{ t('auth.regRealnameNotice') }}</div>
             <div class="form-fields">
               <div class="field">
                 <label>{{ t('auth.username') }}</label>
@@ -723,6 +720,16 @@ body { color: var(--lab-text); font-family: -apple-system, 'PingFang SC', 'Helve
 
 <style scoped>
 .app-shell { min-height: 100vh; background: transparent; }
+.auth-tip-card {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.16);
+  color: #9a6700;
+  font-size: 13px;
+  line-height: 1.7;
+}
 .app-nav {
   position: sticky;
   top: 0;

@@ -1,30 +1,6 @@
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { filaments, materialTypes, brands, MATERIAL_COLOR, DIFFICULTY_COLOR } from '../data/filaments.js'
-import { useFilamentReviews } from '@/composables/useFilamentReviews.js'
-import { useUserGuard } from '@/composables/useUserGuard.js'
-import { useToast } from '@/composables/useToast.js'
-
-const props = defineProps({
-  currentUser: {
-    type: Object,
-    default: null,
-  },
-})
-
-const emit = defineEmits(['open-auth'])
-
-const {
-  fetchFilamentReviews,
-  fetchFilamentRatingSummary,
-  fetchUserFilamentReview,
-  submitFilamentReview,
-  deleteFilamentReview,
-} = useFilamentReviews()
-
-const { ensureUserCanInteract } = useUserGuard()
-const { success, error: toastError } = useToast()
-
 const selectedMaterial = ref('全部')
 const selectedBrand = ref('全部')
 const selectedScenario = ref('全部')
@@ -32,50 +8,7 @@ const searchQuery = ref('')
 const activeId = ref(filaments[0]?.id || null)
 const detailModalOpen = ref(false)
 
-const reviewSummary = ref({
-  count: 0,
-  overall: 0,
-  metrics: {
-    printability: 0,
-    adhesion: 0,
-    stringing_control: 0,
-    surface_quality: 0,
-    strength: 0,
-    value: 0,
-  },
-})
-const reviewList = ref([])
-const currentUserReview = ref(null)
-
-const reviewLoading = ref(false)
-const reviewSubmitting = ref(false)
-const reviewNotice = ref('')
-const reviewError = ref('')
-const reviewFormOpen = ref(false)
-
-const reviewFiles = ref([])
-const reviewPreviews = ref([])
-
-const reviewForm = reactive({
-  content: '',
-  printability: 0,
-  adhesion: 0,
-  stringing_control: 0,
-  surface_quality: 0,
-  strength: 0,
-  value: 0,
-})
-
 const SCENARIO_OPTIONS = ['全部', '新手友好', '高速打印', '展示外观', '功能强度', '耐候户外', '柔性件', '树脂精细']
-
-const RATING_ITEMS = [
-  { key: 'printability', label: '易打性' },
-  { key: 'adhesion', label: '附着稳定' },
-  { key: 'stringing_control', label: '抗拉丝' },
-  { key: 'surface_quality', label: '表面质量' },
-  { key: 'strength', label: '强度表现' },
-  { key: 'value', label: '性价比' },
-]
 
 const BRAND_PRIORITY = {
   拓竹: 120,
@@ -161,203 +94,6 @@ function compareItems(a, b) {
   return `${a.brand} ${a.variant}`.localeCompare(`${b.brand} ${b.variant}`, 'zh-Hans-CN')
 }
 
-function resetReviewForm() {
-  reviewForm.content = ''
-  reviewForm.printability = 0
-  reviewForm.adhesion = 0
-  reviewForm.stringing_control = 0
-  reviewForm.surface_quality = 0
-  reviewForm.strength = 0
-  reviewForm.value = 0
-}
-
-function clearPreviewState(filesRef, previewsRef) {
-  previewsRef.value.forEach((url) => URL.revokeObjectURL(url))
-  filesRef.value = []
-  previewsRef.value = []
-}
-
-function addPreviewFiles(event, filesRef, previewsRef, max = 4) {
-  const incoming = [...(event.target.files || [])].slice(0, Math.max(0, max - filesRef.value.length))
-  incoming.forEach((file) => {
-    filesRef.value.push(file)
-    previewsRef.value.push(URL.createObjectURL(file))
-  })
-  event.target.value = ''
-}
-
-function removePreviewFile(index, filesRef, previewsRef) {
-  URL.revokeObjectURL(previewsRef.value[index])
-  filesRef.value.splice(index, 1)
-  previewsRef.value.splice(index, 1)
-}
-
-function hydrateReviewForm(review) {
-  if (!review) {
-    resetReviewForm()
-    return
-  }
-  reviewForm.content = review.content || ''
-  reviewForm.printability = review.ratings?.printability || 0
-  reviewForm.adhesion = review.ratings?.adhesion || 0
-  reviewForm.stringing_control = review.ratings?.stringing_control || 0
-  reviewForm.surface_quality = review.ratings?.surface_quality || 0
-  reviewForm.strength = review.ratings?.strength || 0
-  reviewForm.value = review.ratings?.value || 0
-}
-
-function currentUserReviewStatusLabel(status) {
-  if (status === 'pending') return '你的评价正在审核中'
-  if (status === 'hidden') return '你的评价当前已被隐藏'
-  if (status === 'rejected') return '你的评价未通过审核，可删除后重新提交'
-  if (status === 'published') return '你的评价已公开展示'
-  return ''
-}
-
-function averageRatingFromForm() {
-  const values = RATING_ITEMS.map((item) => Number(reviewForm[item.key] || 0)).filter((value) => value > 0)
-  if (!values.length) return 0
-  return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1))
-}
-
-function formatScore(value) {
-  return value ? Number(value).toFixed(1) : '暂无'
-}
-
-function formatStars(value) {
-  const count = Math.round(Number(value) || 0)
-  return count > 0 ? '★'.repeat(count) : '未评分'
-}
-
-function formatRatingText(value) {
-  if (value >= 4.5) return '非常稳'
-  if (value >= 4) return '推荐'
-  if (value >= 3) return '可用'
-  if (value > 0) return '挑机器'
-  return '暂无评价'
-}
-
-function formatRelativeTime(timestamp) {
-  const delta = Date.now() - timestamp
-  const minutes = Math.floor(delta / 60000)
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes} 分钟前`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} 小时前`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days} 天前`
-  const date = new Date(timestamp)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-
-async function loadExperienceData() {
-  const filament = activeFilament.value
-  if (!detailModalOpen.value || !filament) return
-
-  reviewLoading.value = true
-  reviewError.value = ''
-  reviewNotice.value = ''
-
-  try {
-    const [summary, reviews] = await Promise.all([
-      fetchFilamentRatingSummary(filament.id, { force: true }),
-      fetchFilamentReviews(filament.id, { force: true }),
-    ])
-    reviewSummary.value = summary
-    reviewList.value = reviews
-
-    if (props.currentUser?.id) {
-      const [ownReview] = await Promise.all([
-        fetchUserFilamentReview(filament.id, props.currentUser.id, { force: true }),
-      ])
-      currentUserReview.value = ownReview
-      hydrateReviewForm(ownReview)
-    } else {
-      currentUserReview.value = null
-      resetReviewForm()
-    }
-  } catch (error) {
-    const message = error?.message || '加载评价失败'
-    reviewError.value = message
-  } finally {
-    reviewLoading.value = false
-  }
-}
-
-async function refreshAfterSubmit() {
-  await loadExperienceData()
-}
-
-async function handleSubmitReview() {
-  if (!props.currentUser?.id) {
-    emit('open-auth', 'login')
-    return
-  }
-  if (!activeFilament.value) return
-  if (!reviewForm.content.trim()) {
-    reviewError.value = '请写一点使用体验，别只留分数'
-    return
-  }
-  if (RATING_ITEMS.some((item) => Number(reviewForm[item.key]) < 1)) {
-    reviewError.value = '请把 6 个评分项都打完'
-    return
-  }
-
-  reviewSubmitting.value = true
-  reviewError.value = ''
-  reviewNotice.value = ''
-
-  try {
-    await ensureUserCanInteract(props.currentUser.id, '提交耗材评价')
-    await submitFilamentReview(props.currentUser.id, props.currentUser, activeFilament.value, {
-      content: reviewForm.content,
-      overallRating: averageRatingFromForm(),
-      ratings: {
-        printability: reviewForm.printability,
-        adhesion: reviewForm.adhesion,
-        stringing_control: reviewForm.stringing_control,
-        surface_quality: reviewForm.surface_quality,
-        strength: reviewForm.strength,
-        value: reviewForm.value,
-      },
-      images: reviewFiles.value,
-    })
-    reviewNotice.value = '评价已提交，等待后台审核后展示'
-    success('评价提交成功，等待审核')
-    clearPreviewState(reviewFiles, reviewPreviews)
-    await refreshAfterSubmit()
-  } catch (error) {
-    reviewError.value = error?.message || '评价提交失败，请稍后再试'
-    toastError(reviewError.value)
-  } finally {
-    reviewSubmitting.value = false
-  }
-}
-
-async function handleDeleteReview() {
-  if (!props.currentUser?.id || !activeFilament.value || !currentUserReview.value) return
-  if (!confirm('确定删除你当前的耗材评价吗？删除后需要重新提交。')) return
-
-  reviewSubmitting.value = true
-  reviewError.value = ''
-  reviewNotice.value = ''
-
-  try {
-    await ensureUserCanInteract(props.currentUser.id, '删除耗材评价')
-    await deleteFilamentReview(activeFilament.value.id, props.currentUser.id)
-    currentUserReview.value = null
-    resetReviewForm()
-    clearPreviewState(reviewFiles, reviewPreviews)
-    success('评价已删除')
-    await refreshAfterSubmit()
-  } catch (error) {
-    reviewError.value = error?.message || '删除评价失败，请稍后再试'
-    toastError(reviewError.value)
-  } finally {
-    reviewSubmitting.value = false
-  }
-}
-
 function openFilament(item) {
   activeId.value = item.id
   detailModalOpen.value = true
@@ -365,9 +101,6 @@ function openFilament(item) {
 
 function closeDetailModal() {
   detailModalOpen.value = false
-  reviewNotice.value = ''
-  reviewError.value = ''
-  reviewFormOpen.value = false
 }
 
 function resetFilters() {
@@ -418,7 +151,7 @@ const filterSummary = computed(() => {
   if (selectedScenario.value !== '全部') return `当前按“${selectedScenario.value}”优先筛选`
   if (selectedMaterial.value !== '全部') return `当前聚焦 ${selectedMaterial.value} 材料`
   if (selectedBrand.value !== '全部') return `当前只看 ${selectedBrand.value}`
-  return '点击卡片查看完整参数、推荐值、真实评价和常见使用反馈'
+  return '点击卡片查看完整参数、推荐值、风险提示和适配建议'
 })
 
 const compareCandidates = computed(() => {
@@ -524,28 +257,6 @@ watch(filtered, (list) => {
   if (!list.some((item) => item.id === activeId.value)) activeId.value = list[0].id
 }, { immediate: true })
 
-watch(
-  () => [detailModalOpen.value, activeFilament.value?.id || '', props.currentUser?.id || ''],
-  ([open, filamentId]) => {
-    if (!open || !filamentId) return
-    loadExperienceData()
-  },
-  { immediate: false },
-)
-
-watch(
-  () => props.currentUser?.id || '',
-  (userId) => {
-    if (!userId) {
-      currentUserReview.value = null
-      resetReviewForm()
-    }
-  },
-)
-
-onBeforeUnmount(() => {
-  clearPreviewState(reviewFiles, reviewPreviews)
-})
 </script>
 
 <template>
@@ -714,36 +425,6 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
 
-                <section class="detail-section rating-summary">
-                  <div class="section-head">
-                    <div>
-                      <div class="detail-section-title">真实评分概览</div>
-                      <div class="section-subtext">只统计已审核通过并公开展示的真实评价</div>
-                    </div>
-                    <button v-if="props.currentUser?.id" class="ghost-action" :disabled="reviewLoading" @click="loadExperienceData">刷新</button>
-                  </div>
-
-                  <div v-if="reviewLoading" class="inline-state">正在加载评分和评价…</div>
-                  <div v-else>
-                    <div v-if="reviewError" class="inline-error">{{ reviewError }}</div>
-
-                    <div class="summary-grid">
-                      <div class="summary-card summary-main">
-                        <div class="summary-main-score">{{ formatScore(reviewSummary.overall) }}</div>
-                        <div class="summary-main-stars">{{ formatStars(reviewSummary.overall) }}</div>
-                        <div class="summary-main-desc">{{ formatRatingText(reviewSummary.overall) }} · {{ reviewSummary.count }} 条已审核评价</div>
-                      </div>
-
-                      <div class="summary-card summary-metrics">
-                        <div v-for="metric in RATING_ITEMS" :key="metric.key" class="metric-row">
-                          <span class="metric-label">{{ metric.label }}</span>
-                          <span class="metric-score">{{ formatScore(reviewSummary.metrics[metric.key]) }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
               <div class="detail-section">
                 <div class="detail-section-title">完整参数</div>
                 <div class="params-grid">
@@ -836,119 +517,6 @@ onBeforeUnmount(() => {
               <section class="detail-section tips-panel">
                 <div class="detail-section-title">打印建议</div>
                 <p class="tips-text">{{ activeFilament.tips }}</p>
-              </section>
-
-              <section class="detail-section form-panel">
-                <button class="review-collapse-head" @click="reviewFormOpen = !reviewFormOpen">
-                  <div>
-                    <div class="detail-section-title">提交耗材评价</div>
-                    <div class="section-subtext">请填写评分和详细使用体验，图片可选，提交后会进入后台审核。</div>
-                  </div>
-                  <span class="collapse-caret" :class="{ open: reviewFormOpen }">⌄</span>
-                </button>
-
-                <div v-if="reviewFormOpen" class="review-collapse-body">
-                  <div v-if="!props.currentUser" class="auth-hint-box">
-                    <div>登录后可以提交评分和评价，并把你的真实使用经验沉淀到耗材库里。</div>
-                    <button class="primary-action" @click="emit('open-auth', 'login')">先登录</button>
-                  </div>
-
-                  <template v-else>
-                    <div class="review-form-shell">
-                      <div v-if="currentUserReview?.status" class="inline-state">
-                        {{ currentUserReviewStatusLabel(currentUserReview.status) }}
-                      </div>
-                      <div class="rating-editor-grid">
-                        <div v-for="metric in RATING_ITEMS" :key="metric.key" class="rating-editor-item">
-                          <div class="rating-editor-label">{{ metric.label }}</div>
-                          <div class="rating-stars">
-                            <button
-                              v-for="star in 5"
-                              :key="`${metric.key}-${star}`"
-                              type="button"
-                              :class="['star-btn', { active: reviewForm[metric.key] >= star }]"
-                              @click="reviewForm[metric.key] = star"
-                            >★</button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <label class="field field-full">
-                        <span class="field-label">详细使用体验</span>
-                        <textarea v-model="reviewForm.content" class="field-textarea" rows="4" placeholder="必填，建议写清楚：参数怎么调、是否容易拉丝、表面效果如何、适合什么场景…" />
-                      </label>
-
-                      <div class="upload-block">
-                        <div class="field-label">评价图片（选填）</div>
-                        <div class="upload-grid">
-                          <div v-for="(url, index) in reviewPreviews" :key="url" class="upload-thumb">
-                            <img :src="url" alt="review preview" />
-                            <button type="button" class="upload-remove" @click="removePreviewFile(index, reviewFiles, reviewPreviews)">✕</button>
-                          </div>
-                          <label v-if="reviewPreviews.length < 4" class="upload-add">
-                            <input type="file" accept="image/*" multiple style="display:none" @change="(event) => addPreviewFiles(event, reviewFiles, reviewPreviews, 4)" />
-                            <span>上传图片</span>
-                          </label>
-                        </div>
-                      </div>
-
-                      <div v-if="reviewError" class="inline-error">{{ reviewError }}</div>
-                      <div v-if="reviewNotice" class="inline-success">{{ reviewNotice }}</div>
-
-                      <div class="review-action-row">
-                        <button class="primary-action wide" :disabled="reviewSubmitting" @click="handleSubmitReview">
-                          {{ reviewSubmitting ? '提交中…' : '发布评价' }}
-                        </button>
-                        <button v-if="currentUserReview" class="ghost-danger-action" :disabled="reviewSubmitting" @click="handleDeleteReview">
-                          删除我的评价
-                        </button>
-                      </div>
-                    </div>
-                  </template>
-                </div>
-              </section>
-
-              <section class="detail-section">
-                <div class="section-head">
-                  <div>
-                    <div class="detail-section-title">真实评价列表</div>
-                    <div class="section-subtext">这里展示所有已审核通过的真实评价，便于横向参考。</div>
-                  </div>
-                  <div class="review-count-pill">{{ reviewList.length }} 条</div>
-                </div>
-
-                <div v-if="!reviewList.length" class="inline-state muted">还没有人留下已审核评价，你可以成为第一个。</div>
-                <div v-else class="review-list">
-                  <article v-for="review in reviewList" :key="review.id" class="review-card">
-                    <div class="review-card-head">
-                      <div class="review-user">
-                        <div class="review-avatar">{{ review.avatar }}</div>
-                        <div>
-                          <div class="review-username">{{ review.username }}</div>
-                          <div class="review-meta">{{ formatRelativeTime(review.createdAt) }}</div>
-                        </div>
-                      </div>
-                      <div class="review-score-box">
-                        <div class="review-score">{{ review.overallRating.toFixed(1) }}</div>
-                        <div class="review-stars">{{ formatStars(review.overallRating) }}</div>
-                      </div>
-                    </div>
-
-                    <p class="review-content">{{ review.content }}</p>
-
-                    <div class="review-metric-row">
-                      <span v-for="metric in RATING_ITEMS" :key="`${review.id}-${metric.key}`" class="review-metric-pill">
-                        {{ metric.label }} {{ review.ratings?.[metric.key] || 0 }}
-                      </span>
-                    </div>
-
-                    <div v-if="review.images?.length" class="review-image-grid">
-                      <a v-for="image in review.images" :key="image.id" :href="image.url" target="_blank" rel="noreferrer" class="review-image-link">
-                        <img :src="image.url" alt="review image" class="review-image" />
-                      </a>
-                    </div>
-                  </article>
-                </div>
               </section>
 
                 <section v-if="compareCandidates.length" class="detail-section compare-panel">
@@ -1422,70 +990,6 @@ onBeforeUnmount(() => {
   line-height: 1.6;
   color: #8d8d92;
 }
-.rating-summary {
-  background:
-    radial-gradient(circle at top right, rgba(90, 169, 255, 0.1), transparent 34%),
-    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  border-color: rgba(70, 110, 170, 0.1);
-}
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 12px;
-}
-.summary-card {
-  border-radius: 18px;
-  border: 1px solid rgba(40, 60, 90, 0.08);
-  background: linear-gradient(180deg, #f7faff 0%, #ffffff 100%);
-  padding: 16px;
-}
-.summary-main {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-.summary-main-score {
-  font-size: 40px;
-  line-height: 1;
-  font-weight: 800;
-  color: #1b2d4f;
-}
-.summary-main-stars {
-  margin-top: 10px;
-  color: #f5a623;
-  font-size: 15px;
-  letter-spacing: 0.1em;
-}
-.summary-main-desc {
-  margin-top: 10px;
-  font-size: 13px;
-  color: #6d7280;
-  line-height: 1.6;
-}
-.summary-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 14px;
-}
-.metric-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px dashed rgba(70, 88, 120, 0.12);
-}
-.metric-label {
-  font-size: 13px;
-  color: #55606f;
-}
-.metric-score {
-  font-size: 14px;
-  font-weight: 700;
-  color: #1d1d1f;
-}
-
 .params-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1574,372 +1078,6 @@ onBeforeUnmount(() => {
   color: #4b4b52;
 }
 
-.form-panel {
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
-}
-.review-collapse-head {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  text-align: left;
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-}
-.collapse-caret {
-  flex-shrink: 0;
-  font-size: 22px;
-  line-height: 1;
-  color: #6a7586;
-  transition: transform 0.18s ease;
-}
-.collapse-caret.open {
-  transform: rotate(180deg);
-}
-.review-collapse-body {
-  margin-top: 18px;
-}
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-}
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.field-full { margin-top: 14px; }
-.field-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: #6b7280;
-}
-.field-input,
-.field-textarea {
-  width: 100%;
-  border: 1px solid rgba(70, 88, 120, 0.12);
-  background: #f7f9fc;
-  border-radius: 14px;
-  padding: 11px 13px;
-  font-size: 14px;
-  color: #20242c;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
-}
-.field-input:focus,
-.field-textarea:focus {
-  border-color: rgba(37, 104, 232, 0.3);
-  box-shadow: 0 0 0 4px rgba(37, 104, 232, 0.08);
-  background: #fff;
-}
-.field-textarea {
-  line-height: 1.7;
-  resize: vertical;
-}
-
-.upload-block { margin-top: 14px; }
-.upload-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 10px;
-  margin-top: 10px;
-}
-.upload-thumb {
-  position: relative;
-  aspect-ratio: 1 / 1;
-  border-radius: 14px;
-  overflow: hidden;
-  border: 1px solid rgba(70, 88, 120, 0.12);
-  background: #f3f6fa;
-}
-.upload-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.upload-remove {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 999px;
-  background: rgba(12, 15, 20, 0.66);
-  color: #fff;
-  cursor: pointer;
-}
-.upload-add {
-  min-height: 100px;
-  border: 1px dashed rgba(70, 88, 120, 0.18);
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f7f9fc;
-  color: #5f6877;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.rating-editor-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-.rating-editor-item {
-  border: 1px solid rgba(70, 88, 120, 0.1);
-  background: #f8fafc;
-  border-radius: 16px;
-  padding: 14px;
-}
-.rating-editor-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: #243041;
-  margin-bottom: 10px;
-}
-.rating-stars {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.star-btn {
-  border: none;
-  background: transparent;
-  color: #d0d4dc;
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-}
-.star-btn.active { color: #f5a623; }
-
-.inline-state {
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: #f6f8fb;
-  color: #697384;
-  font-size: 13px;
-}
-.inline-state.muted {
-  border: 1px dashed rgba(70, 88, 120, 0.14);
-}
-.inline-error {
-  margin-top: 10px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: rgba(229, 72, 77, 0.08);
-  color: #b23b42;
-  font-size: 13px;
-}
-.inline-success {
-  margin-top: 10px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: rgba(48, 176, 112, 0.1);
-  color: #1f7e52;
-  font-size: 13px;
-}
-
-.ghost-action,
-.primary-action {
-  border: none;
-  border-radius: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
-}
-.ghost-action {
-  background: #eef3fb;
-  color: #31507e;
-  padding: 10px 14px;
-  font-size: 13px;
-}
-.primary-action {
-  background: linear-gradient(135deg, var(--lab-accent) 0%, var(--lab-accent-2) 100%);
-  color: #fff;
-  padding: 11px 16px;
-  font-size: 14px;
-  font-weight: 700;
-  box-shadow: 0 12px 24px rgba(37, 104, 232, 0.16);
-}
-.primary-action.wide {
-  width: 100%;
-  justify-content: center;
-}
-.ghost-action:disabled,
-.primary-action:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-.review-action-row {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 14px;
-}
-.ghost-danger-action {
-  width: 100%;
-  border: 1px solid rgba(191, 64, 64, 0.16);
-  border-radius: 12px;
-  background: rgba(255, 244, 244, 0.96);
-  color: #b13d3d;
-  padding: 11px 16px;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  transition: transform 0.15s, filter 0.15s, border-color 0.15s;
-}
-.ghost-danger-action:hover:not(:disabled) {
-  filter: brightness(0.99);
-  border-color: rgba(191, 64, 64, 0.28);
-}
-.ghost-danger-action:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.auth-hint-box {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 14px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(37, 104, 232, 0.08) 0%, rgba(104, 183, 255, 0.08) 100%);
-  border: 1px solid rgba(37, 104, 232, 0.12);
-  color: #405165;
-  font-size: 13px;
-  line-height: 1.6;
-}
-.review-form-shell {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.review-count-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 6px 10px;
-  white-space: nowrap;
-}
-.review-count-pill {
-  background: #edf3fb;
-  color: #4a5d79;
-}
-
-.review-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.review-card {
-  border: 1px solid rgba(70, 88, 120, 0.1);
-  background: linear-gradient(180deg, #fbfcfe 0%, #ffffff 100%);
-  border-radius: 18px;
-  padding: 16px;
-}
-.review-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-.review-user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.review-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #24497a 0%, #5aa9ff 100%);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 800;
-}
-.review-username {
-  font-size: 14px;
-  font-weight: 700;
-  color: #1d1d1f;
-}
-.review-meta {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #8a92a0;
-}
-.review-score-box {
-  text-align: right;
-}
-.review-score {
-  font-size: 22px;
-  font-weight: 800;
-  color: #16396d;
-}
-.review-stars {
-  margin-top: 2px;
-  font-size: 12px;
-  color: #f5a623;
-}
-.review-content {
-  margin-top: 8px;
-  font-size: 14px;
-  line-height: 1.75;
-  color: #4f5865;
-}
-.review-metric-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-.review-metric-pill {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 12px;
-  color: #4e5a69;
-  background: #f2f6fb;
-}
-.review-image-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 10px;
-  margin-top: 14px;
-}
-.review-image-link {
-  display: block;
-  border-radius: 14px;
-  overflow: hidden;
-  border: 1px solid rgba(70, 88, 120, 0.12);
-  background: #f2f5f8;
-  aspect-ratio: 1 / 1;
-}
-.review-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
 .compare-panel { padding-bottom: 14px; }
 .compare-list {
   display: grid;
@@ -1979,16 +1117,6 @@ onBeforeUnmount(() => {
   color: #8d8d92;
 }
 
-.ghost-action:hover,
-.primary-action:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.02);
-}
-
-.review-card + .review-card {
-  margin-top: 2px;
-}
-
 .empty-state {
   text-align: center;
   padding: 72px 20px;
@@ -2019,23 +1147,15 @@ onBeforeUnmount(() => {
   .cards-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
   .hero-stat-grid,
   .params-grid,
-  .detail-grid,
-  .summary-grid,
-  .form-grid,
-  .rating-editor-grid {
+  .detail-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .summary-main { min-height: 180px; }
   .compare-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 1024px) {
-  .detail-grid,
-  .summary-grid {
+  .detail-grid {
     grid-template-columns: 1fr;
-  }
-  .form-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -2045,9 +1165,6 @@ onBeforeUnmount(() => {
     width: 100%;
     max-height: 100vh;
     border-radius: 22px;
-  }
-  .form-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2098,31 +1215,18 @@ onBeforeUnmount(() => {
     flex: 0 0 auto;
   }
   .results-meta,
-  .section-head,
-  .auth-hint-box,
-  .review-card-head {
+  .section-head {
     flex-direction: column;
     align-items: flex-start;
   }
   .hero-stat-grid,
   .params-grid,
-  .form-grid,
-  .rating-editor-grid,
-  .summary-metrics,
   .compare-list {
     grid-template-columns: 1fr;
-  }
-  .upload-grid,
-  .review-image-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 560px) {
   .cards-grid { grid-template-columns: 1fr 1fr; }
-  .upload-grid,
-  .review-image-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 </style>

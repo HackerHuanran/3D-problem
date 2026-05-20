@@ -1,0 +1,9 @@
+{
+  "desc": "3D故障库小程序 sitemap。允许所有页面被微信索引。",
+  "rules": [
+    {
+      "action": "allow",
+      "page": "*"
+    }
+  ]
+}

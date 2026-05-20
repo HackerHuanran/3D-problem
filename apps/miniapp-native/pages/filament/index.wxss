@@ -1,0 +1,41 @@
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+  margin-top: 20rpx;
+}
+
+.metric-box {
+  background: #eef4fb;
+  border-radius: 22rpx;
+  padding: 18rpx 20rpx;
+}
+
+.metric-label {
+  display: block;
+  font-size: 22rpx;
+  color: #7a8fa8;
+}
+
+.metric-value {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #132033;
+}
+
+.chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 18rpx;
+}
+
+.mini-chip {
+  padding: 8rpx 14rpx;
+  border-radius: 999rpx;
+  background: rgba(37, 104, 232, 0.08);
+  color: #2568e8;
+  font-size: 22rpx;
+}

@@ -36,6 +36,7 @@ function scoreProfile(profile = {}, uid = '') {
 function buildFallbackUser(uid, profile = {}) {
   const rawName = String(profile?.username || '').trim()
   const username = rawName || `用户${String(uid || '').slice(-4).toUpperCase()}`
+  const realnameStatus = String(profile?.realname_status || '').trim() || 'unverified'
   return {
     id: uid,
     username,
@@ -43,6 +44,11 @@ function buildFallbackUser(uid, profile = {}) {
     phone: profile?.phone || '',
     points: profile?.points ?? 0,
     isAdmin: normalizeAdminFlag(profile),
+    realnameStatus,
+    realnameVerified: realnameStatus === 'verified',
+    realnameMaskedName: profile?.realname_masked_name || '',
+    realnameMaskedId: profile?.realname_masked_id || '',
+    realnameRejectedReason: profile?.realname_rejected_reason || '',
     needsProfile: !rawName,
   }
 }
@@ -179,9 +185,30 @@ export function useAuth() {
     const uid = loginState.user.uid
 
     await db.collection('profiles').doc(uid).set({
-      uid, username, avatar: username[0].toUpperCase(), phone, points: 0,
+      uid,
+      username,
+      avatar: username[0].toUpperCase(),
+      phone,
+      points: 0,
+      realname_status: 'unverified',
+      realname_masked_name: '',
+      realname_masked_id: '',
+      realname_rejected_reason: '',
     })
-    currentUser.value = { id: uid, username, avatar: username[0].toUpperCase(), phone, points: 0, isAdmin: false, needsProfile: false }
+    currentUser.value = {
+      id: uid,
+      username,
+      avatar: username[0].toUpperCase(),
+      phone,
+      points: 0,
+      isAdmin: false,
+      realnameStatus: 'unverified',
+      realnameVerified: false,
+      realnameMaskedName: '',
+      realnameMaskedId: '',
+      realnameRejectedReason: '',
+      needsProfile: false,
+    }
   }
 
   const login = async (phone, password) => {
@@ -271,6 +298,10 @@ export function useAuth() {
           avatar:   username.trim()[0].toUpperCase(),
           phone:    currentUser.value.phone || '',
           points:   0,
+          realname_status: currentUser.value.realnameStatus || 'unverified',
+          realname_masked_name: currentUser.value.realnameMaskedName || '',
+          realname_masked_id: currentUser.value.realnameMaskedId || '',
+          realname_rejected_reason: currentUser.value.realnameRejectedReason || '',
         })
       }
     } catch (e) {

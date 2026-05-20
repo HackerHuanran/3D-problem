@@ -48,5 +48,9 @@ export function useUserGuard() {
     return true
   }
 
-  return { getUserStatus, ensureUserCanInteract }
+  const ensureUserCanPublish = async (userId, actionLabel = '发布内容') => {
+    return ensureUserCanInteract(userId, actionLabel)
+  }
+
+  return { getUserStatus, ensureUserCanInteract, ensureUserCanPublish }
 }

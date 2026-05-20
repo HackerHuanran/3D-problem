@@ -29,7 +29,7 @@ const CAT_STYLE = {
 }
 
 const { posts, loading, dbError, fetchPosts, createPost, deletePost, incrementViewCount } = useMarket()
-const { ensureUserCanInteract } = useUserGuard()
+const { ensureUserCanPublish } = useUserGuard()
 
 const activeCategory = ref('全部')
 const showModal      = ref(false)
@@ -93,7 +93,7 @@ async function submit() {
   submitting.value  = true
   submitError.value = ''
   try {
-    await ensureUserCanInteract(props.currentUser.id, '发布需求')
+    await ensureUserCanPublish(props.currentUser.id, '发布需求')
     const { pass, msg } = await checkContent(`${form.value.title}\n${form.value.description}`)
     if (!pass) { submitError.value = msg; return }
 

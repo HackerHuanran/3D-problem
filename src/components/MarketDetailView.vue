@@ -1,26 +1,16 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { marked } from 'marked'
-import { useMarketDetail } from '@/composables/useMarketDetail.js'
 import { getImageURLs } from '@/composables/useStorage.js'
 import { useLocale } from '@/composables/useLocale.js'
 import { useReport } from '@/composables/useReport.js'
-import { useUserGuard } from '@/composables/useUserGuard.js'
 import { useToast } from '@/composables/useToast.js'
-
-marked.setOptions({ breaks: true, gfm: true })
-const renderMd = (text) => marked.parse(text || '')
-
-const commentTab = ref('write')  // 'write' | 'preview'
 
 const { t } = useLocale()
 
 const props = defineProps({ post: Object, currentUser: Object })
 const emit  = defineEmits(['back', 'open-auth'])
 
-const { comments, likedCommentIds, fetchComments, addComment, acceptAnswer, toggleLike } = useMarketDetail()
 const { submitReport } = useReport()
-const { ensureUserCanInteract } = useUserGuard()
 const { success, error: toastError } = useToast()
 
 const REPORT_REASONS = computed(() => [
@@ -57,64 +47,14 @@ const isOwner = computed(() => props.currentUser?.id === props.post?.userId)
 
 const postImages = ref([]) // { id, url }[]
 
-// accept answer
-const acceptLoading = ref(false)
-async function handleAccept(commentId) {
-  if (acceptLoading.value) return
-  acceptLoading.value = true
-  try {
-    await acceptAnswer(commentId, props.post.id)
-    await fetchComments(props.post.id)
-    props.post.status = '已解决'
-  } catch (e) {
-    console.error('acceptAnswer:', e)
-  } finally {
-    acceptLoading.value = false
-  }
-}
-
-// comment
-const commentText    = ref('')
-const commentError   = ref('')
-const commentLoading = ref(false)
-
 onMounted(async () => {
-  const [imageResults] = await Promise.all([
+  const imageResults = await (
     props.post.images?.length
       ? getImageURLs(props.post.images)
-      : Promise.resolve([]),
-    fetchComments(props.post.id, props.currentUser?.id),
-  ])
+      : Promise.resolve([])
+  )
   postImages.value = imageResults
 })
-
-async function handleLike(commentId) {
-  if (!props.currentUser) { emit('open-auth', 'login'); return }
-  await toggleLike(commentId, props.post.id, props.currentUser.id)
-}
-
-async function submitComment() {
-  if (!props.currentUser) { emit('open-auth', 'login'); return }
-  if (!commentText.value.trim()) return
-  commentError.value   = ''
-  commentLoading.value = true
-  try {
-    await ensureUserCanInteract(props.currentUser.id, '发布回答')
-    await addComment(props.post.id, props.currentUser.id, commentText.value, {
-      postOwnerId:  props.post.userId,
-      postTitle:    props.post.title,
-      fromUsername: props.currentUser.username,
-    })
-    commentText.value = ''
-    await fetchComments(props.post.id, props.currentUser?.id)
-    success('回答提交成功')
-  } catch (e) {
-    commentError.value = e.message
-    toastError(commentError.value || '回答提交失败')
-  } finally {
-    commentLoading.value = false
-  }
-}
 
 const CAT_STYLE = {
   '代打服务': { background: 'rgba(249,115,22,.18)', color: '#fb923c' },
@@ -186,78 +126,6 @@ function timeAgo(ts) {
           </div>
           <span class="time">{{ timeAgo(post.createdAt) }}</span>
           <button v-if="currentUser && !isOwner" class="report-link" @click="showReportModal = true">{{ t('md.report') }}</button>
-        </div>
-      </div>
-
-      <!-- 回答 -->
-      <div class="section">
-        <h2 class="sec-title">{{ t('md.comments') }} <span class="sec-count">{{ comments.length }}</span></h2>
-
-        <div v-if="props.currentUser" class="comment-box">
-          <div class="editor-tabs">
-            <button :class="['editor-tab', { active: commentTab === 'write' }]" @click="commentTab = 'write'">{{ t('md.write') }}</button>
-            <button :class="['editor-tab', { active: commentTab === 'preview' }]" @click="commentTab = 'preview'">{{ t('md.preview') }}</button>
-            <span class="md-hint">{{ t('md.markdown') }}</span>
-          </div>
-          <textarea
-            v-if="commentTab === 'write'"
-            v-model="commentText"
-            class="comment-input"
-            :placeholder="t('md.cmtPh')"
-            rows="5"
-            maxlength="2000"
-            @keydown.ctrl.enter="submitComment"
-          ></textarea>
-          <div v-else class="md-preview" v-html="renderMd(commentText) || `<p class='preview-empty'>${t('md.previewEmpty')}</p>`"></div>
-          <div class="comment-footer">
-            <span class="char-hint">{{ commentText.length }}/2000 · Ctrl+Enter</span>
-            <button
-              class="submit-btn small"
-              :disabled="commentLoading || !commentText.trim()"
-              @click="submitComment"
-            >{{ commentLoading ? t('md.sending') : t('md.send') }}</button>
-          </div>
-          <div v-if="commentError" class="form-error" style="margin-top:8px">{{ commentError }}</div>
-        </div>
-        <div v-else class="login-prompt" @click="emit('open-auth', 'login')">
-          <span>✏️</span>
-          <span>{{ t('pd.loginComment') }}</span>
-          <span class="prompt-arrow">→</span>
-        </div>
-
-        <p v-if="comments.length === 0" class="empty-hint">{{ t('md.noComments') }}</p>
-        <div v-else class="comment-list">
-          <div v-for="c in comments" :key="c.id" :class="['comment-item', { accepted: c.isAccepted }]">
-            <div v-if="c.isAccepted" class="accepted-tag">
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                <path d="M2 7l3 3 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              {{ t('md.accepted') }}
-            </div>
-            <div class="c-header">
-              <div class="avatar sm">{{ c.avatar }}</div>
-              <span class="uname">{{ c.username }}</span>
-              <span class="time">{{ timeAgo(c.createdAt) }}</span>
-              <button
-                v-if="isOwner && !c.isAccepted && (post.status === '待解决' || post.status === '进行中')"
-                class="accept-btn"
-                :disabled="acceptLoading"
-                @click="handleAccept(c.id)"
-              >{{ t('md.acceptAnswer') }}</button>
-            </div>
-            <div class="c-content md-body" v-html="renderMd(c.content)"></div>
-            <div class="c-actions">
-              <button :class="['like-btn', { liked: likedCommentIds.has(c.id) }]" @click="handleLike(c.id)">
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 13.5C5 12 1 9 1 5.5a3.5 3.5 0 0 1 7 0 3.5 3.5 0 0 1 7 0c0 3.5-4.5 6.5-7 8z"
-                    :fill="likedCommentIds.has(c.id) ? '#ff6b6b' : 'none'"
-                    :stroke="likedCommentIds.has(c.id) ? '#ff6b6b' : 'currentColor'"
-                    stroke-width="1.4" stroke-linejoin="round"/>
-                </svg>
-                <span>{{ c.likeCount || 0 }}</span>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -381,50 +249,6 @@ function timeAgo(ts) {
 .login-prompt:hover { border-color: rgba(0,0,0,0.22); color: #1d1d1f; }
 .prompt-arrow { margin-left: auto; color: #007aff; font-size: 15px; }
 
-/* Comments */
-.comment-box    { margin-bottom: 20px; }
-.editor-tabs    { display: flex; align-items: center; gap: 2px; margin-bottom: 8px; }
-.editor-tab     { padding: 5px 14px; border-radius: 8px; border: none; background: transparent; font-size: 13px; color: #6e6e73; cursor: pointer; font-family: inherit; transition: all 0.15s; }
-.editor-tab.active { background: #1d1d1f; color: #fff; font-weight: 500; }
-.editor-tab:hover:not(.active) { background: rgba(0,0,0,0.06); color: #1d1d1f; }
-.md-hint        { font-size: 11px; color: #aeaeb2; margin-left: auto; }
-.comment-input  { width: 100%; background: #f5f5f7; border: 1px solid rgba(0,0,0,0.1); border-radius: 12px; padding: 12px 14px; color: #1d1d1f; font-size: 14px; font-family: 'SF Mono','Menlo',monospace; outline: none; resize: vertical; transition: border-color 0.2s; display: block; }
-.comment-input:focus { border-color: rgba(0,0,0,0.22); }
-.comment-input::placeholder { color: #c7c7cc; font-family: inherit; }
-.md-preview     { min-height: 110px; background: #f5f5f7; border: 1px solid rgba(0,0,0,0.1); border-radius: 12px; padding: 12px 14px; font-size: 14px; color: #1d1d1f; line-height: 1.7; }
-.comment-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
-.char-hint      { font-size: 11px; color: #aeaeb2; }
-
-/* Markdown 渲染样式 */
-.md-body :deep(p)          { margin: 0 0 8px; line-height: 1.7; }
-.md-body :deep(p:last-child) { margin-bottom: 0; }
-.md-body :deep(code)       { background: rgba(0,0,0,0.06); border-radius: 4px; padding: 1px 5px; font-size: 12px; font-family: 'SF Mono','Menlo',monospace; }
-.md-body :deep(pre)        { background: #1d1d1f; border-radius: 10px; padding: 14px 16px; overflow-x: auto; margin: 8px 0; }
-.md-body :deep(pre code)   { background: none; color: #e2e8f0; font-size: 13px; padding: 0; }
-.md-body :deep(ul),.md-body :deep(ol) { padding-left: 20px; margin: 6px 0; }
-.md-body :deep(li)         { margin: 3px 0; }
-.md-body :deep(strong)     { font-weight: 600; color: #1d1d1f; }
-.md-body :deep(em)         { font-style: italic; }
-.md-body :deep(blockquote) { border-left: 3px solid rgba(0,0,0,0.15); margin: 8px 0; padding: 4px 12px; color: #6e6e73; }
-.md-body :deep(a)          { color: #007aff; text-decoration: none; }
-.md-body :deep(a:hover)    { text-decoration: underline; }
-.md-body :deep(hr)         { border: none; border-top: 1px solid rgba(0,0,0,0.08); margin: 10px 0; }
-.md-preview :deep(.preview-empty) { color: #aeaeb2; font-style: italic; }
-
-.comment-list { display: flex; flex-direction: column; gap: 12px; }
-.comment-item { border-radius: 14px; padding: 16px; background: rgba(0,0,0,0.02); border: 1.5px solid transparent; }
-.comment-item.accepted { background: rgba(52,199,89,0.05); border-color: rgba(52,199,89,0.3); }
-.accepted-tag { display: inline-flex; align-items: center; gap: 5px; background: rgba(52,199,89,0.12); color: #16a34a; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 100px; margin-bottom: 10px; }
-.c-header  { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-.c-content { font-size: 14px; color: #6e6e73; line-height: 1.65; white-space: pre-wrap; }
-.c-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
-.like-btn { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 1px solid rgba(0,0,0,0.1); border-radius: 100px; padding: 4px 12px; font-size: 12px; color: #6e6e73; cursor: pointer; font-family: inherit; transition: all 0.18s; }
-.like-btn:hover { border-color: #ff6b6b; color: #ff6b6b; }
-.like-btn.liked { border-color: rgba(255,107,107,0.3); color: #ff6b6b; background: rgba(255,107,107,0.06); }
-.accept-btn { margin-left: auto; padding: 4px 12px; background: transparent; border: 1px solid rgba(52,199,89,0.4); border-radius: 100px; color: #16a34a; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-.accept-btn:hover:not(:disabled) { background: rgba(52,199,89,0.08); }
-.accept-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
 .report-link { background: transparent; border: none; color: #aeaeb2; font-size: 12px; font-family: inherit; cursor: pointer; padding: 0; margin-left: 8px; transition: color 0.15s; }
 .report-link:hover { color: #ff3b30; }
 
@@ -446,7 +270,5 @@ function timeAgo(ts) {
   .section { padding: 18px 16px; }
   .post-images { gap: 6px; }
   .post-img { width: 90px; height: 90px; }
-  .c-header { flex-wrap: wrap; gap: 6px; }
-  .accept-btn { margin-left: 0; }
 }
 </style>

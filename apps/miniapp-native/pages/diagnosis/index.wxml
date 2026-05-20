@@ -1,0 +1,46 @@
+<view class="page">
+  <view class="panel">
+    <text class="title">移动端问题初筛</text>
+    <text class="subtitle">按阶段、机型、材料先快速缩小范围，后面再继续扩成完整拍照诊断。</text>
+
+    <view style="margin-top: 24rpx;">
+      <text class="meta">出问题的阶段</text>
+      <view style="margin-top: 14rpx;">
+        <view wx:for="{{stages}}" wx:key="id" class="chip {{stageId === item.id ? 'active' : ''}}" data-id="{{item.id}}" data-type="stage" bindtap="selectChip">{{item.label}}</view>
+      </view>
+    </view>
+
+    <view style="margin-top: 20rpx;">
+      <text class="meta">打印方式</text>
+      <view style="margin-top: 14rpx;">
+        <view wx:for="{{printers}}" wx:key="id" class="chip {{printerId === item.id ? 'active' : ''}}" data-id="{{item.id}}" data-type="printer" bindtap="selectChip">{{item.label}}</view>
+      </view>
+    </view>
+
+    <view style="margin-top: 20rpx;">
+      <text class="meta">材料</text>
+      <view style="margin-top: 14rpx;">
+        <view wx:for="{{materials}}" wx:key="id" class="chip {{materialId === item.id ? 'active' : ''}}" data-id="{{item.id}}" data-type="material" bindtap="selectChip">{{item.label}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="panel">
+    <view class="row" style="margin-bottom: 20rpx;">
+      <text class="title" style="font-size: 32rpx;">初筛候选</text>
+      <text class="meta">{{candidates.length}} 条</text>
+    </view>
+    <view wx:if="{{candidates.length}}" class="list">
+      <view wx:for="{{candidates}}" wx:key="id" class="card" data-id="{{item.id}}" bindtap="openDetail">
+        <view class="row">
+          <text class="title" style="font-size: 28rpx; flex:1;">{{item.title}}</text>
+          <text class="badge">{{item._score}}分</text>
+        </view>
+        <text class="subtitle">{{item.subtitle}}</text>
+      </view>
+    </view>
+    <view wx:else class="empty-box">
+      <text class="meta">当前条件下还没有筛到候选，可以换个阶段或直接搜索。</text>
+    </view>
+  </view>
+</view>
