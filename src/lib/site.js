@@ -4,7 +4,8 @@ export const siteRecordInfo = {
     url: 'https://beian.miit.gov.cn/',
   },
   publicSecurity: {
-    code: '',
-    url: 'https://beian.mps.gov.cn/#/query/webSearch',
+    code: '辽公网安备21011202001264号',
+    url: 'https://beian.mps.gov.cn/#/query/webSearch?code=21011202001264',
+    iconUrl: 'https://beian.mps.gov.cn/img/logo01.dd7ff50e.png',
   },
 }

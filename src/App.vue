@@ -43,6 +43,7 @@ const icpRecordCode = computed(() => String(siteRecordInfo.icp?.code || '').trim
 const icpRecordUrl = computed(() => String(siteRecordInfo.icp?.url || 'https://beian.miit.gov.cn/').trim())
 const publicSecurityCode = computed(() => String(siteRecordInfo.publicSecurity?.code || '').trim())
 const publicSecurityUrl = computed(() => String(siteRecordInfo.publicSecurity?.url || 'https://beian.mps.gov.cn/#/query/webSearch').trim())
+const publicSecurityIconUrl = computed(() => String(siteRecordInfo.publicSecurity?.iconUrl || '').trim())
 
 const appReady = ref(false)
 onMounted(async () => {
@@ -502,7 +503,14 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
               target="_blank"
               rel="noreferrer"
             >
-              {{ t('about.publicSecurity') }}：{{ publicSecurityCode }}
+              <img
+                v-if="publicSecurityIconUrl"
+                class="site-footer-police-icon"
+                :src="publicSecurityIconUrl"
+                alt=""
+                aria-hidden="true"
+              />
+              {{ publicSecurityCode }}
             </a>
           </div>
           <span>{{ t('about.copy') }}</span>
@@ -1017,11 +1025,22 @@ body { color: var(--lab-text); font-family: -apple-system, 'PingFang SC', 'Helve
   align-items: flex-end;
 }
 .site-footer-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
   color: var(--lab-text-soft);
   transition: color 0.18s ease;
 }
 .site-footer-link:hover {
   color: var(--lab-accent);
+}
+.site-footer-police-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  object-fit: contain;
+  flex: 0 0 auto;
 }
 
 /* Auth init loading */
