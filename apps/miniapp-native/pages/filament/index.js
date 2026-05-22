@@ -9,7 +9,13 @@ Page({
   },
 
   async onLoad() {
-    await this.refreshList()
+    wx.hideLoading()
+    wx.showLoading({ title: '正在加载' })
+    try {
+      await this.refreshList()
+    } finally {
+      wx.hideLoading()
+    }
   },
 
   async refreshList() {

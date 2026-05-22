@@ -1,61 +1,88 @@
-<view class="page">
-  <view class="hero-card">
-    <text class="title">3D打印问题库</text>
-    <text class="subtitle">微信小程序第一版，先支持游客搜索问题，再按需登录收藏和同步记录。</text>
-    <view class="row" style="margin-top: 20rpx;">
-      <text class="meta">{{ currentUser ? ('当前账号：' + currentUser.username) : '当前为游客模式，可先直接浏览' }}</text>
-      <button class="btn-ghost" size="mini" bindtap="goAccount">账号中心</button>
+<view class="page home-page">
+  <view class="hero-card home-hero">
+    <text class="hero-eyebrow">3D PRINT TROUBLESHOOTER</text>
+    <text class="hero-title">先搜索现象，再找到解决办法</text>
+    <text class="hero-subtitle">共收录 {{problemCount}} 个打印问题，覆盖翘边、拉丝、堵嘴、层移等常见故障。</text>
+    <view class="search-wrap">
+      <input class="search-input home-search" placeholder="搜索翘边、拉丝、堵嘴、层移…" value="{{query}}" bindinput="onQueryInput" confirm-type="search" bindconfirm="searchProblems" />
+      <button class="search-btn btn-primary" bindtap="searchProblems">搜索</button>
     </view>
-    <view style="margin-top: 24rpx;">
-      <button class="btn-primary" bindtap="goDiagnosis">去做初筛</button>
-    </view>
-  </view>
-
-  <view class="panel">
-    <view class="row" style="margin-bottom: 20rpx;">
-      <text class="title" style="font-size: 32rpx;">直接搜索问题</text>
-      <text class="meta">共 {{problems.length}} 条</text>
-    </view>
-
-    <input class="search-input" placeholder="搜索翘边、拉丝、堵嘴、层移…" value="{{query}}" bindinput="onQueryInput" />
-
-    <scroll-view scroll-x class="chip-row" style="margin-top: 20rpx;">
-      <view wx:for="{{categories}}" wx:key="*this" class="chip {{activeCategory === item ? 'active' : ''}}" data-category="{{item}}" bindtap="selectCategory">
-        {{item}}
+    <view class="hero-actions">
+      <view class="share-btn" bindtap="shareProblem">
+        <text class="share-btn-text">分享打印问题</text>
       </view>
-    </scroll-view>
-
-    <view class="list" style="margin-top: 20rpx;">
-      <view wx:for="{{problems}}" wx:key="id" class="card" data-id="{{item.id}}" bindtap="openDetail">
-        <view class="row">
-          <text class="title" style="font-size: 30rpx; flex:1;">{{item.title}}</text>
-          <text class="badge">{{item.category}}</text>
-        </view>
-        <text class="subtitle">{{item.subtitle}}</text>
-        <view class="row" style="margin-top: 16rpx;">
-          <view>
-            <text wx:if="{{item.stages && item.stages.length}}" class="meta">{{item.stages[0]}}</text>
-            <text wx:if="{{item.estimatedTime}}" class="meta" style="margin-left: 16rpx;">{{item.estimatedTime}}</text>
-          </view>
-          <text wx:if="{{favoriteMap[item.id]}}" class="meta">已收藏</text>
-        </view>
+      <view class="hero-count" bindtap="searchProblems">
+        <text class="hero-count-main">{{problemCount}}</text>
+        <text class="hero-count-label">个问题</text>
       </view>
     </view>
   </view>
 
-  <view wx:if="{{historyProblems.length}}" class="panel">
-    <view class="row" style="margin-bottom: 20rpx;">
-      <text class="title" style="font-size: 32rpx;">最近浏览</text>
-      <text class="meta">{{historyProblems.length}} 条</text>
+  <view class="section-row home-section-row">
+    <text class="section-title">快速入口</text>
+    <text class="section-note">按你的目标选择</text>
+  </view>
+
+  <view class="module-grid">
+    <view class="module-card module-card-large" data-id="problems" bindtap="openEntry">
+      <image class="module-image" src="/images/home/problem-center.jpg" mode="aspectFill" lazy-load="true"></image>
+      <view class="module-mask"></view>
+      <view class="module-copy">
+        <text class="module-title">问题中心</text>
+        <text class="module-desc">直接进入问题库</text>
+      </view>
     </view>
 
-    <view class="list">
-      <view wx:for="{{historyProblems}}" wx:key="id" class="card" data-id="{{item.id}}" bindtap="openDetail">
-        <view class="row">
-          <text class="title" style="font-size: 30rpx; flex:1;">{{item.title}}</text>
-          <text class="badge">最近浏览</text>
+    <view class="module-card module-card-half" data-id="filament" bindtap="openEntry">
+      <image class="module-image" src="/images/home/filament-library.jpg" mode="aspectFill" lazy-load="true"></image>
+      <view class="module-mask"></view>
+      <view class="module-copy">
+        <text class="module-title">耗材库</text>
+        <text class="module-desc">查看材料参数</text>
+      </view>
+    </view>
+
+    <view class="module-card module-card-half" data-id="knowledge" bindtap="openEntry">
+      <image class="module-image" src="/images/home/knowledge-library.svg" mode="aspectFill" lazy-load="true"></image>
+      <view class="module-mask"></view>
+      <view class="module-copy">
+        <text class="module-title">知识库</text>
+        <text class="module-desc">学习 3D 打印知识</text>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{recentProblems.length}}" class="recent-card">
+    <view class="section-row">
+      <text class="section-title">最近浏览</text>
+      <text class="section-note">继续上次排查</text>
+    </view>
+
+    <view class="recent-list">
+      <view wx:for="{{recentProblems}}" wx:key="id" class="recent-item" data-problem-id="{{item.problemId}}" bindtap="openRecentProblem">
+        <image wx:if="{{item.image_url}}" class="recent-image" src="{{item.image_url}}" mode="aspectFill" lazy-load="true"></image>
+        <view wx:else class="recent-image recent-image-fallback"></view>
+        <view class="recent-copy">
+          <text class="recent-title">{{item.title}}</text>
+          <text class="recent-desc">{{item.subtitle}}</text>
         </view>
-        <text class="subtitle">{{item.subtitle}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="recent-card">
+    <view class="section-row">
+      <text class="section-title">推荐排查</text>
+      <text class="section-note">先从常见问题开始</text>
+    </view>
+    <view class="recent-list">
+      <view wx:for="{{featuredProblems}}" wx:key="id" class="recent-item" data-problem-id="{{item.id}}" bindtap="openRecentProblem">
+        <image wx:if="{{item.image_url}}" class="recent-image" src="{{item.image_url}}" mode="aspectFill" lazy-load="true"></image>
+        <view wx:else class="recent-image recent-image-fallback"></view>
+        <view class="recent-copy">
+          <text class="recent-title">{{item.title}}</text>
+          <text class="recent-desc">{{item.subtitle}}</text>
+        </view>
       </view>
     </view>
   </view>

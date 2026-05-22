@@ -1,0 +1,20 @@
+<view class="page">
+  <view class="hero-card">
+    <text class="title">知识库</text>
+    <text class="subtitle">新手入门、参数解释和维护常识，先从这里快速了解 3D 打印。</text>
+  </view>
+
+  <view class="panel">
+    <input class="search-input" placeholder="搜索知识点…" value="{{query}}" bindinput="onSearchInput" />
+  </view>
+
+  <view class="list">
+    <view wx:for="{{filteredSections}}" wx:key="id" class="card">
+      <text class="title" style="font-size: 30rpx;">{{item.title}}</text>
+      <text class="subtitle">{{item.desc}}</text>
+      <view style="margin-top: 16rpx;">
+        <view wx:for="{{item.items}}" wx:key="*this" class="chip" style="display:inline-flex; margin-right: 12rpx; margin-bottom: 12rpx;">{{item}}</view>
+      </view>
+    </view>
+  </view>
+</view>

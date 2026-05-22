@@ -1,0 +1,41 @@
+.avatar-box {
+  margin-top: 14rpx;
+  padding: 26rpx;
+  border-radius: 24rpx;
+  background: rgba(29, 78, 216, 0.08);
+  text-align: center;
+}
+
+.avatar-image {
+  width: 180rpx;
+  height: 180rpx;
+  margin: 0 auto 16rpx;
+  border-radius: 50%;
+  background: #e8eef6;
+}
+
+.avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-text {
+  color: #1d4ed8;
+  font-size: 56rpx;
+  font-weight: 700;
+}
+
+.gender-group {
+  display: flex;
+  gap: 24rpx;
+  margin-top: 14rpx;
+}
+
+.gender-item {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  font-size: 26rpx;
+  color: #08203d;
+}

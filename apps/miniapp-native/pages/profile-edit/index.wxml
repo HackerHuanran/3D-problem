@@ -1,0 +1,38 @@
+<view class="page">
+  <view class="hero-card">
+    <text class="title">编辑资料</text>
+    <text class="subtitle">可修改头像、昵称、手机号和性别。</text>
+  </view>
+
+  <view class="panel">
+    <text class="meta">头像</text>
+    <view class="avatar-box" bindtap="chooseAvatar">
+      <image wx:if="{{avatarUrl}}" class="avatar-image" src="{{avatarDisplayUrl || avatarUrl}}" mode="aspectFill"></image>
+      <view wx:else class="avatar-image avatar-fallback">
+        <text class="avatar-text">{{currentUser.avatarText || '微'}}</text>
+      </view>
+      <text class="subtitle">点击更换头像</text>
+    </view>
+
+    <text class="meta" style="margin-top: 22rpx; display:block;">昵称</text>
+    <input class="text-input" value="{{username}}" placeholder="请输入昵称" bindinput="onUsernameInput" />
+
+    <text class="meta" style="margin-top: 22rpx; display:block;">手机号</text>
+    <input class="text-input" value="{{phone}}" placeholder="请输入手机号" bindinput="onPhoneInput" />
+
+    <text class="meta" style="margin-top: 22rpx; display:block;">性别</text>
+    <radio-group class="gender-group" bindchange="onGenderChange">
+      <label class="gender-item">
+        <radio value="unknown" checked="{{gender === 'unknown'}}" /> 保密
+      </label>
+      <label class="gender-item">
+        <radio value="male" checked="{{gender === 'male'}}" /> 男
+      </label>
+      <label class="gender-item">
+        <radio value="female" checked="{{gender === 'female'}}" /> 女
+      </label>
+    </radio-group>
+  </view>
+
+  <button class="btn-primary" loading="{{saving}}" bindtap="saveProfile">保存资料</button>
+</view>

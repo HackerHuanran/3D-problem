@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#36224d"/>
+      <stop offset="1" stop-color="#8d5be8"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fffdfd"/>
+      <stop offset="1" stop-color="#efe4ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="600" rx="48" fill="url(#bg)"/>
+  <circle cx="720" cy="110" r="120" fill="#ffffff" opacity=".13"/>
+  <circle cx="190" cy="500" r="180" fill="#ffffff" opacity=".08"/>
+  <rect x="150" y="125" width="600" height="360" rx="34" fill="url(#card)" opacity=".96"/>
+  <rect x="200" y="185" width="220" height="220" rx="28" fill="#8d5be8"/>
+  <rect x="450" y="205" width="220" height="26" rx="13" fill="#d8c3ff"/>
+  <rect x="450" y="255" width="160" height="26" rx="13" fill="#c8adff"/>
+  <rect x="450" y="305" width="200" height="26" rx="13" fill="#d8c3ff"/>
+  <rect x="450" y="355" width="140" height="26" rx="13" fill="#c8adff"/>
+  <path d="M245 280h110M300 225v110" stroke="#fff" stroke-width="16" stroke-linecap="round"/>
+  <text x="450" y="455" text-anchor="middle" fill="#301f46" font-size="54" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-weight="700">知识库</text>
+  <text x="450" y="505" text-anchor="middle" fill="#6e5c86" font-size="28" font-family="PingFang SC, Microsoft YaHei, sans-serif">3D 打印知识 · 维护常识 · 快速入门</text>
+</svg>

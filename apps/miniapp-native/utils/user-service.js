@@ -2,6 +2,121 @@ const db = wx.cloud.database()
 const { getProblemDetail } = require('./problem-service')
 const MISSING_COLLECTION_CODE = -502005
 
+function getRecordTime(record = {}) {
+  const value = record?.updated_at || record?.created_at || record?.updatedAt || record?.createdAt || 0
+  if (typeof value === 'number') return value
+  if (value && typeof value.toDate === 'function') return value.toDate().getTime()
+  const parsed = new Date(value).getTime()
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function isGenericWechatName(name = '') {
+  const text = String(name || '').trim()
+  if (!text) return true
+  if (text === '微信用户') return true
+  return /^微信用户[0-9A-F]{0,8}$/i.test(text)
+}
+
+function isUsableAvatarUrl(value = '') {
+  const text = String(value || '').trim()
+  return /^(https?:\/\/|cloud:\/\/|wxfile:\/\/|http:\/\/tmp\/|\/|data:image\/)/i.test(text)
+}
+
+function getProfileScore(record = {}) {
+  const source = String(record.source || '').toLowerCase()
+  const username = record.username || record.nickName || record.nick_name || record.name || ''
+  const avatarUrl = record.avatarUrl || record.avatar_url || ''
+  let score = 0
+  if (record.profileEdited === true || source.includes('profile_edit')) score += 1000
+  if (!isGenericWechatName(username)) score += 100
+  if (isUsableAvatarUrl(avatarUrl)) score += 20
+  if (record.phone) score += 5
+  if (record.gender && record.gender !== 'unknown') score += 3
+  return score
+}
+
+function pickPreferredProfile(rows = []) {
+  return [...rows].sort((a, b) => {
+    const scoreDiff = getProfileScore(b) - getProfileScore(a)
+    if (scoreDiff) return scoreDiff
+    return getRecordTime(b) - getRecordTime(a)
+  })[0] || null
+}
+
+function normalizeCauseList(value) {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((cause) => {
+      if (typeof cause === 'string') return cause.trim()
+      if (cause && typeof cause === 'object') {
+        return String(cause.text || cause.detail || cause.title || '').trim()
+      }
+      return String(cause || '').trim()
+    })
+    .filter(Boolean)
+}
+
+function normalizeUserRecord(record = null) {
+  if (!record) return null
+  const id = record.id || record.uid || record.user_id || ''
+  const username = record.username || record.nickName || record.nick_name || record.name || ''
+  const rawAvatarUrl = record.avatarUrl || record.avatar_url || ''
+  const avatarUrl = isUsableAvatarUrl(rawAvatarUrl) ? rawAvatarUrl : ''
+  return {
+    ...record,
+    id,
+    username,
+    avatarUrl,
+    rawAvatarUrl: avatarUrl,
+    avatar: record.avatar || (username ? String(username).slice(0, 1) : '微'),
+  }
+}
+
+async function fetchProfileByUserId(userId) {
+  if (!userId) return null
+  const { data } = await db.collection('profiles')
+    .where({ uid: userId })
+    .limit(20)
+    .get()
+  const rows = Array.isArray(data) ? data : []
+  const preferred = pickPreferredProfile(rows)
+  if (preferred?._id && rows.length > 1) {
+    for (const row of rows.filter((item) => item?._id && item._id !== preferred._id)) {
+      await db.collection('profiles').doc(row._id).remove()
+    }
+  }
+  return normalizeUserRecord(preferred)
+}
+
+function mergeUserWithProfile(user, profile) {
+  const normalizedUser = normalizeUserRecord(user)
+  const normalizedProfile = normalizeUserRecord(profile)
+  if (!normalizedUser && !normalizedProfile) return null
+  const id = normalizedUser?.id || normalizedProfile?.id || ''
+  const username = normalizedProfile?.username || normalizedUser?.username || '微信用户'
+  const avatarUrl = normalizedProfile?.avatarUrl || normalizedUser?.avatarUrl || ''
+  const avatar = normalizedProfile?.avatar || normalizedUser?.avatar || (username ? String(username).slice(0, 1) : '微')
+  return {
+    ...(normalizedUser || {}),
+    ...(normalizedProfile || {}),
+    id,
+    username,
+    avatarUrl,
+    avatar,
+    avatarText: avatar,
+    displayName: username,
+  }
+}
+
+function getUserCacheKeys(userId = '') {
+  const suffix = userId ? `:${String(userId).trim()}` : ''
+  return {
+    currentUserKey: `currentUser${suffix}`,
+    currentUserDisplayKey: `currentUserDisplay${suffix}`,
+    lastWechatProfileKey: `lastWechatProfile${suffix}`,
+  }
+}
+
 async function ensureUser(profile = null) {
   try {
     const res = await wx.cloud.callFunction({
@@ -13,11 +128,28 @@ async function ensureUser(profile = null) {
     if (res?.result?.ok === false) {
       throw new Error(res?.result?.error || '微信登录失败')
     }
-    const user = res?.result?.user || null
+    let user = normalizeUserRecord(res?.result?.user || null)
+    if (user?.id) {
+      try {
+        const savedProfile = await fetchProfileByUserId(user.id)
+        user = mergeUserWithProfile(user, savedProfile)
+      } catch (profileError) {
+        console.warn('merge saved profile failed', profileError)
+      }
+    }
     if (user) {
       user.profileSynced = res?.result?.profileSynced !== false
     }
     getApp().globalData.currentUser = user
+    try {
+      if (user) {
+        const { currentUserKey } = getUserCacheKeys(user.id)
+        wx.setStorageSync(currentUserKey, user)
+        wx.setStorageSync('currentUser', user)
+      }
+    } catch (storageError) {
+      console.warn('save currentUser failed', storageError)
+    }
     return user
   } catch (error) {
     console.error('miniappAuth failed', error)
@@ -27,7 +159,24 @@ async function ensureUser(profile = null) {
 }
 
 async function getCurrentUser() {
-  return getApp().globalData.currentUser || null
+  const globalUser = getApp().globalData.currentUser || null
+  if (globalUser) return normalizeUserRecord(globalUser)
+  try {
+    const genericCachedUser = wx.getStorageSync('currentUser') || null
+    const genericUserId = genericCachedUser?.id || genericCachedUser?.uid || ''
+    const userKeys = getUserCacheKeys(genericUserId)
+    const cachedUser = (genericUserId ? wx.getStorageSync(userKeys.currentUserKey) : null)
+      || (genericUserId ? wx.getStorageSync(userKeys.currentUserDisplayKey) : null)
+      || genericCachedUser
+    if (cachedUser) {
+      const normalizedUser = normalizeUserRecord(cachedUser)
+      getApp().globalData.currentUser = normalizedUser
+      return normalizedUser
+    }
+  } catch (storageError) {
+    console.warn('get currentUser cache failed', storageError)
+  }
+  return null
 }
 
 async function fetchFavorites(userId) {
@@ -89,7 +238,7 @@ async function fetchHistory(userId) {
   const { data } = await db.collection('problem_history')
     .where({ user_id: userId })
     .orderBy('viewed_at', 'desc')
-    .limit(20)
+    .limit(10)
     .get()
 
   return data || []
@@ -99,7 +248,7 @@ async function fetchFavoriteProblems(userId) {
   try {
     const favoriteIds = await fetchFavorites(userId)
     const rows = await Promise.all(favoriteIds.map((id) => getProblemDetail(id)))
-    return rows.filter(Boolean)
+    return rows.filter((item) => item?.id && item.title)
   } catch (error) {
     console.warn('fetchFavoriteProblems failed', error)
     return []
@@ -111,7 +260,7 @@ async function fetchHistoryProblems(userId) {
     const historyRows = await fetchHistory(userId)
     const problemIds = historyRows.map((item) => item.problem_id).filter(Boolean)
     const rows = await Promise.all(problemIds.map((id) => getProblemDetail(id)))
-    return rows.filter(Boolean)
+    return rows.filter((item) => item?.id && item.title)
   } catch (error) {
     console.warn('fetchHistoryProblems failed', error)
     return []
@@ -129,19 +278,73 @@ async function fetchMyProblemSubmissions(userId) {
 
     return (data || []).map((item) => ({
       id: item._id,
-      problemId: item.problem_id || '',
+      problemId: item.problem_id || item._id || '',
       title: item.title || '',
       subtitle: item.subtitle || '',
       category: item.category || '未分类',
       status: item.status || 'pending',
+      statusText: item.status === 'published' ? '已通过' : item.status === 'rejected' ? '已拒绝' : '待审核',
       submissionType: item.submission_type || 'problem',
       createdAt: item.created_at || null,
       parentProblemTitle: item.parent_problem_title || '',
+      image_url: item.image_url || '',
+      steps: item.steps || [],
     }))
   } catch (error) {
     console.warn('fetchMyProblemSubmissions failed', error)
     return []
   }
+}
+
+async function getSubmissionDetail(submissionId) {
+  if (!submissionId) return null
+  try {
+    const selectors = [
+      { _id: submissionId },
+      { problem_id: submissionId },
+    ]
+
+    for (const where of selectors) {
+      const { data } = await db.collection('user_problems')
+        .where(where)
+        .limit(1)
+        .get()
+
+      const item = data?.[0]
+      if (!item) continue
+
+      const normalizedCauses = normalizeCauseList(item.causes)
+
+      const normalizedSolutions = (item.solutions && item.solutions.length ? item.solutions : item.steps || []).map((step, index) => ({
+        step: step.step || index + 1,
+        title: step.title || step.text || '',
+        detail: step.detail || step.text || '',
+        image_url: step.image_url || '',
+      }))
+
+      return {
+        id: item.problem_id || item._id,
+        docId: item._id || '',
+        sourceType: 'submission',
+        category: item.category || '用户投稿',
+        printerType: item.printerType || '',
+        stages: [],
+        materials: [],
+        estimatedTime: '',
+        title: item.title || '',
+        subtitle: item.subtitle || '',
+        description: item.description || '',
+        causes: normalizedCauses,
+        solutions: normalizedSolutions,
+        tips: item.tips || '',
+        image_url: item.image_url || '',
+        searchText: [item.title, item.subtitle, item.description].filter(Boolean).join(' '),
+      }
+    }
+  } catch (error) {
+    console.warn('getSubmissionDetail failed', error)
+  }
+  return null
 }
 
 async function fetchMyMarketPosts(userId) {
@@ -172,12 +375,40 @@ async function fetchMyMarketPosts(userId) {
 }
 
 function logoutCurrentUser() {
+  const currentUser = getApp().globalData.currentUser || null
+  const userId = currentUser?.id || currentUser?.uid || ''
   getApp().globalData.currentUser = null
+  try {
+    wx.removeStorageSync('currentUser')
+    wx.removeStorageSync('currentUserDisplay')
+    wx.removeStorageSync('lastWechatProfile')
+    if (userId) {
+      const { currentUserKey, currentUserDisplayKey, lastWechatProfileKey } = getUserCacheKeys(userId)
+      wx.removeStorageSync(currentUserKey)
+      wx.removeStorageSync(currentUserDisplayKey)
+      wx.removeStorageSync(lastWechatProfileKey)
+    }
+  } catch (storageError) {
+    console.warn('remove currentUser failed', storageError)
+  }
+}
+
+async function getCurrentProfile() {
+  const user = await getCurrentUser()
+  if (!user?.id) return null
+  try {
+    return await fetchProfileByUserId(user.id)
+  } catch (error) {
+    console.warn('getCurrentProfile failed', error)
+    return null
+  }
 }
 
 module.exports = {
   ensureUser,
   getCurrentUser,
+  getCurrentProfile,
+  getUserCacheKeys,
   logoutCurrentUser,
   fetchFavorites,
   fetchFavoriteProblems,
@@ -186,5 +417,6 @@ module.exports = {
   recordHistory,
   fetchHistory,
   fetchMyProblemSubmissions,
+  getSubmissionDetail,
   fetchMyMarketPosts,
 }

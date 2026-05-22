@@ -2,24 +2,26 @@
   <view wx:if="{{currentUser}}" class="hero">
     <view class="hero-bg hero-bg-left"></view>
     <view class="hero-bg hero-bg-right"></view>
-    <view class="hero-head">
-      <image wx:if="{{currentUser.avatarUrl}}" class="hero-avatar" src="{{currentUser.avatarUrl}}" mode="aspectFill"></image>
+    <view class="hero-head" bindtap="openProfileEdit">
+      <image wx:if="{{currentUser.hasAvatarImage && !avatarLoadFailed}}" class="hero-avatar" src="{{currentUser.avatarSrc}}" mode="aspectFill" bindload="onAvatarLoad" binderror="onAvatarLoadError"></image>
       <view wx:else class="hero-avatar hero-avatar-fallback">
-        <text class="hero-avatar-text">{{currentUser.avatar || '微'}}</text>
+        <text class="hero-avatar-text">{{currentUser.avatarText || '微'}}</text>
       </view>
       <view class="hero-copy">
-        <text class="hero-name">{{currentUser.username || '微信用户'}}</text>
+        <text class="hero-name">{{currentUser.displayName || '微信用户'}}</text>
         <text class="hero-tag">3D打印问题库用户</text>
       </view>
-      <view class="hero-side">
-        <text class="hero-side-label">已同步</text>
-        <text class="hero-side-value">{{favoriteCount + submissionCount + marketCount}}</text>
+      <view class="hero-edit-pill">
+        <text>编辑</text>
       </view>
     </view>
 
     <view class="hero-highlight">
       <text class="hero-highlight-label">个人工作台</text>
-      <text class="hero-highlight-desc">集中查看你的收藏、投稿、需求和最近浏览记录。</text>
+      <text class="hero-highlight-desc">收藏、最近浏览和投稿会在这里统一同步。</text>
+      <text class="hero-highlight-desc" wx:if="{{currentUser.phone || currentUser.gender}}">
+        {{currentUser.phone ? ('手机号 ' + currentUser.phone) : ''}}{{currentUser.phone && currentUser.gender ? ' · ' : ''}}{{currentUser.gender ? ('性别 ' + (currentUser.gender === 'male' ? '男' : currentUser.gender === 'female' ? '女' : '保密')) : ''}}
+      </text>
     </view>
   </view>
 
@@ -27,7 +29,7 @@
     <view class="hero-bg hero-bg-left"></view>
     <view class="hero-bg hero-bg-right"></view>
     <text class="guest-title">登录后同步你的问题记录</text>
-    <text class="guest-subtitle">收藏、浏览、投稿和需求都会自动归档到这里，换设备也能继续查看。</text>
+    <text class="guest-subtitle">登录后可查看收藏、最近浏览、投稿记录和管理入口。</text>
     <button class="btn-primary guest-btn" loading="{{loading}}" bindtap="loginWechat">微信登录</button>
   </view>
 
@@ -37,23 +39,19 @@
       <text class="stats-label">收藏</text>
     </view>
     <view class="stats-item">
-      <text class="stats-value">{{submissionCount}}</text>
-      <text class="stats-label">投稿</text>
-    </view>
-    <view class="stats-item">
-      <text class="stats-value">{{marketCount}}</text>
-      <text class="stats-label">需求</text>
-    </view>
-    <view class="stats-item">
       <text class="stats-value">{{historyCount}}</text>
       <text class="stats-label">浏览</text>
+    </view>
+    <view class="stats-item">
+      <text class="stats-value">{{submissionCount}}</text>
+      <text class="stats-label">投稿</text>
     </view>
   </view>
 
   <view wx:if="{{currentUser}}" class="quick-card">
     <view class="section-row">
       <text class="section-title">常用入口</text>
-      <text class="section-note">轻点切换查看内容</text>
+      <text class="section-note">选择一个列表查看</text>
     </view>
     <view class="quick-grid">
       <view class="quick-item {{activeTab === 'favorites' ? 'active' : ''}}" data-tab="favorites" bindtap="selectTab">
@@ -68,10 +66,6 @@
         <text class="quick-name">我的投稿</text>
         <text class="quick-meta">{{submissionCount}} 条</text>
       </view>
-      <view class="quick-item {{activeTab === 'market' ? 'active' : ''}}" data-tab="market" bindtap="selectTab">
-        <text class="quick-name">我的需求</text>
-        <text class="quick-meta">{{marketCount}} 条</text>
-      </view>
     </view>
   </view>
 
@@ -80,13 +74,12 @@
       <text wx:if="{{activeTab === 'favorites'}}" class="section-title">我的收藏</text>
       <text wx:if="{{activeTab === 'history'}}" class="section-title">最近浏览</text>
       <text wx:if="{{activeTab === 'submissions'}}" class="section-title">我的投稿</text>
-      <text wx:if="{{activeTab === 'market'}}" class="section-title">我的需求</text>
-      <text class="section-note">按最近同步结果展示</text>
+      <text class="section-note">按最新记录展示</text>
     </view>
 
     <view wx:if="{{secondaryLoading}}" class="empty-box loading-box">
       <text class="loading-title">正在同步你的数据</text>
-      <text class="loading-subtitle">收藏、投稿和需求列表会在加载完成后显示。</text>
+      <text class="loading-subtitle">收藏、浏览和投稿列表会在加载完成后显示。</text>
     </view>
 
     <view wx:if="{{!secondaryLoading && activeTab === 'favorites'}}" class="content-list">
@@ -123,12 +116,16 @@
 
     <view wx:if="{{!secondaryLoading && activeTab === 'submissions'}}" class="content-list">
       <view wx:if="{{problemSubmissions.length}}">
-        <view wx:for="{{problemSubmissions}}" wx:key="id" class="content-item">
+        <view wx:for="{{problemSubmissions}}" wx:key="id" class="content-item" data-id="{{item.problemId || item.id}}" data-problem-id="{{item.problemId}}" bindtap="openProblemDetail">
           <view class="content-head">
             <text class="content-title">{{item.title}}</text>
-            <text class="content-badge">{{item.status}}</text>
+            <text class="content-badge">{{item.statusText || item.status}}</text>
           </view>
           <text class="content-desc">{{item.submissionType === 'solution' ? ('关联问题：' + item.parentProblemTitle) : item.subtitle}}</text>
+          <view class="content-foot">
+            <text class="content-meta">{{item.updatedAtText || '可继续修改后重新提交'}}</text>
+            <button class="edit-button" size="mini" data-id="{{item.id}}" catchtap="editSubmission">修改投稿</button>
+          </view>
         </view>
       </view>
       <view wx:if="{{!problemSubmissions.length}}" class="empty-box">
@@ -136,53 +133,17 @@
         <text class="loading-subtitle">后面接上小程序投稿入口后，这里会显示你的问题和补充方案。</text>
       </view>
     </view>
-
-    <view wx:if="{{!secondaryLoading && activeTab === 'market'}}" class="content-list">
-      <view wx:if="{{marketPosts.length}}">
-        <view wx:for="{{marketPosts}}" wx:key="id" class="content-item" data-id="{{item.id}}" bindtap="openMarketDetail">
-          <view class="content-head">
-            <text class="content-title">{{item.title}}</text>
-            <text class="content-badge">{{item.status}}</text>
-          </view>
-          <text class="content-desc">{{item.description}}</text>
-          <view class="content-foot">
-            <text class="content-meta">{{item.category}}</text>
-            <text class="content-meta">{{item.budget ? ('预算：' + item.budget) : '预算未填'}}</text>
-          </view>
-        </view>
-      </view>
-      <view wx:if="{{!marketPosts.length && marketMissingCollection}}" class="empty-box">
-        <text class="loading-title">需求功能还没启用</text>
-        <text class="loading-subtitle">当前云环境缺少 {{marketMissingCollection}} 集合，创建后这里就能显示你的需求记录。</text>
-      </view>
-      <view wx:if="{{!marketPosts.length && !marketMissingCollection && marketLoadError}}" class="empty-box">
-        <text class="loading-title">需求记录加载失败</text>
-        <text class="loading-subtitle">{{marketLoadError}}</text>
-      </view>
-      <view wx:if="{{!marketPosts.length && !marketMissingCollection && !marketLoadError}}" class="empty-box">
-        <text class="loading-title">还没有发布需求</text>
-        <text class="loading-subtitle">后面接上小程序发需求入口后，这里会显示你发布的内容。</text>
-      </view>
-    </view>
   </view>
 
   <view wx:if="{{currentUser}}" class="menu-card">
-    <view class="menu-cell" data-tab="favorites" bindtap="selectTab">
+    <view wx:if="{{isAdmin}}" class="menu-cell" bindtap="openAdmin">
       <view class="menu-copy">
-        <text class="menu-title">查看我的收藏</text>
-        <text class="menu-desc">回到你收藏过的问题方案</text>
+        <text class="menu-title">管理后台</text>
+        <text class="menu-desc">审核投稿、管理图片、维护内容</text>
       </view>
       <text class="menu-arrow">›</text>
     </view>
-    <view class="menu-divider"></view>
-    <view class="menu-cell" data-tab="history" bindtap="selectTab">
-      <view class="menu-copy">
-        <text class="menu-title">查看最近浏览</text>
-        <text class="menu-desc">继续上次看过的问题详情</text>
-      </view>
-      <text class="menu-arrow">›</text>
-    </view>
-    <view class="menu-divider"></view>
+    <view wx:if="{{isAdmin}}" class="menu-divider"></view>
     <view class="menu-cell" bindtap="logout">
       <view class="menu-copy">
         <text class="menu-title danger">退出登录</text>

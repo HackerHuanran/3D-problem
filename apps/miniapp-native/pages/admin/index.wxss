@@ -1,0 +1,102 @@
+.admin-page {
+  gap: 20rpx;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 20rpx;
+}
+
+.admin-tab {
+  padding: 14rpx 22rpx;
+  border-radius: 20rpx;
+  background: rgba(29, 78, 216, 0.08);
+  color: #1d4ed8;
+  font-size: 26rpx;
+}
+
+.admin-tab.active {
+  background: linear-gradient(135deg, #1d4ed8 0%, #14b8a6 100%);
+  color: #fff;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 14rpx;
+  margin-top: 16rpx;
+}
+
+.admin-actions-buttons {
+  flex-wrap: wrap;
+}
+
+.admin-action-btn {
+  margin: 0;
+  padding: 0 20rpx;
+  height: 58rpx;
+  line-height: 58rpx;
+  border-radius: 16rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.admin-action-btn::after {
+  border: none;
+}
+
+.admin-action-btn[disabled] {
+  opacity: 0.72;
+}
+
+.admin-action-view {
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  color: #ffffff;
+}
+
+.admin-action-approve {
+  background: linear-gradient(135deg, #0891b2 0%, #14b8a6 100%);
+  color: #ffffff;
+}
+
+.admin-action-disabled {
+  background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.admin-action-reject {
+  background: linear-gradient(135deg, #dc2626 0%, #f97316 100%);
+  color: #ffffff;
+}
+
+.admin-action-delete {
+  background: linear-gradient(135deg, #475569 0%, #334155 100%);
+  color: #ffffff;
+}
+
+.admin-link {
+  color: #1d4ed8;
+  font-size: 26rpx;
+  line-height: 1.4;
+  padding: 6rpx 0;
+}
+
+.admin-link[disabled] {
+  opacity: 0.6;
+}
+
+.admin-link-right {
+  margin-left: auto;
+}
+
+.admin-problem-image {
+  width: 100%;
+  height: 240rpx;
+  margin-top: 16rpx;
+  border-radius: 20rpx;
+  background: #e8eef6;
+}
+
+.admin-problem-image-fallback {
+  background: linear-gradient(135deg, #dbeafe 0%, #d1fae5 100%);
+}

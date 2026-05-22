@@ -1,0 +1,48 @@
+<view class="page">
+  <view class="hero-card library-hero">
+    <text class="meta">PROBLEM LIBRARY</text>
+    <text class="title">问题库</text>
+    <text class="subtitle">按文字检索所有问题，先看症状，再进入详情排查原因和解决步骤。</text>
+    <view class="library-search">
+      <input class="search-input" placeholder="搜索翘边、拉丝、堵嘴…" value="{{query}}" bindinput="onSearchInput" confirm-type="search" bindconfirm="onSearchConfirm" />
+    </view>
+  </view>
+
+  <view class="panel">
+    <view class="row">
+      <text class="title" style="font-size: 32rpx;">检索结果</text>
+      <text class="meta">{{problems.length}} 条</text>
+    </view>
+
+    <view wx:if="{{loading}}" class="empty-box">
+      <text class="subtitle">正在加载问题列表…</text>
+    </view>
+
+    <view wx:elif="{{problems.length}}" class="problem-list">
+      <view wx:for="{{problems}}" wx:key="id" class="card problem-card" data-id="{{item.id}}" bindtap="openDetail">
+        <image wx:if="{{item.image_url}}" class="problem-thumb" src="{{item.image_url}}" mode="aspectFill" lazy-load="true"></image>
+        <view wx:else class="problem-thumb problem-thumb-fallback"></view>
+        <view class="problem-copy">
+          <view class="row problem-head">
+            <text class="problem-title">{{item.title}}</text>
+            <text class="badge">{{item.category}}</text>
+          </view>
+          <text class="subtitle problem-subtitle">{{item.subtitle}}</text>
+          <text class="problem-action">查看解决方案</text>
+        </view>
+      </view>
+
+      <view wx:if="{{loadingMore}}" class="empty-box">
+        <text class="subtitle">正在加载更多问题…</text>
+      </view>
+
+      <view wx:if="{{!hasMore && problems.length}}" class="empty-box">
+        <text class="subtitle">已经到底了</text>
+      </view>
+    </view>
+
+    <view wx:else class="empty-box">
+      <text class="subtitle">没有找到匹配的问题，换个关键词试试。</text>
+    </view>
+  </view>
+</view>

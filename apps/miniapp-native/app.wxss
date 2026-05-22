@@ -1,49 +1,53 @@
 page {
-  background: #f4f8fc;
-  color: #132033;
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(29, 78, 216, 0.1), transparent 28%),
+    radial-gradient(circle at top right, rgba(20, 184, 166, 0.08), transparent 24%),
+    linear-gradient(180deg, #f4f9ff 0%, #edf4ff 100%);
+  color: #08203d;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
 }
 
 .page {
   padding: 24rpx;
   display: flex;
   flex-direction: column;
-  gap: 24rpx;
+  gap: 20rpx;
 }
 
 .panel,
 .hero-card,
 .card,
 .empty-box {
-  background: rgba(250, 252, 255, 0.98);
-  border: 1rpx solid rgba(34, 56, 89, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1rpx solid rgba(29, 78, 216, 0.08);
   border-radius: 28rpx;
-  box-shadow: 0 18rpx 48rpx rgba(21, 42, 77, 0.06);
+  box-shadow: 0 16rpx 42rpx rgba(13, 41, 87, 0.07);
+  backdrop-filter: blur(12px);
 }
 
 .hero-card,
 .panel,
 .empty-box {
-  padding: 28rpx;
+  padding: 30rpx;
 }
 
 .hero-card {
-  background: linear-gradient(145deg, #fdfefe 0%, #edf4fb 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 248, 255, 0.94) 100%);
 }
 
 .title {
   display: block;
-  font-size: 36rpx;
+  font-size: 34rpx;
   font-weight: 700;
-  color: #132033;
+  color: #08203d;
 }
 
 .subtitle {
   display: block;
   margin-top: 10rpx;
-  font-size: 25rpx;
+  font-size: 24rpx;
   line-height: 1.7;
-  color: #617791;
+  color: #57708f;
 }
 
 .row {
@@ -56,34 +60,42 @@ page {
 .btn-primary,
 .btn-ghost,
 .btn-danger {
-  border-radius: 999rpx;
+  border-radius: 20rpx;
   font-size: 26rpx;
   border: none;
+  font-weight: 700;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #2568e8 0%, #18b5d4 100%);
+  background: linear-gradient(135deg, #1d4ed8 0%, #14b8a6 100%);
   color: #fff;
 }
 
+.btn-primary::after,
+.btn-ghost::after,
+.btn-danger::after {
+  border: none;
+}
+
 .btn-ghost {
-  background: rgba(37, 104, 232, 0.08);
-  color: #2568e8;
+  background: rgba(29, 78, 216, 0.08);
+  color: #1d4ed8;
 }
 
 .btn-danger {
-  background: rgba(214, 84, 84, 0.12);
-  color: #c94141;
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
 }
 
 .search-input,
 .text-input {
   height: 84rpx;
-  background: #eef4fb;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1rpx solid rgba(29, 78, 216, 0.1);
   border-radius: 20rpx;
   padding: 0 24rpx;
   font-size: 28rpx;
-  color: #132033;
+  color: #08203d;
 }
 
 .chip-row {
@@ -94,16 +106,16 @@ page {
   display: inline-flex;
   padding: 14rpx 20rpx;
   border-radius: 999rpx;
-  background: #edf2f7;
-  color: #5f748e;
+  background: rgba(29, 78, 216, 0.07);
+  color: #244f88;
   font-size: 24rpx;
   margin-right: 14rpx;
   margin-bottom: 14rpx;
 }
 
 .chip.active {
-  background: rgba(37, 104, 232, 0.12);
-  color: #2568e8;
+  background: linear-gradient(135deg, #1d4ed8 0%, #14b8a6 100%);
+  color: #fff;
 }
 
 .list {
@@ -118,13 +130,13 @@ page {
 
 .meta {
   font-size: 22rpx;
-  color: #7a8fa8;
+  color: #6b86a8;
 }
 
 .badge {
   padding: 6rpx 14rpx;
   border-radius: 999rpx;
-  background: rgba(24, 181, 212, 0.12);
-  color: #127b91;
+  background: rgba(29, 78, 216, 0.1);
+  color: #1d4ed8;
   font-size: 22rpx;
 }

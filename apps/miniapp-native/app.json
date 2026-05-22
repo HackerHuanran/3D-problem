@@ -1,30 +1,25 @@
 {
   "pages": [
     "pages/home/index",
-    "pages/filament/index",
-    "pages/market/index",
-    "pages/market-detail/index",
-    "pages/diagnosis/index",
+    "pages/problem-library/index",
     "pages/problem-detail/index",
+    "pages/problem-submit/index",
+    "pages/profile-edit/index",
+    "pages/filament/index",
+    "pages/diagnosis/index",
+    "pages/knowledge/index",
+    "pages/admin/index",
     "pages/account/index"
   ],
   "tabBar": {
-    "color": "#7a8fa8",
-    "selectedColor": "#2568e8",
+    "color": "#6b86a8",
+    "selectedColor": "#1d4ed8",
     "backgroundColor": "#f8fbff",
     "borderStyle": "white",
     "list": [
       {
         "pagePath": "pages/home/index",
         "text": "首页"
-      },
-      {
-        "pagePath": "pages/filament/index",
-        "text": "耗材库"
-      },
-      {
-        "pagePath": "pages/market/index",
-        "text": "需求"
       },
       {
         "pagePath": "pages/account/index",
@@ -34,9 +29,9 @@
   },
   "window": {
     "navigationBarTitleText": "3D故障库",
-    "navigationBarBackgroundColor": "#f7fafd",
+    "navigationBarBackgroundColor": "#f8fbff",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#f4f8fc"
+    "backgroundColor": "#f4f9ff"
   },
   "sitemapLocation": "sitemap.json"
 }

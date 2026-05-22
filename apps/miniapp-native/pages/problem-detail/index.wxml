@@ -1,5 +1,7 @@
-<view class="page" wx:if="{{detail}}">
-  <view class="hero-card">
+<view class="page detail-page" wx:if="{{detail}}">
+  <view class="hero-card detail-hero">
+    <image wx:if="{{detail.image_url}}" class="detail-hero-image" src="{{detail.image_url}}" mode="aspectFill" lazy-load="true"></image>
+    <text class="meta">TROUBLESHOOTING DETAIL</text>
     <text class="title">{{detail.title}}</text>
     <text class="subtitle">{{detail.subtitle}}</text>
     <view class="row" style="margin-top: 18rpx;">
@@ -7,33 +9,56 @@
         <text class="badge">{{detail.category}}</text>
         <text wx:if="{{detail.estimatedTime}}" class="badge" style="margin-left: 12rpx;">{{detail.estimatedTime}}</text>
       </view>
-      <button class="btn-ghost" size="mini" bindtap="toggleFavorite">{{isFav ? '已收藏' : '收藏'}}</button>
-    </view>
-  </view>
-
-  <view class="panel">
-    <text class="title" style="font-size: 30rpx;">常见原因</text>
-    <view class="list" style="margin-top: 18rpx;">
-      <view wx:for="{{detail.causes}}" wx:key="*this" class="card">
-        <text class="subtitle">{{item}}</text>
+      <view wx:if="{{detail.sourceType !== 'submission'}}" class="detail-fav-btn" bindtap="toggleFavorite">
+        <text>{{isFav ? '已收藏' : '收藏'}}</text>
       </view>
     </view>
   </view>
 
-  <view class="panel">
-    <text class="title" style="font-size: 30rpx;">解决步骤</text>
-    <view class="list" style="margin-top: 18rpx;">
-      <view wx:for="{{detail.solutions}}" wx:key="step" class="card">
-        <text class="meta">步骤 {{item.step}}</text>
-        <text class="title" style="font-size: 28rpx; margin-top: 10rpx;">{{item.title}}</text>
-        <text class="subtitle">{{item.detail}}</text>
+  <view class="panel detail-section">
+    <view class="detail-section-head">
+      <text class="detail-section-index">01</text>
+      <view>
+        <text class="title" style="font-size: 30rpx;">常见原因</text>
+        <text class="subtitle detail-section-subtitle">先判断问题可能从哪里来</text>
+      </view>
+    </view>
+    <view class="list detail-list">
+      <view wx:for="{{detail.causes}}" wx:key="*this" class="cause-card">
+        <text class="cause-dot"></text>
+        <text class="subtitle cause-text">{{item}}</text>
       </view>
     </view>
   </view>
 
-  <view wx:if="{{detail.tips}}" class="panel">
-    <text class="title" style="font-size: 30rpx;">补充提醒</text>
-    <text class="subtitle" style="margin-top: 18rpx;">{{detail.tips}}</text>
+  <view class="panel detail-section">
+    <view class="detail-section-head">
+      <text class="detail-section-index">02</text>
+      <view>
+        <text class="title" style="font-size: 30rpx;">解决步骤</text>
+        <text class="subtitle detail-section-subtitle">建议按顺序逐项排查</text>
+      </view>
+    </view>
+    <view class="list detail-list">
+      <view wx:for="{{detail.solutions}}" wx:key="step" class="step-card">
+        <view class="step-number">{{item.step}}</view>
+        <view class="step-copy">
+          <text class="title step-title">{{item.title}}</text>
+          <text class="subtitle step-detail">{{item.detail}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{detail.tips}}" class="panel detail-section">
+    <view class="detail-section-head">
+      <text class="detail-section-index">03</text>
+      <view>
+        <text class="title" style="font-size: 30rpx;">补充提醒</text>
+        <text class="subtitle detail-section-subtitle">避免问题反复出现</text>
+      </view>
+    </view>
+    <text class="subtitle tips-text">{{detail.tips}}</text>
   </view>
 
   <view wx:if="{{related.length}}" class="panel">
