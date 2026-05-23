@@ -164,6 +164,8 @@ function buildProblemLibraryDoc(problemId, payload) {
     tips: safeText(payload.tips),
     image_url: payload.image_url || null,
     video: payload.video || null,
+    videoUrl: payload.videoUrl || payload.video_url || null,
+    videos: Array.isArray(payload.videos) ? payload.videos : [],
     emoji: meta.emoji,
     color: meta.color,
     bgGradient: meta.bg,

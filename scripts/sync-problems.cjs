@@ -60,6 +60,8 @@ async function main() {
       })),
       tips: problem.tips || '',
       video: problem.video || null,
+      videoUrl: problem.videoUrl || problem.video_url || null,
+      videos: problem.videos || [],
       image_url: problem.image_url || null,
       search_text: [
         problem.title,

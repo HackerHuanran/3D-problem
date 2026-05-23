@@ -5,7 +5,7 @@ const lang = ref('zh')
 const M = {
   zh: {
     // nav
-    'nav.home': '首页', 'nav.market': '需求广场', 'nav.filament': '耗材参数库',
+    'nav.home': '首页', 'nav.market': '需求广场', 'nav.filament': '耗材参数库', 'nav.knowledge': '知识库',
     'nav.login': '登录', 'nav.register': '注册',
     'nav.logout': '退出登录', 'nav.admin': '管理后台',
     'nav.profile': '个人主页', 'nav.realname': '实名认证',
@@ -70,6 +70,7 @@ const M = {
     'seo.baseTitle': '个人3D打印故障库 · 3D打印常见故障排查指南',
     'seo.baseDesc': '个人3D打印常见故障排查指南，涵盖翘边、拉丝、堵嘴等问题的分步解决方案，同时提供耗材参数参考。',
     'seo.filament': '耗材参数参考 | 个人3D打印故障库',
+    'seo.knowledge': '3D打印知识库 | 个人3D打印故障库',
     'seo.market': '问题交流区 | 个人3D打印故障库',
     // problems
     'p.eyebrow': '3D 打印 · 故障排查',
@@ -272,7 +273,7 @@ const M = {
   },
   en: {
     // nav
-    'nav.home': 'Home', 'nav.market': 'Marketplace', 'nav.filament': 'Filaments',
+    'nav.home': 'Home', 'nav.market': 'Marketplace', 'nav.filament': 'Filaments', 'nav.knowledge': 'Knowledge',
     'nav.login': 'Log In', 'nav.register': 'Sign Up',
     'nav.logout': 'Log Out', 'nav.admin': 'Admin Panel',
     'nav.profile': 'Profile', 'nav.realname': 'Verify Identity',
@@ -340,6 +341,7 @@ const M = {
     'seo.baseTitle': 'Personal 3D Printing Fault Library · Common Troubleshooting Guide',
     'seo.baseDesc': 'A personal 3D printing troubleshooting guide with step-by-step fixes for warping, stringing, nozzle clogs and other common issues, plus filament parameter references.',
     'seo.filament': 'Filament Reference | Personal 3D Printing Fault Library',
+    'seo.knowledge': '3D Printing Knowledge Base | Personal 3D Printing Fault Library',
     'seo.market': 'Issue Exchange | Personal 3D Printing Fault Library',
     // problems
     'p.eyebrow': '3D Printing · Troubleshooting',

@@ -10,6 +10,8 @@ export function normalizeProblemSummary(problem) {
   return {
     id: problem.id,
     video: problem.video || null,
+    videoUrl: problem.videoUrl || problem.video_url || null,
+    videos: problem.videos || [],
     category: problem.category || '未分类',
     printerType: problem.printerType || null,
     stages: problem.stages || [],
@@ -50,6 +52,8 @@ export function mapCloudProblem(doc) {
   return {
     id: doc.problem_id || doc.id || doc._id,
     video: doc.video || null,
+    videoUrl: doc.videoUrl || doc.video_url || null,
+    videos: doc.videos || [],
     category: doc.category || '未分类',
     printerType: doc.printerType || null,
     stages: doc.stages || [],

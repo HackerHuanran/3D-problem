@@ -131,20 +131,40 @@
         </div>
 
         <aside class="detail-side">
-          <!-- 视频教程 -->
-          <section v-if="problem.video" class="section side-section video-section">
+          <!-- 相关视频 -->
+          <section class="section side-section video-section">
             <h2 class="section-title">
               <span class="section-icon" :style="{ background: problem.color + '22', color: problem.color }">▶</span>
-              视频教程
+              相关视频
             </h2>
-            <div class="bili-wrap">
+            <div v-if="primaryEmbeddedVideo" class="bili-wrap">
               <iframe
-                :src="`https://player.bilibili.com/player.html?bvid=${problem.video}&page=1&high_quality=1&danmaku=0&autoplay=0`"
+                :src="primaryEmbeddedVideo.embedUrl"
                 class="bili-player"
                 scrolling="no"
                 frameborder="0"
                 allowfullscreen
               ></iframe>
+            </div>
+            <div v-else class="video-fallback">
+              <div class="video-fallback-icon">🎬</div>
+              <div>
+                <strong>暂未绑定固定视频</strong>
+                <p>可以先按这个问题自动搜索公开教程，后续后台补上具体视频链接后这里会直接显示。</p>
+              </div>
+            </div>
+            <div class="video-links">
+              <a
+                v-for="item in videoLinkItems"
+                :key="item.label"
+                :href="item.url"
+                target="_blank"
+                rel="noreferrer"
+                class="video-link"
+              >
+                <span>{{ item.label }}</span>
+                <small>{{ item.hint }}</small>
+              </a>
             </div>
           </section>
 
@@ -367,6 +387,120 @@ const formatTime = (ts) => {
 }
 
 const diffClass = (d) => { if (d === '紧急') return 'urgent'; if (d === '需处理') return 'warn'; if (d === '进阶') return 'advanced'; return 'normal' }
+
+function isBvid(value = '') {
+  return /^BV[a-zA-Z0-9]+$/.test(String(value).trim())
+}
+
+function buildBilibiliEmbedUrl(bvid) {
+  return `https://player.bilibili.com/player.html?bvid=${encodeURIComponent(bvid)}&page=1&high_quality=1&danmaku=0&autoplay=0`
+}
+
+function normalizeVideoItem(item) {
+  if (!item) return null
+
+  if (typeof item === 'string') {
+    const value = item.trim()
+    if (!value) return null
+    if (isBvid(value)) {
+      return {
+        label: 'B站播放',
+        hint: '已匹配教程',
+        url: `https://www.bilibili.com/video/${value}`,
+        embedUrl: buildBilibiliEmbedUrl(value),
+      }
+    }
+    return {
+      label: '打开视频',
+      hint: '外部链接',
+      url: value,
+      embedUrl: '',
+    }
+  }
+
+  const url = String(item.url || item.videoUrl || item.href || '').trim()
+  const bvid = String(item.bvid || item.video || '').trim()
+  if (bvid && isBvid(bvid)) {
+    return {
+      label: item.label || item.title || 'B站播放',
+      hint: item.source || item.platform || '已匹配教程',
+      url: url || `https://www.bilibili.com/video/${bvid}`,
+      embedUrl: buildBilibiliEmbedUrl(bvid),
+    }
+  }
+  if (!url) return null
+
+  return {
+    label: item.label || item.title || '打开视频',
+    hint: item.source || item.platform || '外部链接',
+    url,
+    embedUrl: '',
+  }
+}
+
+const directVideoItems = computed(() => {
+  const items = [
+    problem.value?.video,
+    problem.value?.videoUrl || problem.value?.video_url,
+    ...(Array.isArray(problem.value?.videos) ? problem.value.videos : []),
+  ]
+  const seen = new Set()
+  return items
+    .map(normalizeVideoItem)
+    .filter(Boolean)
+    .filter((item) => {
+      const key = item.url || item.embedUrl
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+})
+
+const primaryEmbeddedVideo = computed(() => directVideoItems.value.find((item) => item.embedUrl) || null)
+
+const videoSearchQuery = computed(() => {
+  if (!problem.value) return '3D打印 故障 排查 教程'
+  return [
+    '3D打印',
+    problem.value.title,
+    problem.value.subtitle,
+    '解决 教程',
+  ].filter(Boolean).join(' ')
+})
+
+const videoSearchItems = computed(() => {
+  const q = encodeURIComponent(videoSearchQuery.value)
+  return [
+    {
+      label: 'B站搜索',
+      hint: '中文教程优先',
+      url: `https://search.bilibili.com/all?keyword=${q}`,
+    },
+    {
+      label: '抖音搜索',
+      hint: '短视频操作演示',
+      url: `https://www.douyin.com/search/${q}`,
+    },
+    {
+      label: 'YouTube搜索',
+      hint: '英文教程补充',
+      url: `https://www.youtube.com/results?search_query=${q}`,
+    },
+  ]
+})
+
+const videoLinkItems = computed(() => {
+  const items = [
+    ...directVideoItems.value,
+    ...videoSearchItems.value,
+  ]
+  const seen = new Set()
+  return items.filter((item) => {
+    if (!item?.url || seen.has(item.url)) return false
+    seen.add(item.url)
+    return true
+  })
+})
 
 function normalizeGuideText(text = '') {
   return text.replace(/\s+/g, '').toLowerCase()
@@ -834,6 +968,71 @@ onUnmounted(() => {
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
 }
 .bili-player { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+.video-fallback {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(57, 86, 120, 0.12);
+  background:
+    radial-gradient(circle at top right, rgba(37, 104, 232, 0.12), transparent 38%),
+    linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,251,254,0.94));
+  box-shadow: 0 8px 20px rgba(15, 31, 56, 0.05);
+}
+.video-fallback-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: rgba(37, 104, 232, 0.08);
+  flex-shrink: 0;
+  font-size: 20px;
+}
+.video-fallback strong {
+  display: block;
+  color: var(--lab-text);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+.video-fallback p {
+  margin: 0;
+  color: var(--lab-text-soft);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.video-links {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.video-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(57, 86, 120, 0.1);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--lab-text);
+  transition: transform 0.18s, border-color 0.18s, background 0.18s;
+}
+.video-link:hover {
+  transform: translateX(2px);
+  border-color: rgba(37, 104, 232, 0.24);
+  background: #fff;
+}
+.video-link span {
+  font-size: 13px;
+  font-weight: 800;
+}
+.video-link small {
+  color: var(--lab-text-dim);
+  font-size: 11px;
+  text-align: right;
+}
 .causes-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 10px; }
 .cause-item {
   background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248, 251, 254, 0.96));

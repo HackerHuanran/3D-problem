@@ -31,11 +31,11 @@
         </div>
 
         <div class="hero-actions">
-          <button class="hero-path-btn primary" @click="activateWorkbench('diagnosis')">
+          <button :class="['hero-path-btn', { primary: workbenchMode === 'diagnosis' }]" @click="activateWorkbench('diagnosis')">
             <span class="hero-path-title">{{ t('p.pathDiagTitle') }}</span>
             <span class="hero-path-sub">{{ t('p.pathDiagSub') }}</span>
           </button>
-          <button class="hero-path-btn" @click="activateWorkbench('search')">
+          <button :class="['hero-path-btn', { primary: workbenchMode === 'search' }]" @click="activateWorkbench('search')">
             <span class="hero-path-title">{{ t('p.pathSearchTitle') }}</span>
             <span class="hero-path-sub">{{ t('p.pathSearchSub') }}</span>
           </button>
@@ -343,7 +343,7 @@
           <p class="list-sync-desc">如果你想只看和这次诊断最相关的问题，可以重新联动下方列表。</p>
         </div>
         <div class="list-sync-actions">
-          <button class="list-sync-btn" @click="diagnosisListFilterActive = true">{{ t('p.resultRelink') }}</button>
+          <button class="list-sync-btn" @click="enableDiagnosisFilter">{{ t('p.resultRelink') }}</button>
         </div>
       </div>
 
@@ -481,7 +481,7 @@ const currentPage = ref(1)
 const pageSize = 12
 const isMobile = ref(false)
 const workbenchMode = ref('search')
-const diagnosisListFilterActive = ref(true)
+const diagnosisListFilterActive = ref(false)
 const libraryItems = ref([])
 const libraryTotal = ref(0)
 const libraryLoading = ref(false)
@@ -1334,7 +1334,7 @@ const problemsById = computed(() => new Map(allProblems.value.map((problem) => [
 
 function selectDiagStage(stageId) {
   selectedDiagStage.value = stageId
-  diagnosisListFilterActive.value = true
+  enableDiagnosisFilter()
 }
 
 function activateWorkbench(mode, shouldScroll = true) {
@@ -1387,7 +1387,7 @@ function toggleDiagClue(clueId) {
   if (next.has(clueId)) next.delete(clueId)
   else next.add(clueId)
   selectedClueIds.value = [...next]
-  diagnosisListFilterActive.value = true
+  enableDiagnosisFilter()
 }
 
 function resetDiagnosis() {
@@ -1396,7 +1396,7 @@ function resetDiagnosis() {
   selectedDiagMaterial.value = 'any'
   selectedClueIds.value = []
   workbenchMode.value = 'diagnosis'
-  diagnosisListFilterActive.value = true
+  enableDiagnosisFilter()
 }
 
 const rankedDiagnoses = computed(() => {
@@ -1507,6 +1507,12 @@ function resetSearchFilters() {
   activeCategory.value = '全部'
   activePrinterType.value = '全部'
   showFavOnly.value = false
+  diagnosisListFilterActive.value = false
+  currentPage.value = 1
+}
+
+function enableDiagnosisFilter() {
+  diagnosisListFilterActive.value = true
   currentPage.value = 1
 }
 

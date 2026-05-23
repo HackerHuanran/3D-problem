@@ -10,6 +10,7 @@ import { siteRecordInfo } from './lib/site.js'
 const ProblemsView      = defineAsyncComponent(() => import('./components/ProblemsView.vue'))
 const ProblemDetailView = defineAsyncComponent(() => import('./components/ProblemDetailView.vue'))
 const FilamentView      = defineAsyncComponent(() => import('./components/FilamentView.vue'))
+const KnowledgeView     = defineAsyncComponent(() => import('./components/KnowledgeView.vue'))
 const AdminView         = defineAsyncComponent(() => import('./components/AdminView.vue'))
 const SubmitProblemView = defineAsyncComponent(() => import('./components/SubmitProblemView.vue'))
 const ProfileView       = defineAsyncComponent(() => import('./components/ProfileView.vue'))
@@ -61,6 +62,10 @@ onMounted(async () => {
   } else if (path === '/filament') {
     activeTab.value = 'filament'
     setMeta(t('seo.filament'), BASE_DESC.value, path)
+  } else if (path === '/knowledge' || path.startsWith('/knowledge/')) {
+    activeTab.value = 'knowledge'
+    initialKnowledgeArticleId.value = path.startsWith('/knowledge/') ? decodeURIComponent(path.slice('/knowledge/'.length)) : ''
+    setMeta(t('seo.knowledge'), BASE_DESC.value, path)
   } else if (path === '/market') {
     activeTab.value = 'home'
     setMeta(BASE_TITLE.value, BASE_DESC.value, '/')
@@ -78,8 +83,9 @@ watch(currentUser, (user) => {
 const currentPage     = ref('list')
 const currentDetailId = ref(null)
 const activeTab       = ref('home')
-const detailReturnContext = ref({ from: 'home', profileTab: 'fav' })
+const detailReturnContext = ref({ from: 'home', profileTab: 'fav', articleId: '' })
 const submitContext = ref(null)
+const initialKnowledgeArticleId = ref('')
 
 // ── SEO 辅助 ──
 const BASE_TITLE = computed(() => t('seo.baseTitle'))
@@ -95,6 +101,7 @@ const goToDetail = async (id, options = {}) => {
   detailReturnContext.value = {
     from: options.from || 'home',
     profileTab: options.profileTab || 'fav',
+    articleId: options.articleId || '',
   }
   currentDetailId.value = id
   currentPage.value = 'detail'
@@ -108,7 +115,7 @@ const goBackToList = () => {
   activeTab.value = 'home'
   currentDetailId.value = null
   showProfile.value = false
-  detailReturnContext.value = { from: 'home', profileTab: 'fav' }
+  detailReturnContext.value = { from: 'home', profileTab: 'fav', articleId: '' }
   window.scrollTo(0, 0)
   setMeta(BASE_TITLE.value, BASE_DESC.value, '/')
 }
@@ -120,17 +127,35 @@ const handleDetailBack = () => {
     window.scrollTo(0, 0)
     return
   }
+  if (detailReturnContext.value.from === 'knowledge') {
+    currentPage.value = 'list'
+    currentDetailId.value = null
+    activeTab.value = 'knowledge'
+    initialKnowledgeArticleId.value = detailReturnContext.value.articleId || ''
+    const path = initialKnowledgeArticleId.value ? `/knowledge/${initialKnowledgeArticleId.value}` : '/knowledge'
+    setMeta(t('seo.knowledge'), BASE_DESC.value, path)
+    window.scrollTo(0, 0)
+    return
+  }
   goBackToList()
 }
 const switchTab = (tab) => {
   activeTab.value = tab
   currentPage.value = 'list'
+  if (tab !== 'knowledge') initialKnowledgeArticleId.value = ''
+  else initialKnowledgeArticleId.value = ''
   window.scrollTo(0, 0)
   const tabTitles = {
     filament: t('seo.filament'),
     market: t('seo.market'),
+    knowledge: t('seo.knowledge'),
   }
   setMeta(tabTitles[tab] || BASE_TITLE.value, BASE_DESC.value, tab === 'home' ? '/' : `/${tab}`)
+}
+const handleKnowledgeDetail = (payload) => {
+  const id = typeof payload === 'string' ? payload : payload?.id
+  if (!id) return
+  goToDetail(id, { from: 'knowledge', articleId: payload?.articleId || initialKnowledgeArticleId.value || '' })
 }
 const goToSubmit = (context = null) => {
   submitContext.value = context
@@ -362,6 +387,7 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
         <div class="nav-tabs">
           <button :class="['nav-tab', { active: activeTab === 'home' }]"   @click="switchTab('home')">{{ t('nav.home') }}</button>
           <button :class="['nav-tab', { active: activeTab === 'filament' }]"  @click="switchTab('filament')">{{ t('nav.filament') }}</button>
+          <button :class="['nav-tab', { active: activeTab === 'knowledge' }]" @click="switchTab('knowledge')">{{ t('nav.knowledge') }}</button>
         </div>
         <div class="nav-right">
           <template v-if="!currentUser">
@@ -469,6 +495,7 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
     <template v-if="appReady">
       <ProblemsView  v-if="activeTab === 'home'"     :current-user="currentUser" @go-detail="goToDetail" @open-auth="openAuth" @go-submit="goToSubmit" @go-filament="switchTab('filament')" />
       <FilamentView  v-else-if="activeTab === 'filament'" :current-user="currentUser" @open-auth="openAuth" />
+      <KnowledgeView v-else-if="activeTab === 'knowledge'" :initial-article-id="initialKnowledgeArticleId" @go-detail="handleKnowledgeDetail" />
     </template>
     <div v-else class="app-loading">
       <span class="loading-spinner"></span>

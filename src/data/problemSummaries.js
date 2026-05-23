@@ -17,6 +17,8 @@ function buildSearchText(problem) {
 export const problemSummaries = problems.map((problem) => ({
   id: problem.id,
   video: problem.video || null,
+  videoUrl: problem.videoUrl || problem.video_url || null,
+  videos: problem.videos || [],
   category: problem.category || '未分类',
   printerType: problem.printerType || null,
   stages: problem.stages || [],

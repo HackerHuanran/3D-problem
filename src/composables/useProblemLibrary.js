@@ -184,6 +184,9 @@ export async function searchProblemLibrary(params = {}) {
       const seeded = await ensureRemoteCollectionSeeded()
       if (!seeded) throw new Error('remote problems collection is empty')
       const result = await searchRemoteProblems(params)
+      if (params.problemIds?.length && !result.items.length) {
+        throw new Error('remote related problem ids not found')
+      }
       searchCache.set(cacheKey, result)
       return result
     } catch (error) {

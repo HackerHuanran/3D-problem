@@ -10,11 +10,17 @@ const problemsSource = fs.readFileSync(
 )
 const ids = [...problemsSource.matchAll(/id:\s*'([^']+)'/g)].map(m => m[1])
 
+const knowledgeSource = fs.readFileSync(
+  path.join(__dirname, '../src/data/knowledge.js'), 'utf-8'
+)
+const knowledgeIds = [...knowledgeSource.matchAll(/id:\s*'([^']+)'/g)].map(m => m[1])
+
 const today = new Date().toISOString().split('T')[0]
 
 const staticPages = [
   { path: '/',          priority: '1.0', changefreq: 'weekly'  },
   { path: '/filament',  priority: '0.8', changefreq: 'monthly' },
+  { path: '/knowledge', priority: '0.8', changefreq: 'weekly'  },
   { path: '/services',  priority: '0.7', changefreq: 'weekly'  },
 ]
 
@@ -24,7 +30,13 @@ const problemPages = ids.map(id => ({
   changefreq: 'monthly',
 }))
 
-const allPages = [...staticPages, ...problemPages]
+const knowledgePages = knowledgeIds.map(id => ({
+  path: `/knowledge/${id}`,
+  priority: '0.8',
+  changefreq: 'monthly',
+}))
+
+const allPages = [...staticPages, ...problemPages, ...knowledgePages]
 
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
