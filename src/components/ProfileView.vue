@@ -8,7 +8,7 @@ import { useCommunity } from '@/composables/useCommunity.js'
 import { useAuth } from '@/composables/useAuth.js'
 import { getProblemDetailsBatch } from '@/composables/useProblemLibrary.js'
 import { uploadImages, getImageURLs } from '@/composables/useStorage.js'
-import { app } from '@/lib/tcb.js'
+import { app, db } from '@/lib/tcb.js'
 import { compressImage } from '@/lib/imageUtils.js'
 import { checkContent, checkImage } from '@/lib/moderate.js'
 import { useToast } from '@/composables/useToast.js'
@@ -33,18 +33,22 @@ const { success, error: toastError, info } = useToast()
 const loading     = ref(true)
 const myProblems  = ref([])
 const myProblemCount = ref(0)
+const myKnowledgeItems = ref([])
+const myKnowledgeCount = ref(0)
 const myPostCount = ref(0)
 const activeTab   = ref(props.initialTab || 'fav')
 const navScrolled = ref(false)
-// subView: 'tabs' | 'edit-problem'
+// subView: 'tabs' | 'edit-problem' | 'edit-knowledge'
 const subView     = ref('tabs')
 const favoriteProblems = ref([])
 const favoriteQuery = ref('')
 const favoriteCategory = ref('全部')
 const favoritesLoaded = ref(false)
 const submissionsLoaded = ref(false)
+const knowledgeLoaded = ref(false)
 const marketLoaded = ref(false)
 const activityLoaded = ref(false)
+const knowledgeQuery = ref('')
 const communityActivity = ref({
   solutions: [],
   encounters: [],
@@ -56,9 +60,13 @@ const communityActivity = ref({
 const TABS = [
   { id: 'fav',       label: '我的收藏' },
   { id: 'submitted', label: '我的投稿' },
+  { id: 'knowledge', label: '知识投稿' },
   { id: 'achievements', label: '成就中心' },
   { id: 'account',   label: '账号设置' },
 ]
+
+const KNOWLEDGE_SUBMISSION_COLLECTION = 'user_problems'
+const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
 
 const favTotal = computed(() => favoriteProblems.value.length)
 const favoriteCategories = computed(() => ['全部', ...new Set(favoriteProblems.value.map(p => p.category).filter(Boolean))])
@@ -78,7 +86,7 @@ const favProblems = computed(() => {
 
 const contributionStats = computed(() => ({
   favorites: favTotal.value,
-  submissions: myProblems.value.length,
+  submissions: (submissionsLoaded.value ? myProblems.value.length : myProblemCount.value) + (knowledgeLoaded.value ? myKnowledgeItems.value.length : myKnowledgeCount.value),
   solutions: communityActivity.value.stats.solutionCount,
   encounters: communityActivity.value.stats.encounterCount,
   receivedLikes: communityActivity.value.stats.receivedLikes,
@@ -107,9 +115,79 @@ const activityTimeline = computed(() =>
 const tabCount = (id) => {
   if (id === 'fav')       return favTotal.value
   if (id === 'submitted') return submissionsLoaded.value ? myProblems.value.length : myProblemCount.value
+  if (id === 'knowledge')  return knowledgeLoaded.value ? myKnowledgeItems.value.length : myKnowledgeCount.value
   if (id === 'achievements') return unlockedBadgeCount.value
   return 0
 }
+
+function normalizeProfileText(value) {
+  return String(value || '').toLowerCase().trim()
+}
+
+function normalizeKnowledgeList(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean)
+  return String(value || '')
+    .split(/[，,、\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function toCdnUrl(value) {
+  if (!value) return ''
+  if (String(value).startsWith('cloud://')) {
+    const match = String(value).match(/^cloud:\/\/[^/]+\/(.+)$/)
+    return match ? `${CDN_BASE}/${match[1]}` : value
+  }
+  return value
+}
+
+function getKnowledgeTimeValue(value) {
+  if (!value) return 0
+  const date = value?.toDate ? value.toDate() : (value instanceof Date ? value : new Date(value))
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime()
+}
+
+function knowledgeStatusLabel(status) {
+  return ({
+    pending: '待审核',
+    published: '已展示',
+    hidden: '已隐藏',
+    rejected: '已拒绝',
+  })[status] || '待审核'
+}
+
+function normalizeKnowledgeDoc(doc) {
+  return {
+    id: doc._id,
+    problemId: doc.problem_id || doc._id,
+    status: doc.status || 'pending',
+    category: doc.category || '打印质量',
+    title: doc.title || '未命名知识',
+    summary: doc.summary || doc.subtitle || doc.description || '',
+    content: doc.content || doc.body || '',
+    tags: normalizeKnowledgeList(doc.tags),
+    resultImageUrl: toCdnUrl(doc.result_image_url || doc.resultImageUrl),
+    imageUrl: toCdnUrl(doc.image_url || doc.imageUrl),
+    createdAt: getKnowledgeTimeValue(doc.created_at),
+    updatedAt: getKnowledgeTimeValue(doc.updated_at || doc.created_at),
+  }
+}
+
+const filteredKnowledgeItems = computed(() => {
+  const q = normalizeProfileText(knowledgeQuery.value)
+  return myKnowledgeItems.value.filter((item) => {
+    if (!q) return true
+    return normalizeProfileText([
+      item.title,
+      item.summary,
+      item.content,
+      item.category,
+      item.problemId,
+      knowledgeStatusLabel(item.status),
+      ...(item.tags || []),
+    ].filter(Boolean).join(' ')).includes(q)
+  })
+})
 
 watch(() => props.initialTab, (tab) => {
   if (!tab) return
@@ -179,11 +257,61 @@ async function loadSubmittedProblems(uid) {
   submissionsLoaded.value = true
 }
 
+async function fetchMyKnowledgeRows(uid) {
+  const where = { submission_type: 'knowledge', user_id: uid }
+  try {
+    const { data } = await db.collection(KNOWLEDGE_SUBMISSION_COLLECTION)
+      .where(where)
+      .orderBy('created_at', 'desc')
+      .limit(100)
+      .get()
+    return data || []
+  } catch (error) {
+    try {
+      const { data } = await db.collection(KNOWLEDGE_SUBMISSION_COLLECTION)
+        .where(where)
+        .limit(100)
+        .get()
+      return data || []
+    } catch (fallbackError) {
+      console.warn('[Profile knowledge] load failed:', fallbackError?.message || fallbackError)
+      return []
+    }
+  }
+}
+
+async function fetchMyKnowledgeCount(uid) {
+  const rows = await fetchMyKnowledgeRows(uid)
+  myKnowledgeCount.value = rows.length
+  if (!knowledgeLoaded.value) {
+    myKnowledgeItems.value = rows
+      .sort((a, b) => getKnowledgeTimeValue(b.created_at) - getKnowledgeTimeValue(a.created_at))
+      .map(normalizeKnowledgeDoc)
+  }
+  return rows.length
+}
+
+async function loadKnowledgeSubmissions(uid) {
+  if (knowledgeLoaded.value) return
+  const rows = await fetchMyKnowledgeRows(uid)
+  myKnowledgeItems.value = rows
+    .sort((a, b) => getKnowledgeTimeValue(b.created_at) - getKnowledgeTimeValue(a.created_at))
+    .map(normalizeKnowledgeDoc)
+  myKnowledgeCount.value = myKnowledgeItems.value.length
+  knowledgeLoaded.value = true
+}
+
+async function reloadKnowledgeSubmissions(uid) {
+  knowledgeLoaded.value = false
+  await loadKnowledgeSubmissions(uid)
+}
+
 async function loadInitialProfileData(uid) {
   await Promise.all([
     fetchFavorites(uid),
     fetchUserProblems(),
     fetchMyProblemsCount(uid).then((count) => { myProblemCount.value = count }),
+    fetchMyKnowledgeCount(uid),
     fetchMyPostsCount(uid).then((count) => { myPostCount.value = count }),
   ])
   fetchProblemMeta()
@@ -194,6 +322,7 @@ async function ensureTabData(tab) {
   const uid = props.currentUser.id
   if (tab === 'fav') return loadFavoriteProblems()
   if (tab === 'submitted') return loadSubmittedProblems(uid)
+  if (tab === 'knowledge') return loadKnowledgeSubmissions(uid)
   if (tab === 'achievements') return loadCommunityActivity(uid)
 }
 
@@ -376,7 +505,167 @@ function formatDate(ts) {
 }
 
 // ════════════════════════════════════════════════════
-// 二、求助帖（原 MyPostsView）
+// 二、知识投稿编辑
+// ════════════════════════════════════════════════════
+const editKnowledgeTarget = ref(null)
+const editKnowledgeForm = reactive({
+  category: '打印质量',
+  title: '',
+  summary: '',
+  content: '',
+  tags: '',
+})
+const editKnowledgeResultFile = ref(null)
+const editKnowledgeResultPreview = ref('')
+const editKnowledgeImageFile = ref(null)
+const editKnowledgeImagePreview = ref('')
+const editKnowledgeKeepResult = ref(false)
+const editKnowledgeKeepImage = ref(false)
+const editKnowledgeErrors = ref({})
+const savingKnowledge = ref(false)
+
+const KNOWLEDGE_CATEGORIES = ['新手入门', '打印质量', '参数调校', '材料知识', '设备维护', '光固化', '后处理']
+
+function openEditKnowledge(item) {
+  editKnowledgeTarget.value = item
+  editKnowledgeForm.category = item.category || '打印质量'
+  editKnowledgeForm.title = item.title || ''
+  editKnowledgeForm.summary = item.summary || ''
+  editKnowledgeForm.content = item.content || ''
+  editKnowledgeForm.tags = (item.tags || []).join('、')
+  clearEditKnowledgeResultFile()
+  clearEditKnowledgeImageFile()
+  editKnowledgeKeepResult.value = !!item.resultImageUrl
+  editKnowledgeKeepImage.value = !!item.imageUrl
+  editKnowledgeErrors.value = {}
+  subView.value = 'edit-knowledge'
+  window.scrollTo(0, 0)
+}
+
+function cancelEditKnowledge() {
+  subView.value = 'tabs'
+  editKnowledgeTarget.value = null
+  editKnowledgeErrors.value = {}
+  clearEditKnowledgeResultFile()
+  clearEditKnowledgeImageFile()
+  window.scrollTo(0, 0)
+}
+
+function clearEditKnowledgeResultFile() {
+  if (editKnowledgeResultPreview.value) URL.revokeObjectURL(editKnowledgeResultPreview.value)
+  editKnowledgeResultFile.value = null
+  editKnowledgeResultPreview.value = ''
+}
+
+function clearEditKnowledgeImageFile() {
+  if (editKnowledgeImagePreview.value) URL.revokeObjectURL(editKnowledgeImagePreview.value)
+  editKnowledgeImageFile.value = null
+  editKnowledgeImagePreview.value = ''
+}
+
+function onEditKnowledgeResultChange(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  clearEditKnowledgeResultFile()
+  editKnowledgeResultFile.value = file
+  editKnowledgeResultPreview.value = URL.createObjectURL(file)
+  editKnowledgeKeepResult.value = false
+  event.target.value = ''
+}
+
+function onEditKnowledgeImageChange(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  clearEditKnowledgeImageFile()
+  editKnowledgeImageFile.value = file
+  editKnowledgeImagePreview.value = URL.createObjectURL(file)
+  editKnowledgeKeepImage.value = false
+  event.target.value = ''
+}
+
+function removeEditKnowledgeResult() {
+  clearEditKnowledgeResultFile()
+  editKnowledgeKeepResult.value = false
+}
+
+function removeEditKnowledgeImage() {
+  clearEditKnowledgeImageFile()
+  editKnowledgeKeepImage.value = false
+}
+
+async function uploadKnowledgeEditImage(file) {
+  const compressed = await compressImage(file)
+  const { pass, msg } = await checkImage(compressed)
+  if (!pass) throw new Error(msg)
+  const cloudPath = `knowledge-images/${props.currentUser.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`
+  await app.uploadFile({ cloudPath, filePath: compressed })
+  return `${CDN_BASE}/${cloudPath}`
+}
+
+function validateKnowledgeEdit() {
+  const errors = {}
+  if (!editKnowledgeForm.title.trim()) errors.title = '请填写知识标题'
+  if (!editKnowledgeForm.summary.trim()) errors.summary = '请填写一句摘要'
+  if (!editKnowledgeForm.content.trim()) errors.content = '请填写正文内容'
+  if (editKnowledgeForm.content.trim().length < 10) errors.content = '正文至少写 10 个字'
+  editKnowledgeErrors.value = errors
+  return Object.keys(errors).length === 0
+}
+
+async function saveEditKnowledge() {
+  if (!editKnowledgeTarget.value || !validateKnowledgeEdit()) return
+  savingKnowledge.value = true
+  editKnowledgeErrors.value = {}
+  try {
+    const contentText = [
+      editKnowledgeForm.title,
+      editKnowledgeForm.summary,
+      editKnowledgeForm.content,
+      editKnowledgeForm.tags,
+    ].filter(Boolean).join('\n')
+    const { pass, msg } = await checkContent(contentText)
+    if (!pass) {
+      editKnowledgeErrors.value = { submit: msg }
+      return
+    }
+
+    const [nextResultImageUrl, nextImageUrl] = await Promise.all([
+      editKnowledgeResultFile.value ? uploadKnowledgeEditImage(editKnowledgeResultFile.value) : '',
+      editKnowledgeImageFile.value ? uploadKnowledgeEditImage(editKnowledgeImageFile.value) : '',
+    ])
+    const resultImageUrl = nextResultImageUrl || (editKnowledgeKeepResult.value ? editKnowledgeTarget.value.resultImageUrl : null)
+    const imageUrl = nextImageUrl || (editKnowledgeKeepImage.value ? editKnowledgeTarget.value.imageUrl : null)
+
+    await db.collection(KNOWLEDGE_SUBMISSION_COLLECTION).doc(editKnowledgeTarget.value.id).update({
+      status: 'pending',
+      category: editKnowledgeForm.category,
+      title: editKnowledgeForm.title.trim(),
+      subtitle: editKnowledgeForm.summary.trim(),
+      description: editKnowledgeForm.summary.trim(),
+      summary: editKnowledgeForm.summary.trim(),
+      content: editKnowledgeForm.content.trim(),
+      tags: normalizeKnowledgeList(editKnowledgeForm.tags),
+      result_image_url: resultImageUrl,
+      image_url: imageUrl,
+      updated_at: db.serverDate(),
+      reviewed_at: null,
+      reviewer_id: '',
+      reviewer_name: '',
+    })
+
+    await reloadKnowledgeSubmissions(props.currentUser.id)
+    success('知识投稿已保存，已重新进入待审核')
+    cancelEditKnowledge()
+  } catch (err) {
+    editKnowledgeErrors.value = { submit: err.message || '保存失败，请稍后再试' }
+    toastError(editKnowledgeErrors.value.submit)
+  } finally {
+    savingKnowledge.value = false
+  }
+}
+
+// ════════════════════════════════════════════════════
+// 三、求助帖（原 MyPostsView）
 // ════════════════════════════════════════════════════
 const FORM_CATEGORIES = ['代打服务', '求购耗材', '出售设备', '技术求助', '其他']
 const CAT_STYLE = {
@@ -491,7 +780,7 @@ async function removePost(post) {
 }
 
 // ════════════════════════════════════════════════════
-// 三、账号设置
+// 四、账号设置
 // ════════════════════════════════════════════════════
 const usernameForm    = ref({ username: props.currentUser.username })
 const usernameError   = ref('')
@@ -796,13 +1085,14 @@ onUnmounted(() => {
 
     <!-- ── 顶部导航 ── -->
     <nav class="pnav" :class="{ scrolled: navScrolled }">
-      <button class="back-btn" @click="subView === 'edit-problem' ? cancelEditProblem() : $emit('back')">
+      <button class="back-btn" @click="subView === 'edit-problem' ? cancelEditProblem() : subView === 'edit-knowledge' ? cancelEditKnowledge() : $emit('back')">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path d="M11 4L6 9l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        {{ subView === 'edit-problem' ? '返回个人主页' : '返回' }}
+        {{ subView === 'edit-problem' || subView === 'edit-knowledge' ? '返回个人主页' : '返回' }}
       </button>
       <span v-if="subView === 'edit-problem'" class="pnav-title">编辑问题</span>
+      <span v-else-if="subView === 'edit-knowledge'" class="pnav-title">编辑知识投稿</span>
     </nav>
 
     <!-- ══════════ 编辑投稿（全屏内联视图）══════════ -->
@@ -938,6 +1228,87 @@ onUnmounted(() => {
         <button class="big-submit-btn" :class="{ loading: saving }" :disabled="saving" @click="saveEditProblem">
           <span v-if="saving" class="btn-spinner"></span>
           {{ saving ? '保存中…' : '保存修改' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- ══════════ 编辑知识投稿视图 ══════════ -->
+    <div v-else-if="subView === 'edit-knowledge'" class="edit-wrap">
+      <header class="detail-hero knowledge-edit-hero">
+        <div class="hero-content">
+          <div class="hero-emoji">📚</div>
+          <div class="hero-meta">
+            <h1 class="knowledge-edit-title">编辑知识投稿</h1>
+            <p class="knowledge-edit-subtitle">修改后会重新进入待审核，审核通过前不会展示在公开知识库。</p>
+          </div>
+        </div>
+      </header>
+
+      <div class="detail-content">
+        <section class="section">
+          <h2 class="section-title"><span class="section-icon">✍️</span>基础信息</h2>
+          <div class="knowledge-edit-grid">
+            <label class="knowledge-edit-field">
+              <span>知识标题</span>
+              <input v-model.trim="editKnowledgeForm.title" maxlength="48" placeholder="请输入知识标题" :class="{ 'has-error': editKnowledgeErrors.title }" />
+              <small v-if="editKnowledgeErrors.title">{{ editKnowledgeErrors.title }}</small>
+            </label>
+            <label class="knowledge-edit-field">
+              <span>主题</span>
+              <select v-model="editKnowledgeForm.category">
+                <option v-for="category in KNOWLEDGE_CATEGORIES" :key="category" :value="category">{{ category }}</option>
+              </select>
+            </label>
+            <label class="knowledge-edit-field wide">
+              <span>一句摘要</span>
+              <input v-model.trim="editKnowledgeForm.summary" maxlength="120" placeholder="用一句话说明这条知识解决什么问题" :class="{ 'has-error': editKnowledgeErrors.summary }" />
+              <small v-if="editKnowledgeErrors.summary">{{ editKnowledgeErrors.summary }}</small>
+            </label>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title"><span class="section-icon">🖼️</span>成果展示</h2>
+          <div v-if="editKnowledgeResultPreview || (editKnowledgeKeepResult && editKnowledgeTarget?.resultImageUrl)" class="knowledge-edit-preview">
+            <img :src="editKnowledgeResultPreview || editKnowledgeTarget.resultImageUrl" alt="成果展示预览" />
+            <button type="button" @click="removeEditKnowledgeResult">移除图片</button>
+          </div>
+          <label v-else class="knowledge-edit-upload">
+            <input type="file" accept="image/*" @change="onEditKnowledgeResultChange" />
+            <strong>上传成果图片</strong>
+            <span>可选，展示打印结果或关键对比图</span>
+          </label>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title"><span class="section-icon">📝</span>正文内容</h2>
+          <textarea v-model.trim="editKnowledgeForm.content" class="content-textarea" rows="8" maxlength="1800" placeholder="写下具体步骤、判断依据、参数范围、注意事项。" :class="{ 'has-error': editKnowledgeErrors.content }"></textarea>
+          <div class="char-hint">{{ editKnowledgeForm.content.length }}/1800</div>
+          <p v-if="editKnowledgeErrors.content" class="field-err">{{ editKnowledgeErrors.content }}</p>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title"><span class="section-icon">🏷️</span>标签</h2>
+          <input v-model.trim="editKnowledgeForm.tags" class="content-input" maxlength="80" placeholder="例如：PETG、拉丝、回抽，用逗号分隔" />
+        </section>
+
+        <section class="section">
+          <h2 class="section-title"><span class="section-icon">📷</span>补充图片</h2>
+          <div v-if="editKnowledgeImagePreview || (editKnowledgeKeepImage && editKnowledgeTarget?.imageUrl)" class="knowledge-edit-preview">
+            <img :src="editKnowledgeImagePreview || editKnowledgeTarget.imageUrl" alt="知识配图预览" />
+            <button type="button" @click="removeEditKnowledgeImage">移除图片</button>
+          </div>
+          <label v-else class="knowledge-edit-upload">
+            <input type="file" accept="image/*" @change="onEditKnowledgeImageChange" />
+            <strong>上传图片</strong>
+            <span>可选，可上传参数截图、设备照片或步骤图</span>
+          </label>
+        </section>
+
+        <div v-if="editKnowledgeErrors.submit" class="submit-err-box">{{ editKnowledgeErrors.submit }}</div>
+        <button class="big-submit-btn" :class="{ loading: savingKnowledge }" :disabled="savingKnowledge" @click="saveEditKnowledge">
+          <span v-if="savingKnowledge" class="btn-spinner"></span>
+          {{ savingKnowledge ? '保存中…' : '保存并重新提交审核' }}
         </button>
       </div>
     </div>
@@ -1082,6 +1453,57 @@ onUnmounted(() => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div v-else-if="activeTab === 'knowledge'" class="tab-body">
+          <div class="tab-header-row">
+            <div>
+              <span class="tab-header-title">知识投稿</span>
+              <span class="tab-header-sub block">审核通过后会进入知识库的主题列表</span>
+            </div>
+          </div>
+          <div v-if="myKnowledgeItems.length > 0" class="fav-toolbar">
+            <div class="fav-search">
+              <input v-model="knowledgeQuery" placeholder="搜索知识标题、摘要、正文、标签或审核状态" />
+            </div>
+          </div>
+          <div v-if="myKnowledgeItems.length === 0" class="empty">
+            <span class="empty-icon">📚</span>
+            <p class="empty-title">还没有知识投稿</p>
+            <p class="empty-sub">把可复用的打印经验整理成知识，审核后会进入公开知识库。</p>
+          </div>
+          <div v-else-if="filteredKnowledgeItems.length === 0" class="empty compact-empty">
+            <span class="empty-icon">🧭</span>
+            <p class="empty-title">没有匹配的知识投稿</p>
+            <p class="empty-sub">换个关键词，或者搜索“待审核”“已展示”。</p>
+          </div>
+          <div v-else class="knowledge-list">
+            <article v-for="item in filteredKnowledgeItems" :key="item.id" class="knowledge-item">
+              <div v-if="item.resultImageUrl || item.imageUrl" class="knowledge-thumb">
+                <img :src="item.resultImageUrl || item.imageUrl" :alt="item.title" />
+              </div>
+              <div v-else class="knowledge-thumb empty-thumb">📘</div>
+              <div class="knowledge-body">
+                <div class="knowledge-meta">
+                  <span :class="['knowledge-status', item.status]">{{ knowledgeStatusLabel(item.status) }}</span>
+                  <span>{{ item.category }}</span>
+                  <span v-if="item.tags.length">{{ item.tags.slice(0, 3).join('、') }}</span>
+                </div>
+                <h3>{{ item.title }}</h3>
+                <p>{{ item.summary || item.content || '暂无摘要' }}</p>
+                <div class="knowledge-foot">
+                  <span>ID {{ item.problemId }}</span>
+                  <span>{{ formatDate(item.createdAt || item.updatedAt) }}</span>
+                </div>
+                <div class="knowledge-actions">
+                  <button class="act-btn edit" @click="openEditKnowledge(item)">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+                    编辑
+                  </button>
+                </div>
+              </div>
+            </article>
           </div>
         </div>
 
@@ -1481,6 +1903,185 @@ onUnmounted(() => {
 .act-btn:not(.edit):not(.del) { background: rgba(37, 104, 232, .06); color: var(--lab-text-soft); }
 .act-btn:not(.edit):not(.del):hover:not(:disabled) { background: rgba(37, 104, 232, .1); color: var(--lab-text); }
 .act-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── 知识投稿编辑 ── */
+.knowledge-edit-hero {
+  background:
+    radial-gradient(circle at 16% 28%, rgba(23,181,212,.24), transparent 28%),
+    linear-gradient(135deg, #10243c 0%, #18375f 56%, #0d5a66 100%);
+}
+.knowledge-edit-title {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.7rem, 4vw, 2.4rem);
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+.knowledge-edit-subtitle {
+  margin: 10px 0 0;
+  max-width: 560px;
+  color: rgba(255,255,255,.74);
+  font-size: 14px;
+  line-height: 1.75;
+}
+.knowledge-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.knowledge-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.knowledge-edit-field.wide {
+  grid-column: 1 / -1;
+}
+.knowledge-edit-field span {
+  color: #1d1d1f;
+  font-size: 13px;
+  font-weight: 700;
+}
+.knowledge-edit-field input,
+.knowledge-edit-field select {
+  width: 100%;
+  border: 1px solid rgba(0,0,0,.1);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  color: #1d1d1f;
+  font: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+.knowledge-edit-field input:focus,
+.knowledge-edit-field select:focus {
+  border-color: rgba(37,104,232,.36);
+  box-shadow: 0 0 0 3px rgba(37,104,232,.07);
+}
+.knowledge-edit-field input.has-error {
+  border-color: #ff3b30;
+}
+.knowledge-edit-field small {
+  color: #ff3b30;
+  font-size: 12px;
+}
+.knowledge-edit-upload {
+  min-height: 160px;
+  border: 1.5px dashed rgba(0,0,0,.14);
+  border-radius: 16px;
+  background: #fff;
+  color: #8d8d92;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  text-align: center;
+}
+.knowledge-edit-upload input {
+  display: none;
+}
+.knowledge-edit-upload strong {
+  color: var(--lab-accent);
+}
+.knowledge-edit-upload span {
+  font-size: 12px;
+}
+.knowledge-edit-preview {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(0,0,0,.08);
+  background: #fff;
+}
+.knowledge-edit-preview img {
+  width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  display: block;
+}
+.knowledge-edit-preview button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: #fff;
+  background: rgba(0,0,0,.55);
+  cursor: pointer;
+}
+
+/* ── 知识投稿列表 ── */
+.knowledge-list { display: flex; flex-direction: column; gap: 10px; }
+.knowledge-item {
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(249,252,255,0.96));
+  border: 1px solid rgba(57, 86, 120, 0.08);
+  box-shadow: 0 10px 28px rgba(15, 31, 56, 0.05);
+}
+.knowledge-thumb {
+  width: 96px;
+  min-height: 96px;
+  flex-shrink: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(37, 104, 232, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+.knowledge-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.empty-thumb { color: var(--lab-accent); }
+.knowledge-body { flex: 1; min-width: 0; }
+.knowledge-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 8px; color: var(--lab-text-dim); font-size: 11px; }
+.knowledge-status {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.knowledge-status.pending { color: #b96d00; background: rgba(239, 143, 0, 0.12); }
+.knowledge-status.published { color: #16774d; background: rgba(30, 157, 102, 0.12); }
+.knowledge-status.hidden { color: #475467; background: rgba(107, 114, 128, 0.12); }
+.knowledge-status.rejected { color: #b42318; background: rgba(219, 77, 92, 0.12); }
+.knowledge-body h3 {
+  margin: 0 0 6px;
+  color: var(--lab-text);
+  font-size: 15px;
+  line-height: 1.4;
+}
+.knowledge-body p {
+  margin: 0;
+  color: var(--lab-text-soft);
+  font-size: 13px;
+  line-height: 1.65;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.knowledge-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--lab-text-dim);
+  font-size: 11px;
+}
+.knowledge-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
 
 /* ── 求助帖列表 ── */
 .post-list { display: flex; flex-direction: column; gap: 10px; }

@@ -495,7 +495,13 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
     <template v-if="appReady">
       <ProblemsView  v-if="activeTab === 'home'"     :current-user="currentUser" @go-detail="goToDetail" @open-auth="openAuth" @go-submit="goToSubmit" @go-filament="switchTab('filament')" />
       <FilamentView  v-else-if="activeTab === 'filament'" :current-user="currentUser" @open-auth="openAuth" />
-      <KnowledgeView v-else-if="activeTab === 'knowledge'" :initial-article-id="initialKnowledgeArticleId" @go-detail="handleKnowledgeDetail" />
+      <KnowledgeView
+        v-else-if="activeTab === 'knowledge'"
+        :initial-article-id="initialKnowledgeArticleId"
+        :current-user="currentUser"
+        @go-detail="handleKnowledgeDetail"
+        @open-auth="openAuth"
+      />
     </template>
     <div v-else class="app-loading">
       <span class="loading-spinner"></span>

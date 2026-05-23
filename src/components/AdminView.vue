@@ -30,6 +30,7 @@ const sectionMeta = {
   market: { label: '需求市场', desc: '管理技术求助与代打需求' },
   providers: { label: '服务商审核', desc: '审核服务商入驻申请' },
   filamentReviews: { label: '耗材评价', desc: '审核耗材评分、体验评价与图片内容' },
+  knowledge: { label: '知识审核', desc: '审核用户分享的知识内容，控制是否展示到知识库' },
   realname: { label: '实名认证', desc: '审核用户实名资料并控制发布权限' },
   users: { label: '用户管理', desc: '查看用户资料、权限与账号状态' },
   stats: { label: '数据统计', desc: '查看平台核心数据趋势' },
@@ -233,6 +234,10 @@ function reviewStatusLabel(status) {
     hidden: '已隐藏',
     rejected: '已拒绝',
   })[status] || '待审核'
+}
+
+function knowledgeStatusLabel(status) {
+  return reviewStatusLabel(status)
 }
 
 function realnameStatusLabel(status) {
@@ -636,6 +641,126 @@ async function deleteFilamentReview(item) {
     filamentReviewItems.value = filamentReviewItems.value.filter((row) => row.id !== item.id)
   } finally {
     filamentReviewActioningId.value = null
+  }
+}
+
+// 知识审核
+const knowledgeLoading = ref(false)
+const knowledgeItems = ref([])
+const knowledgeSearch = ref('')
+const knowledgeFilter = ref('pending')
+const knowledgeActioningId = ref(null)
+const KNOWLEDGE_SUBMISSION_COLLECTION = 'user_problems'
+
+function normalizeList(value) {
+  if (Array.isArray(value)) return value.map((item) => safeText(item)).filter(Boolean)
+  return safeText(value)
+    .split(/[，,、\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+async function loadKnowledgeSubmissions() {
+  knowledgeLoading.value = true
+  try {
+    const knowledgeRows = await fetchKnowledgeRows({ submission_type: 'knowledge' })
+
+    knowledgeItems.value = knowledgeRows
+      .sort((a, b) => getTimeValue(b.created_at) - getTimeValue(a.created_at))
+      .map((doc) => ({
+      id: doc._id,
+      collectionName: doc._collectionName || KNOWLEDGE_SUBMISSION_COLLECTION,
+      problemId: doc.problem_id || doc._id,
+      status: doc.status || 'pending',
+      category: safeText(doc.category) || '打印质量',
+      title: safeText(doc.title) || '未命名知识',
+      summary: safeText(doc.summary || doc.subtitle || doc.description),
+      content: safeText(doc.content || doc.body),
+      tags: normalizeList(doc.tags),
+      resultImageUrl: doc.result_image_url || doc.resultImageUrl || '',
+      imageUrl: doc.image_url || doc.imageUrl || '',
+      username: safeText(doc.username) || '匿名用户',
+      userId: doc.user_id || '',
+      createdAt: getTimeValue(doc.created_at),
+      updatedAt: getTimeValue(doc.updated_at || doc.created_at),
+    }))
+  } catch (error) {
+    console.warn('[Admin knowledge] load failed:', error?.message || error)
+  } finally {
+    knowledgeLoading.value = false
+  }
+}
+
+async function fetchKnowledgeRows(where) {
+  try {
+    let query = db.collection(KNOWLEDGE_SUBMISSION_COLLECTION)
+    if (where) query = query.where(where)
+    const { data } = await query.orderBy('created_at', 'desc').limit(200).get()
+    return (data || []).map((doc) => ({ ...doc, _collectionName: KNOWLEDGE_SUBMISSION_COLLECTION }))
+  } catch (error) {
+    if (error?.code?.includes('COLLECTION_NOT_EXIST') || error?.message?.includes('not exist')) return []
+    try {
+      let query = db.collection(KNOWLEDGE_SUBMISSION_COLLECTION)
+      if (where) query = query.where(where)
+      const { data } = await query.limit(200).get()
+      return (data || []).map((doc) => ({ ...doc, _collectionName: KNOWLEDGE_SUBMISSION_COLLECTION }))
+    } catch (fallbackError) {
+      console.warn(`[Admin knowledge] ${KNOWLEDGE_SUBMISSION_COLLECTION} load failed:`, fallbackError?.message || fallbackError)
+      return []
+    }
+  }
+}
+
+const knowledgeStats = computed(() => ({
+  total: knowledgeItems.value.length,
+  pending: knowledgeItems.value.filter((item) => item.status === 'pending').length,
+  published: knowledgeItems.value.filter((item) => item.status === 'published').length,
+  hidden: knowledgeItems.value.filter((item) => item.status === 'hidden').length,
+  rejected: knowledgeItems.value.filter((item) => item.status === 'rejected').length,
+}))
+
+const filteredKnowledgeItems = computed(() => {
+  const q = knowledgeSearch.value.trim().toLowerCase()
+  return knowledgeItems.value.filter((item) => {
+    if (knowledgeFilter.value !== 'all' && item.status !== knowledgeFilter.value) return false
+    if (!q) return true
+    return includesKeyword([
+      item.title,
+      item.summary,
+      item.content,
+      item.category,
+      item.username,
+      item.userId,
+      ...(item.tags || []),
+    ], q)
+  })
+})
+
+async function setKnowledgeStatus(item, status) {
+  knowledgeActioningId.value = item.id
+  try {
+    await db.collection(item.collectionName || KNOWLEDGE_SUBMISSION_COLLECTION).doc(item.id).update({
+      status,
+      updated_at: new Date(),
+      reviewed_at: new Date(),
+      reviewer_id: props.currentUser?.id || '',
+      reviewer_name: props.currentUser?.username || '',
+    })
+    item.status = status
+    item.updatedAt = Date.now()
+  } finally {
+    knowledgeActioningId.value = null
+  }
+}
+
+async function deleteKnowledgeSubmission(item) {
+  if (!confirm(`确定删除知识投稿「${item.title}」吗？`)) return
+  knowledgeActioningId.value = item.id
+  try {
+    await db.collection(item.collectionName || KNOWLEDGE_SUBMISSION_COLLECTION).doc(item.id).remove()
+    knowledgeItems.value = knowledgeItems.value.filter((row) => row.id !== item.id)
+  } finally {
+    knowledgeActioningId.value = null
   }
 }
 
@@ -1094,6 +1219,7 @@ function refreshCurrentSection() {
   else if (adminSection.value === 'market') loadMarket()
   else if (adminSection.value === 'providers') loadProviders()
   else if (adminSection.value === 'filamentReviews') loadFilamentReviews()
+  else if (adminSection.value === 'knowledge') loadKnowledgeSubmissions()
   else if (adminSection.value === 'realname') loadRealnameRequests()
   else if (adminSection.value === 'users') loadUsers()
   else if (adminSection.value === 'stats') loadStats()
@@ -1107,6 +1233,7 @@ const currentLoading = computed(() => {
   if (adminSection.value === 'market') return marketLoading.value
   if (adminSection.value === 'providers') return providerLoading.value
   if (adminSection.value === 'filamentReviews') return filamentReviewLoading.value
+  if (adminSection.value === 'knowledge') return knowledgeLoading.value
   if (adminSection.value === 'realname') return realnameLoading.value
   if (adminSection.value === 'users') return usersLoading.value
   if (adminSection.value === 'stats') return statsLoading.value
@@ -1133,6 +1260,7 @@ onMounted(() => {
         <button :class="['nsec-btn', { active: adminSection === 'market' }]" @click="switchSection('market')">需求市场</button>
         <button :class="['nsec-btn', { active: adminSection === 'providers' }]" @click="switchSection('providers')">服务商审核</button>
         <button :class="['nsec-btn', { active: adminSection === 'filamentReviews' }]" @click="switchSection('filamentReviews')">耗材评价</button>
+        <button :class="['nsec-btn', { active: adminSection === 'knowledge' }]" @click="switchSection('knowledge')">知识审核</button>
         <button :class="['nsec-btn', { active: adminSection === 'realname' }]" @click="switchSection('realname')">实名认证</button>
         <button :class="['nsec-btn', { active: adminSection === 'users' }]" @click="switchSection('users')">用户管理</button>
         <button :class="['nsec-btn', { active: adminSection === 'stats' }]" @click="switchSection('stats')">数据统计</button>
@@ -1565,6 +1693,129 @@ onMounted(() => {
                   使用记录：{{ item.usageRecordId || '未关联' }}<br>
                   图片 {{ item.imageCount }} 张 · 更新时间 {{ formatDateTime(item.updatedAt) }}
                 </p>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div v-else-if="adminSection === 'knowledge'">
+        <div class="stat-cards">
+          <div class="stat-card">
+            <div class="stat-num">{{ knowledgeStats.total }}</div>
+            <div class="stat-label">知识投稿</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num pending-color">{{ knowledgeStats.pending }}</div>
+            <div class="stat-label">待审核</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num approved-color">{{ knowledgeStats.published }}</div>
+            <div class="stat-label">已展示</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num rejected-color">{{ knowledgeStats.hidden + knowledgeStats.rejected }}</div>
+            <div class="stat-label">隐藏/拒绝</div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <input v-model="knowledgeSearch" class="toolbar-search" placeholder="搜索标题、摘要、正文、投稿人、标签..." />
+          <div class="filter-pills">
+            <button :class="['pill-btn', { active: knowledgeFilter === 'all' }]" @click="knowledgeFilter = 'all'">全部</button>
+            <button :class="['pill-btn', { active: knowledgeFilter === 'pending' }]" @click="knowledgeFilter = 'pending'">待审核</button>
+            <button :class="['pill-btn', { active: knowledgeFilter === 'published' }]" @click="knowledgeFilter = 'published'">已展示</button>
+            <button :class="['pill-btn', { active: knowledgeFilter === 'hidden' }]" @click="knowledgeFilter = 'hidden'">已隐藏</button>
+            <button :class="['pill-btn', { active: knowledgeFilter === 'rejected' }]" @click="knowledgeFilter = 'rejected'">已拒绝</button>
+          </div>
+        </div>
+
+        <div v-if="knowledgeLoading" class="loading-state">
+          <span class="spinner"></span>
+          <span>正在加载知识投稿…</span>
+        </div>
+        <div v-else-if="filteredKnowledgeItems.length === 0" class="empty-state">
+          <div class="empty-icon">📚</div>
+          <div>当前没有符合条件的知识投稿</div>
+        </div>
+        <div v-else class="entity-list">
+          <article v-for="item in filteredKnowledgeItems" :key="item.id" class="entity-card">
+            <div class="entity-head">
+              <div class="entity-main">
+                <div class="entity-title-row">
+                  <h3 class="entity-title">{{ item.title }}</h3>
+                  <span class="mini-flag">{{ item.category }}</span>
+                  <span :class="['status-badge', item.status]">{{ knowledgeStatusLabel(item.status) }}</span>
+                </div>
+                <div class="entity-meta">
+                  <span>{{ item.username }}</span>
+                  <span class="dot">·</span>
+                  <span>标签 {{ item.tags.length ? item.tags.join('、') : '未填写' }}</span>
+                  <span class="dot">·</span>
+                  <span>{{ timeAgo(item.createdAt) }}</span>
+                </div>
+              </div>
+              <div class="entity-actions">
+                <button
+                  class="action-btn approve"
+                  :disabled="knowledgeActioningId === item.id || item.status === 'published'"
+                  @click="setKnowledgeStatus(item, 'published')"
+                >
+                  展示
+                </button>
+                <button
+                  class="action-btn neutral"
+                  :disabled="knowledgeActioningId === item.id || item.status === 'pending'"
+                  @click="setKnowledgeStatus(item, 'pending')"
+                >
+                  待审
+                </button>
+                <button
+                  class="action-btn warn"
+                  :disabled="knowledgeActioningId === item.id || item.status === 'hidden'"
+                  @click="setKnowledgeStatus(item, 'hidden')"
+                >
+                  隐藏
+                </button>
+                <button
+                  class="action-btn reject"
+                  :disabled="knowledgeActioningId === item.id || item.status === 'rejected'"
+                  @click="setKnowledgeStatus(item, 'rejected')"
+                >
+                  拒绝
+                </button>
+                <button class="action-btn ghost" :disabled="knowledgeActioningId === item.id" @click="deleteKnowledgeSubmission(item)">删除</button>
+              </div>
+            </div>
+
+            <div class="entity-detail-grid">
+              <div class="detail-block">
+                <span class="detail-label">摘要</span>
+                <p class="detail-text">{{ item.summary || '未填写摘要' }}</p>
+              </div>
+              <div class="detail-block">
+                <span class="detail-label">记录信息</span>
+                <p class="detail-text mono-text">
+                  投稿 ID：{{ item.id }}<br>
+                  知识 ID：{{ item.problemId || '未知' }}<br>
+                  集合：{{ item.collectionName }}<br>
+                  UID：{{ item.userId || '未知' }}<br>
+                  更新时间：{{ formatDateTime(item.updatedAt || item.createdAt) }}
+                </p>
+              </div>
+              <div class="detail-block knowledge-content-block">
+                <span class="detail-label">正文</span>
+                <p class="detail-text">{{ item.content || '未填写正文' }}</p>
+              </div>
+              <div class="detail-block">
+                <span class="detail-label">成果展示</span>
+                <img v-if="item.resultImageUrl" :src="item.resultImageUrl" class="knowledge-review-img" :alt="`${item.title}成果展示`" />
+                <p v-else class="detail-text">未上传成果展示</p>
+              </div>
+              <div class="detail-block">
+                <span class="detail-label">图片</span>
+                <img v-if="item.imageUrl" :src="item.imageUrl" class="knowledge-review-img" :alt="item.title" />
+                <p v-else class="detail-text">未上传图片</p>
               </div>
             </div>
           </article>
@@ -2420,6 +2671,18 @@ onMounted(() => {
   font-size: 13px;
   line-height: 1.6;
   color: #475467;
+}
+
+.knowledge-content-block {
+  grid-column: 1 / -1;
+}
+
+.knowledge-review-img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 12px;
+  display: block;
 }
 
 .trend-block {
