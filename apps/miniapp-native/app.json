@@ -4,6 +4,7 @@
     "pages/problem-library/index",
     "pages/problem-detail/index",
     "pages/problem-submit/index",
+    "pages/feedback/index",
     "pages/profile-edit/index",
     "pages/filament/index",
     "pages/diagnosis/index",

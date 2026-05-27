@@ -297,6 +297,10 @@ Page({
     this.setData({ activeTab: e.currentTarget.dataset.tab })
   },
 
+  openFeedback() {
+    wx.navigateTo({ url: '/pages/feedback/index' })
+  },
+
   openProblemDetail(e) {
     if (this.data.navigating) return
     const problemId = e.currentTarget.dataset.problemId || e.currentTarget.dataset.id

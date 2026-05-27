@@ -227,7 +227,7 @@
 
 .quick-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14rpx;
   margin-top: 24rpx;
 }
@@ -247,6 +247,10 @@
 .quick-item.active .quick-name,
 .quick-item.active .quick-meta {
   color: #ffffff;
+}
+
+.quick-item-link {
+  background: linear-gradient(135deg, rgba(29, 78, 216, 0.09), rgba(20, 184, 166, 0.09));
 }
 
 .quick-name {

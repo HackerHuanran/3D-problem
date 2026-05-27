@@ -12,6 +12,7 @@ import { app, db } from '@/lib/tcb.js'
 import { compressImage } from '@/lib/imageUtils.js'
 import { checkContent, checkImage } from '@/lib/moderate.js'
 import { useToast } from '@/composables/useToast.js'
+import { useFeedback } from '@/composables/useFeedback.js'
 import { isAvatarImage, avatarFallback } from '@/lib/avatar.js'
 
 const props = defineProps({
@@ -28,6 +29,7 @@ const { posts: myPosts, fetchMyPosts, fetchMyPostsCount, createPost, deletePost,
 const { getUserActivity } = useCommunity()
 const { setupProfile, updateAvatar, changePassword } = useAuth()
 const { success, error: toastError, info } = useToast()
+const { submitFeedback } = useFeedback()
 
 // ── 全局状态 ──
 const loading     = ref(true)
@@ -66,7 +68,7 @@ const TABS = [
 ]
 
 const KNOWLEDGE_SUBMISSION_COLLECTION = 'user_problems'
-const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
+const CDN_BASE = import.meta.env.VITE_TCB_CDN_BASE || 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
 
 const favTotal = computed(() => favoriteProblems.value.length)
 const favoriteCategories = computed(() => ['全部', ...new Set(favoriteProblems.value.map(p => p.category).filter(Boolean))])
@@ -1042,6 +1044,11 @@ const pwdForm    = ref({ oldPassword: '', newPassword: '', confirmPassword: '' }
 const pwdError   = ref('')
 const pwdSuccess = ref('')
 const pwdLoading = ref(false)
+const feedbackForm = ref({ type: '建议', title: '', content: '' })
+const feedbackError = ref('')
+const feedbackSuccess = ref('')
+const feedbackLoading = ref(false)
+const feedbackTypes = ['建议', '投诉', '问题反馈']
 
 async function submitPwd() {
   pwdError.value = ''; pwdSuccess.value = ''
@@ -1057,6 +1064,39 @@ async function submitPwd() {
     pwdForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' }
   } catch (e) { pwdError.value = e.message || String(e) }
   finally { pwdLoading.value = false }
+}
+
+async function submitProfileFeedback() {
+  feedbackError.value = ''
+  feedbackSuccess.value = ''
+  const title = feedbackForm.value.title.trim()
+  const content = feedbackForm.value.content.trim()
+
+  if (!title) {
+    feedbackError.value = '请填写反馈标题'
+    return
+  }
+  if (!content) {
+    feedbackError.value = '请填写反馈内容'
+    return
+  }
+
+  feedbackLoading.value = true
+  try {
+    await submitFeedback(props.currentUser, {
+      type: feedbackForm.value.type,
+      title,
+      content,
+    })
+    feedbackSuccess.value = '反馈已提交，管理员会在后台查看'
+    success('反馈已提交')
+    feedbackForm.value = { type: '建议', title: '', content: '' }
+  } catch (e) {
+    feedbackError.value = e.message || String(e)
+    toastError(feedbackError.value)
+  } finally {
+    feedbackLoading.value = false
+  }
 }
 
 // ── 工具函数 ──
@@ -1616,6 +1656,45 @@ onUnmounted(() => {
               {{ pwdLoading ? '修改中…' : '修改密码' }}
             </button>
           </div>
+
+          <div class="account-section">
+            <div class="account-section-head">
+              <h3 class="account-title">反馈与建议</h3>
+              <p class="account-sub">投诉、建议和问题反馈只会发送给管理员查看，不会公开展示。</p>
+            </div>
+            <div class="feedback-type-row">
+              <button
+                v-for="type in feedbackTypes"
+                :key="type"
+                type="button"
+                :class="['feedback-type-btn', { active: feedbackForm.type === type }]"
+                @click="feedbackForm.type = type"
+              >
+                {{ type }}
+              </button>
+            </div>
+            <div class="account-field">
+              <label>标题</label>
+              <input v-model="feedbackForm.title" maxlength="40" placeholder="例如：希望优化问题搜索" />
+            </div>
+            <div class="account-field">
+              <label>内容</label>
+              <textarea
+                v-model="feedbackForm.content"
+                class="account-textarea"
+                maxlength="800"
+                rows="5"
+                placeholder="请详细描述你的建议、投诉或遇到的问题"
+              ></textarea>
+              <span class="account-char-count">{{ feedbackForm.content.length }}/800</span>
+            </div>
+            <p v-if="feedbackError" class="form-error">{{ feedbackError }}</p>
+            <p v-if="feedbackSuccess" class="form-success">{{ feedbackSuccess }}</p>
+            <button class="account-btn" :disabled="feedbackLoading" @click="submitProfileFeedback">
+              <span v-if="feedbackLoading" class="btn-spinner"></span>
+              {{ feedbackLoading ? '提交中…' : '提交反馈' }}
+            </button>
+          </div>
         </div>
       </template>
     </template>
@@ -2158,6 +2237,14 @@ onUnmounted(() => {
 .account-field input { background: #f5f5f7; border: 1px solid rgba(0,0,0,.1); border-radius: 10px; padding: 11px 14px; color: #1d1d1f; font-size: 14px; font-family: inherit; outline: none; transition: border-color .2s; }
 .account-field input:focus { border-color: rgba(0,0,0,.25); }
 .account-field input::placeholder { color: #c7c7cc; }
+.feedback-type-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.feedback-type-btn { height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(0,0,0,.08); background: #f5f5f7; color: #6e6e73; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all .18s; }
+.feedback-type-btn:hover { border-color: rgba(0,0,0,.18); color: #1d1d1f; }
+.feedback-type-btn.active { background: #1d1d1f; border-color: #1d1d1f; color: #fff; }
+.account-textarea { width: 100%; min-height: 118px; background: #f5f5f7; border: 1px solid rgba(0,0,0,.1); border-radius: 10px; padding: 11px 14px; color: #1d1d1f; font-size: 14px; font-family: inherit; line-height: 1.65; outline: none; resize: vertical; transition: border-color .2s; }
+.account-textarea:focus { border-color: rgba(0,0,0,.25); }
+.account-textarea::placeholder { color: #c7c7cc; }
+.account-char-count { align-self: flex-end; font-size: 11px; color: #aeaeb2; margin-top: -2px; }
 .account-btn { padding: 11px 24px; background: #1d1d1f; color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background .18s; align-self: flex-start; }
 .account-btn:hover:not(:disabled) { background: #3a3a3c; }
 .account-btn:disabled { opacity: .5; cursor: not-allowed; }

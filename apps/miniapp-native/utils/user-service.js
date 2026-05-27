@@ -404,6 +404,64 @@ async function getCurrentProfile() {
   }
 }
 
+async function submitUserFeedback({ userId, title, content, type = '建议' }) {
+  const safeTitle = String(title || '').trim()
+  const safeContent = String(content || '').trim()
+  if (!userId) throw new Error('请先登录后再提交反馈')
+  if (!safeTitle) throw new Error('请填写标题')
+  if (!safeContent) throw new Error('请填写内容')
+
+  const user = await getCurrentUser()
+  await db.collection('user_feedback').add({
+    data: {
+      user_id: userId,
+      user_name: user?.username || user?.displayName || '微信用户',
+      user_avatar: user?.avatarUrl || '',
+      type,
+      title: safeTitle,
+      content: safeContent,
+      status: 'pending',
+      status_text: '未处理',
+      created_at: db.serverDate(),
+      updated_at: db.serverDate(),
+    },
+  })
+}
+
+async function fetchAdminFeedback({ page = 1, pageSize = 50 } = {}) {
+  const safePage = Math.max(1, Number(page) || 1)
+  const safePageSize = Math.min(100, Math.max(1, Number(pageSize) || 50))
+  const { data } = await db.collection('user_feedback')
+    .orderBy('created_at', 'desc')
+    .skip((safePage - 1) * safePageSize)
+    .limit(safePageSize)
+    .get()
+
+  return (data || []).map((item) => ({
+    id: item._id,
+    _id: item._id,
+    userId: item.user_id || '',
+    userName: item.user_name || '微信用户',
+    type: item.type || '建议',
+    title: item.title || '',
+    content: item.content || '',
+    status: item.status || 'pending',
+    statusText: item.status === 'resolved' ? '已处理' : '未处理',
+    createdAt: item.created_at || null,
+  }))
+}
+
+async function markFeedbackResolved(feedbackId) {
+  if (!feedbackId) return
+  await db.collection('user_feedback').doc(feedbackId).update({
+    data: {
+      status: 'resolved',
+      status_text: '已处理',
+      updated_at: db.serverDate(),
+    },
+  })
+}
+
 module.exports = {
   ensureUser,
   getCurrentUser,
@@ -419,4 +477,7 @@ module.exports = {
   fetchMyProblemSubmissions,
   getSubmissionDetail,
   fetchMyMarketPosts,
+  submitUserFeedback,
+  fetchAdminFeedback,
+  markFeedbackResolved,
 }

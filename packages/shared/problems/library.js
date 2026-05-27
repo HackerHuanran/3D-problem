@@ -2,6 +2,19 @@ import { getBuiltInProblemDetails, getBuiltInProblemSummaries } from '../models/
 
 const builtInProblems = getBuiltInProblemDetails()
 const builtInSummaries = getBuiltInProblemSummaries()
+const CDN_BASE = import.meta.env.VITE_TCB_CDN_BASE || 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
+
+function toCdnUrl(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  if (raw.startsWith('cloud://')) {
+    const match = raw.match(/^cloud:\/\/[^/]+\/(.+)$/)
+    return match ? `${CDN_BASE}/${match[1]}` : null
+  }
+  if (raw.startsWith('/')) return raw
+  if (/^https?:\/\//i.test(raw)) return raw
+  return `${CDN_BASE}/${raw.replace(/^\/+/, '')}`
+}
 
 export const BUILTIN_DETAIL_BY_ID = new Map(builtInProblems.map((problem) => [problem.id, problem]))
 export const BUILTIN_SUMMARY_BY_ID = new Map(builtInSummaries.map((problem) => [problem.id, problem]))
@@ -31,7 +44,7 @@ export function normalizeProblemSummary(problem) {
     difficulty: problem.difficulty || '常见',
     description: problem.description || '',
     causes: problem.causes || [],
-    image_url: problem.image_url || null,
+    image_url: toCdnUrl(problem.image_url) || null,
     searchText: problem.searchText || [
       problem.title,
       problem.subtitle,
@@ -46,7 +59,7 @@ export function mapCloudProblem(doc) {
     step: solution.step || index + 1,
     title: solution.title,
     detail: solution.detail,
-    image_url: solution.image_url || null,
+      image_url: toCdnUrl(solution.image_url) || null,
   }))
 
   return {
@@ -75,7 +88,7 @@ export function mapCloudProblem(doc) {
     causes: doc.causes || [],
     solutions,
     tips: doc.tips || '',
-    image_url: doc.image_url || null,
+    image_url: toCdnUrl(doc.image_url) || null,
     searchText: doc.search_text || [
       doc.title,
       doc.subtitle,

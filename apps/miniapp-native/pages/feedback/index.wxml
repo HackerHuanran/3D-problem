@@ -1,0 +1,42 @@
+<view class="page feedback-page">
+  <view class="hero-card feedback-hero">
+    <text class="title">反馈与建议</text>
+    <text class="subtitle">你的反馈只会发送给管理员查看，不会公开展示。我们会根据反馈持续优化问题库体验。</text>
+  </view>
+
+  <view class="panel feedback-panel">
+    <text class="meta">反馈类型</text>
+    <view class="type-row">
+      <view
+        wx:for="{{types}}"
+        wx:key="*this"
+        class="type-chip {{type === item ? 'active' : ''}}"
+        data-type="{{item}}"
+        bindtap="onTypeTap"
+      >
+        {{item}}
+      </view>
+    </view>
+
+    <text class="meta field-label">标题</text>
+    <input
+      class="text-input"
+      maxlength="40"
+      placeholder="例如：希望增加耗材筛选"
+      value="{{title}}"
+      bindinput="onTitleInput"
+    />
+
+    <text class="meta field-label">内容</text>
+    <textarea
+      class="textarea feedback-textarea"
+      maxlength="800"
+      placeholder="请尽量详细描述你的建议、投诉或遇到的问题，方便管理员判断和处理。"
+      value="{{content}}"
+      bindinput="onContentInput"
+    ></textarea>
+    <text class="count-text">{{content.length}}/800</text>
+  </view>
+
+  <button class="btn-primary submit-btn" loading="{{submitting}}" bindtap="submit">提交反馈</button>
+</view>

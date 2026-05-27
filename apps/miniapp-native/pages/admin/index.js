@@ -1,4 +1,9 @@
-const { getCurrentUser, getCurrentProfile } = require('../../utils/user-service')
+const {
+  getCurrentUser,
+  getCurrentProfile,
+  fetchAdminFeedback,
+  markFeedbackResolved,
+} = require('../../utils/user-service')
 const { listProblems, clearProblemCache, clearProblemCaches } = require('../../utils/problem-service')
 
 Page({
@@ -12,6 +17,7 @@ Page({
     opAction: '',
     opTargetId: '',
     submissions: [],
+    feedbackList: [],
     problems: [],
     problemPage: 1,
     problemPageSize: 10,
@@ -37,6 +43,7 @@ Page({
       this.setData({ currentUser: user, isAdmin: true })
       await Promise.all([
         this.loadSubmissions(),
+        this.loadFeedback(),
         this.loadProblems({ reset: true }),
       ])
     } finally {
@@ -76,6 +83,16 @@ Page({
     } catch (error) {
       console.warn('loadSubmissions failed', error)
       this.setData({ submissions: [] })
+    }
+  },
+
+  async loadFeedback() {
+    try {
+      const feedbackList = await fetchAdminFeedback({ page: 1, pageSize: 100 })
+      this.setData({ feedbackList })
+    } catch (error) {
+      console.warn('loadFeedback failed', error)
+      this.setData({ feedbackList: [] })
     }
   },
 
@@ -137,6 +154,9 @@ Page({
     this.setData({ section })
     if (section === 'problems' && !this.data.problems.length) {
       this.loadProblems({ reset: true })
+    }
+    if (section === 'feedback' && !this.data.feedbackList.length) {
+      this.loadFeedback()
     }
   },
 
@@ -258,6 +278,43 @@ Page({
         await this.confirmDeleteSubmission(item)
       },
     })
+  },
+
+  viewFeedback(e) {
+    const id = e.currentTarget.dataset.id
+    const item = this.data.feedbackList.find((row) => row.id === id)
+    if (!item) return
+    wx.showModal({
+      title: `${item.type}：${item.title}`,
+      content: `用户：${item.userName}\n状态：${item.statusText}\n\n${item.content}`,
+      showCancel: false,
+      confirmText: '知道了',
+    })
+  },
+
+  async resolveFeedback(e) {
+    const id = e.currentTarget.dataset.id
+    const item = this.data.feedbackList.find((row) => row.id === id)
+    if (!item?.id) return
+    if (item.status === 'resolved') {
+      wx.showToast({ title: '已处理过', icon: 'none' })
+      return
+    }
+
+    this.setOperationState('resolve-feedback', item.id)
+    try {
+      await markFeedbackResolved(item.id)
+      wx.showToast({ title: '已标记处理', icon: 'success' })
+      await this.loadFeedback()
+    } catch (error) {
+      wx.showModal({
+        title: '操作失败',
+        content: error?.message || '请检查数据库权限',
+        showCancel: false,
+      })
+    } finally {
+      this.clearOperationState()
+    }
   },
 
   async confirmDeleteSubmission(item) {

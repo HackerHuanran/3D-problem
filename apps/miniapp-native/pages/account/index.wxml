@@ -66,6 +66,10 @@
         <text class="quick-name">我的投稿</text>
         <text class="quick-meta">{{submissionCount}} 条</text>
       </view>
+      <view class="quick-item quick-item-link" bindtap="openFeedback">
+        <text class="quick-name">反馈与建议</text>
+        <text class="quick-meta">仅管理员可见</text>
+      </view>
     </view>
   </view>
 

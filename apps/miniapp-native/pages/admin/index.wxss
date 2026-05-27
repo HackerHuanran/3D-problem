@@ -4,6 +4,7 @@
 
 .admin-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 16rpx;
   margin-top: 20rpx;
 }
@@ -99,4 +100,22 @@
 
 .admin-problem-image-fallback {
   background: linear-gradient(135deg, #dbeafe 0%, #d1fae5 100%);
+}
+
+.badge-done {
+  background: rgba(20, 184, 166, 0.12);
+  color: #0f766e;
+}
+
+.feedback-preview {
+  display: block;
+  margin-top: 12rpx;
+  color: #57708f;
+  font-size: 24rpx;
+  line-height: 1.65;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }

@@ -5,7 +5,7 @@ import { compressImage } from '@/lib/imageUtils.js'
 import { checkImage } from '@/lib/moderate.js'
 
 const currentUser = ref(null)
-const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
+const CDN_BASE = import.meta.env.VITE_TCB_CDN_BASE || 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
 let logoutInFlight = false
 
 function normalizeAdminFlag(profile = {}) {

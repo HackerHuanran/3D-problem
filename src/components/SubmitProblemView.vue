@@ -22,7 +22,7 @@ const { ensureUserCanPublish } = useUserGuard()
 const { t } = useLocale()
 const { success, error: toastError } = useToast()
 
-const CDN_BASE = 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
+const CDN_BASE = import.meta.env.VITE_TCB_CDN_BASE || 'https://7072-problem-d1gg06meg3dd7da6b-1257726828.tcb.qcloud.la'
 
 const CATEGORIES = ['打印机整机', '喷头热端', '挤出机', '热床', 'AMS送料', '耗材材料', '切片软件', '校准调平', '打印质量', '固件设置']
 const DIFFICULTIES = ['常见', '需处理', '紧急', '进阶']

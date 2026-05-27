@@ -6,9 +6,11 @@ import { useProblemMeta } from '@/composables/useProblemMeta.js'
 import { invalidateProblemLibraryCache } from '@/composables/useProblemLibrary.js'
 import { invalidateUserStatusCache } from '@/composables/useUserGuard.js'
 import { invalidateRealnameCache } from '@/composables/useRealname.js'
+import { useFeedback } from '@/composables/useFeedback.js'
 
 const props = defineProps({ currentUser: Object })
 const emit = defineEmits(['back'])
+const { fetchFeedbackList, markFeedbackResolved } = useFeedback()
 
 const CAT_META = {
   '打印机整机': { color: '#74b9ff', bg: 'linear-gradient(135deg,#0a0f1a 0%,#0f1a2d 100%)', emoji: '🖨️' },
@@ -30,9 +32,10 @@ const sectionMeta = {
   market: { label: '需求市场', desc: '管理技术求助与代打需求' },
   providers: { label: '服务商审核', desc: '审核服务商入驻申请' },
   filamentReviews: { label: '耗材评价', desc: '审核耗材评分、体验评价与图片内容' },
-  knowledge: { label: '知识审核', desc: '审核用户分享的知识内容，控制是否展示到知识库' },
+  knowledge: { label: '知识库投稿', desc: '单独审核用户分享的知识内容，控制是否展示到知识库' },
   realname: { label: '实名认证', desc: '审核用户实名资料并控制发布权限' },
   users: { label: '用户管理', desc: '查看用户资料、权限与账号状态' },
+  feedback: { label: '用户反馈', desc: '查看用户提交的投诉、建议和问题反馈' },
   stats: { label: '数据统计', desc: '查看平台核心数据趋势' },
   problems: { label: '故障图片', desc: '给问题库补充封面图' },
 }
@@ -202,6 +205,16 @@ async function upsertProblemLibraryDoc(problemId, payload) {
   invalidateProblemLibraryCache([problemId])
 }
 
+async function updateProblemCoverInLibrary(problemId, imageUrl) {
+  const { data } = await db.collection('problems').where({ problem_id: problemId }).limit(1).get()
+  if (!data?.length) return
+  await db.collection('problems').doc(data[0]._id).update({
+    image_url: imageUrl || null,
+    updated_at: new Date(),
+  })
+  invalidateProblemLibraryCache([problemId])
+}
+
 function submissionStatusLabel(status) {
   return ({
     pending: '待审核',
@@ -267,7 +280,9 @@ async function loadSubmissions() {
       .limit(200)
       .get()
 
-    submissionItems.value = (data || []).map((doc) => {
+    const problemRows = (data || []).filter((doc) => safeText(doc.submission_type) !== 'knowledge')
+
+    submissionItems.value = problemRows.map((doc) => {
       const createdAt = getTimeValue(doc.created_at)
       const status = doc.status || 'pending'
       const submissionType = doc.submission_type || 'problem'
@@ -364,6 +379,56 @@ async function deleteSubmission(item) {
     submissionItems.value = submissionItems.value.filter((row) => row.id !== item.id)
   } finally {
     submissionActioningId.value = null
+  }
+}
+
+// 用户反馈
+const feedbackLoading = ref(false)
+const feedbackSearch = ref('')
+const feedbackFilter = ref('pending')
+const feedbackItems = ref([])
+const feedbackActioningId = ref(null)
+
+async function loadFeedback() {
+  feedbackLoading.value = true
+  try {
+    feedbackItems.value = await fetchFeedbackList({ limit: 200 })
+  } catch (error) {
+    console.warn('[Admin feedback] load failed:', error?.message || error)
+    feedbackItems.value = []
+  } finally {
+    feedbackLoading.value = false
+  }
+}
+
+const feedbackStats = computed(() => ({
+  total: feedbackItems.value.length,
+  pending: feedbackItems.value.filter((item) => item.status !== 'resolved').length,
+  resolved: feedbackItems.value.filter((item) => item.status === 'resolved').length,
+}))
+
+const filteredFeedbackItems = computed(() => {
+  const q = feedbackSearch.value.trim().toLowerCase()
+  return feedbackItems.value.filter((item) => {
+    if (feedbackFilter.value === 'pending' && item.status === 'resolved') return false
+    if (feedbackFilter.value === 'resolved' && item.status !== 'resolved') return false
+    if (!q) return true
+    return includesKeyword([
+      item.title,
+      item.content,
+      item.username,
+      item.type,
+      item.userId,
+    ], q)
+  })
+})
+
+async function resolveFeedback(item) {
+  feedbackActioningId.value = item.id
+  try {
+    await markFeedbackResolved(item)
+  } finally {
+    feedbackActioningId.value = null
   }
 }
 
@@ -644,7 +709,7 @@ async function deleteFilamentReview(item) {
   }
 }
 
-// 知识审核
+// 知识库投稿审核
 const knowledgeLoading = ref(false)
 const knowledgeItems = ref([])
 const knowledgeSearch = ref('')
@@ -1176,7 +1241,14 @@ async function loadStats() {
 }
 
 // 故障图片
-const { metaMap, fetchProblemMeta, uploadProblemImage, removeProblemImage } = useProblemMeta()
+const {
+  metaMap,
+  fetchProblemMeta,
+  uploadProblemImage,
+  removeProblemImage,
+  upsertPublicProblemImage,
+  removePublicProblemImage,
+} = useProblemMeta()
 const imgUploading = ref({})
 const imgSearch = ref('')
 
@@ -1194,7 +1266,10 @@ async function handleImgUpload(problem, event) {
   event.target.value = ''
   imgUploading.value = { ...imgUploading.value, [problem.id]: true }
   try {
-    await uploadProblemImage(problem.id, file)
+    const imageUrl = await uploadProblemImage(problem.id, file)
+    const latestMeta = metaMap.value[problem.id] || {}
+    await upsertPublicProblemImage(problem.id, imageUrl, latestMeta)
+    await updateProblemCoverInLibrary(problem.id, imageUrl)
   } catch (error) {
     alert(`上传失败：${error.message || error}`)
   } finally {
@@ -1207,6 +1282,8 @@ async function handleImgUpload(problem, event) {
 async function handleImgRemove(problem) {
   if (!confirm(`确定删除「${problem.title}」的图片吗？`)) return
   await removeProblemImage(problem.id)
+  await removePublicProblemImage(problem.id)
+  await updateProblemCoverInLibrary(problem.id, null)
 }
 
 function switchSection(section) {
@@ -1222,6 +1299,7 @@ function refreshCurrentSection() {
   else if (adminSection.value === 'knowledge') loadKnowledgeSubmissions()
   else if (adminSection.value === 'realname') loadRealnameRequests()
   else if (adminSection.value === 'users') loadUsers()
+  else if (adminSection.value === 'feedback') loadFeedback()
   else if (adminSection.value === 'stats') loadStats()
   else if (adminSection.value === 'problems') fetchProblemMeta(true)
 }
@@ -1236,6 +1314,7 @@ const currentLoading = computed(() => {
   if (adminSection.value === 'knowledge') return knowledgeLoading.value
   if (adminSection.value === 'realname') return realnameLoading.value
   if (adminSection.value === 'users') return usersLoading.value
+  if (adminSection.value === 'feedback') return feedbackLoading.value
   if (adminSection.value === 'stats') return statsLoading.value
   return false
 })
@@ -1260,9 +1339,10 @@ onMounted(() => {
         <button :class="['nsec-btn', { active: adminSection === 'market' }]" @click="switchSection('market')">需求市场</button>
         <button :class="['nsec-btn', { active: adminSection === 'providers' }]" @click="switchSection('providers')">服务商审核</button>
         <button :class="['nsec-btn', { active: adminSection === 'filamentReviews' }]" @click="switchSection('filamentReviews')">耗材评价</button>
-        <button :class="['nsec-btn', { active: adminSection === 'knowledge' }]" @click="switchSection('knowledge')">知识审核</button>
+        <button :class="['nsec-btn', { active: adminSection === 'knowledge' }]" @click="switchSection('knowledge')">知识库投稿</button>
         <button :class="['nsec-btn', { active: adminSection === 'realname' }]" @click="switchSection('realname')">实名认证</button>
         <button :class="['nsec-btn', { active: adminSection === 'users' }]" @click="switchSection('users')">用户管理</button>
+        <button :class="['nsec-btn', { active: adminSection === 'feedback' }]" @click="switchSection('feedback')">用户反馈</button>
         <button :class="['nsec-btn', { active: adminSection === 'stats' }]" @click="switchSection('stats')">数据统计</button>
         <button :class="['nsec-btn', { active: adminSection === 'problems' }]" @click="switchSection('problems')">故障图片</button>
       </div>
@@ -1480,6 +1560,86 @@ onMounted(() => {
               <div class="detail-block">
                 <span class="detail-label">发布时间</span>
                 <p class="detail-text">{{ formatDateTime(item.createdAt) }}</p>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div v-else-if="adminSection === 'feedback'">
+        <div class="stat-cards">
+          <div class="stat-card">
+            <div class="stat-num">{{ feedbackStats.total }}</div>
+            <div class="stat-label">反馈总数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num pending-color">{{ feedbackStats.pending }}</div>
+            <div class="stat-label">未处理</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num approved-color">{{ feedbackStats.resolved }}</div>
+            <div class="stat-label">已处理</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num">{{ filteredFeedbackItems.length }}</div>
+            <div class="stat-label">当前筛选</div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <input v-model="feedbackSearch" class="toolbar-search" placeholder="搜索反馈标题、内容、用户..." />
+          <div class="filter-pills">
+            <button :class="['pill-btn', { active: feedbackFilter === 'all' }]" @click="feedbackFilter = 'all'">全部</button>
+            <button :class="['pill-btn', { active: feedbackFilter === 'pending' }]" @click="feedbackFilter = 'pending'">未处理</button>
+            <button :class="['pill-btn', { active: feedbackFilter === 'resolved' }]" @click="feedbackFilter = 'resolved'">已处理</button>
+          </div>
+        </div>
+
+        <div v-if="feedbackLoading" class="loading-state">
+          <span class="spinner"></span>
+          <span>正在加载用户反馈…</span>
+        </div>
+        <div v-else-if="filteredFeedbackItems.length === 0" class="empty-state">
+          <div class="empty-icon">📮</div>
+          <div>当前没有符合条件的反馈</div>
+        </div>
+        <div v-else class="entity-list">
+          <article v-for="item in filteredFeedbackItems" :key="item.id" class="entity-card">
+            <div class="entity-head">
+              <div class="entity-main">
+                <div class="entity-title-row">
+                  <h3 class="entity-title">{{ item.title || '未命名反馈' }}</h3>
+                  <span class="mini-flag">{{ item.type }}</span>
+                  <span :class="['status-badge', item.status === 'resolved' ? 'published' : 'pending']">{{ item.statusText }}</span>
+                </div>
+                <div class="entity-meta">
+                  <span>{{ item.username }}</span>
+                  <span class="dot">·</span>
+                  <span>{{ timeAgo(item.createdAt) }}</span>
+                </div>
+              </div>
+              <div class="entity-actions">
+                <button
+                  class="action-btn approve"
+                  :disabled="feedbackActioningId === item.id || item.status === 'resolved'"
+                  @click="resolveFeedback(item)"
+                >
+                  {{ item.status === 'resolved' ? '已处理' : '标记处理' }}
+                </button>
+              </div>
+            </div>
+
+            <div class="entity-detail-grid">
+              <div class="detail-block feedback-content-block">
+                <span class="detail-label">反馈内容</span>
+                <p class="detail-text">{{ item.content || '未填写内容' }}</p>
+              </div>
+              <div class="detail-block">
+                <span class="detail-label">记录信息</span>
+                <p class="detail-text mono-text">
+                  用户ID：{{ item.userId || '未知' }}<br>
+                  提交时间：{{ formatDateTime(item.createdAt) }}
+                </p>
               </div>
             </div>
           </article>
@@ -1732,11 +1892,11 @@ onMounted(() => {
 
         <div v-if="knowledgeLoading" class="loading-state">
           <span class="spinner"></span>
-          <span>正在加载知识投稿…</span>
+          <span>正在加载知识库投稿…</span>
         </div>
         <div v-else-if="filteredKnowledgeItems.length === 0" class="empty-state">
           <div class="empty-icon">📚</div>
-          <div>当前没有符合条件的知识投稿</div>
+          <div>当前没有符合条件的知识库投稿</div>
         </div>
         <div v-else class="entity-list">
           <article v-for="item in filteredKnowledgeItems" :key="item.id" class="entity-card">
@@ -2644,6 +2804,10 @@ onMounted(() => {
   border-radius: 14px;
   background: #f7f8fb;
   border: 1px solid rgba(15, 24, 38, 0.05);
+}
+
+.feedback-content-block {
+  grid-column: span 2;
 }
 
 .detail-label {
