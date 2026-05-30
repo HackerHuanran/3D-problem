@@ -29,6 +29,7 @@
   border-radius: 20rpx;
   background: #e8eef6;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .problem-thumb-fallback {

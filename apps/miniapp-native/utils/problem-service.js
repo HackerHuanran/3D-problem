@@ -4,9 +4,69 @@ const FETCH_BATCH_SIZE = 20
 const DETAIL_CACHE_KEY = 'problem_detail_cache_v1'
 const COUNT_CACHE_KEY = 'problem_count_cache_v1'
 const LIST_CACHE_KEY = 'problem_list_cache_v1'
+const PUBLIC_URL_CACHE_KEY = 'problem_public_url_cache_v1'
+const META_CACHE_KEY = 'problem_meta_image_cache_v1'
+const THUMB_CACHE_KEY = 'problem_thumb_url_cache_v1'
 const DETAIL_CACHE_TTL = 10 * 60 * 1000
 const COUNT_CACHE_TTL = 5 * 60 * 1000
 const LIST_CACHE_TTL = 3 * 60 * 1000
+const PUBLIC_URL_CACHE_TTL = 2 * 60 * 60 * 1000
+const META_CACHE_TTL = 30 * 60 * 1000
+const THUMB_CACHE_TTL = 2 * 60 * 60 * 1000
+const ISSUE_FALLBACK_IMAGES = [
+  {
+    image: '/images/problems/diyiceng.webp',
+    patterns: [
+      /warping|first-layer|bed-adhesion|bed-level|elephant-foot|z-offset|adhesion/i,
+      /翘边|首层|粘床|第一层|调平|热床附着|象脚|z偏移|首层不稳/,
+    ],
+  },
+  {
+    image: '/images/problems/chaomian.jpg',
+    patterns: [
+      /stringing|spaghetti|ooze|blob|zit|curling/i,
+      /拉丝|炒面|细丝|挂丝|糊料|垂料|毛边|拉花/,
+    ],
+  },
+  {
+    image: '/images/problems/zhicheng.png',
+    patterns: [
+      /support|overhang|bridge|bridging|sagging/i,
+      /支撑|悬垂|拉桥|桥接|下垂|塌陷/,
+    ],
+  },
+  {
+    image: '/images/problems/Gemini_Generated_Image_uwubf7uwubf7uwub.png',
+    patterns: [
+      /no-extrusion|under-extrusion|clog|clogged|jam|extruder-clicking|grinding/i,
+      /不出丝|欠挤出|堵嘴|堵头|卡料|挤出不足|打滑|断料|空打/,
+    ],
+  },
+  {
+    image: '/images/problems/du.webp',
+    patterns: [
+      /petg-nozzle-pickup|nozzle-pickup|pickup|oozing-nozzle|nozzle-build-up/i,
+      /粘喷嘴|喷嘴挂料|喷嘴积料|喷嘴拖料|料堆在喷嘴上|petg/,
+    ],
+  },
+  {
+    image: '/images/problems/Gemini_Generated_Image_kjk6bgkjk6bgkjk6.png',
+    patterns: [
+      /ghosting|ringing|resonance|vibration|layer-shift|banding/i,
+      /鬼影|振纹|振动纹|共振|层移|横纹|波纹/,
+    ],
+  },
+]
+
+const FALLBACK_IMAGE_BY_CATEGORY = {
+  '材料': '/images/home/filament-library.jpg',
+  '耗材材料': '/images/home/filament-library.jpg',
+  'AMS送料': '/images/home/filament-library.jpg',
+  '切片': '/images/home/knowledge-library.svg',
+  '切片软件': '/images/home/knowledge-library.svg',
+  '维护': '/images/home/knowledge-library.svg',
+  '固件设置': '/images/home/knowledge-library.svg',
+}
 
 function safeGetStorage(key) {
   try {
@@ -117,6 +177,9 @@ function clearProblemCaches() {
   safeRemoveStorage(DETAIL_CACHE_KEY)
   safeRemoveStorage(COUNT_CACHE_KEY)
   safeRemoveStorage(LIST_CACHE_KEY)
+  safeRemoveStorage(PUBLIC_URL_CACHE_KEY)
+  safeRemoveStorage(META_CACHE_KEY)
+  safeRemoveStorage(THUMB_CACHE_KEY)
 }
 
 function normalizeText(value) {
@@ -173,11 +236,49 @@ function buildProblemSearchText(doc = {}) {
   ].filter(Boolean).join(' ')
 }
 
+function inferFallbackProblemImage(item = {}) {
+  const text = [
+    item.id,
+    item.title,
+    item.subtitle,
+    item.description,
+    item.category,
+    ...(item.causes || []),
+    ...(item.symptomTags || []),
+  ].filter(Boolean).join(' ')
+
+  for (const entry of ISSUE_FALLBACK_IMAGES) {
+    if (entry.patterns.some((pattern) => pattern.test(text))) {
+      return entry.image
+    }
+  }
+
+  const category = String(item.category || '').trim()
+  if (category && FALLBACK_IMAGE_BY_CATEGORY[category]) {
+    return FALLBACK_IMAGE_BY_CATEGORY[category]
+  }
+
+  const corpus = buildSearchCorpus(item)
+  if (/pla|petg|abs|asa|tpu|耗材|材料|ams/.test(corpus)) {
+    return '/images/home/filament-library.jpg'
+  }
+  if (/切片|参数|维护|固件|校准|知识/.test(corpus)) {
+    return '/images/home/knowledge-library.svg'
+  }
+  return '/images/home/problem-center.jpg'
+}
+
 async function resolvePublicUrl(value) {
   const raw = String(value || '').trim()
   if (!raw) return ''
   if (raw.startsWith('http://') || raw.startsWith('https://')) {
     return raw
+  }
+
+  const cachedUrls = readCache(PUBLIC_URL_CACHE_KEY)
+  const cachedEntry = cachedUrls[raw]
+  if (cachedEntry?.url && cachedEntry?.ts && Date.now() - cachedEntry.ts <= PUBLIC_URL_CACHE_TTL) {
+    return cachedEntry.url
   }
 
   const fileList = []
@@ -194,13 +295,49 @@ async function resolvePublicUrl(value) {
     try {
       const res = await wx.cloud.getTempFileURL({ fileList })
       const tempUrl = res?.fileList?.[0]?.tempFileURL
-      if (tempUrl) return tempUrl
+      if (tempUrl) {
+        cachedUrls[raw] = {
+          ts: Date.now(),
+          url: tempUrl,
+        }
+        writeCache(PUBLIC_URL_CACHE_KEY, cachedUrls)
+        return tempUrl
+      }
     } catch (error) {
       console.warn('resolvePublicUrl failed', error)
     }
   }
 
   return raw
+}
+
+function appendImageThumbParams(url = '', { width = 360, quality = 75 } = {}) {
+  const raw = String(url || '').trim()
+  if (!raw) return ''
+  if (raw.startsWith('/images/')) return raw
+  if (!/^https?:\/\//i.test(raw)) return raw
+  if (/imageMogr2|x-oss-process|x-cos-process/i.test(raw)) return raw
+  const joiner = raw.includes('?') ? '&' : '?'
+  return `${raw}${joiner}imageMogr2/thumbnail/${Math.max(1, Number(width) || 360)}x/interlace/1/quality/${Math.max(1, Math.min(100, Number(quality) || 75))}`
+}
+
+async function resolveProblemThumbUrl(imageUrl = '', { width = 360, quality = 75 } = {}) {
+  const raw = String(imageUrl || '').trim()
+  if (!raw) return ''
+  if (raw.startsWith('/images/')) return raw
+  const cache = readCache(THUMB_CACHE_KEY)
+  const cacheKey = `${raw}|${width}|${quality}`
+  const cachedEntry = cache[cacheKey]
+  if (cachedEntry?.url && cachedEntry?.ts && Date.now() - cachedEntry.ts <= THUMB_CACHE_TTL) {
+    return cachedEntry.url
+  }
+  const thumbUrl = appendImageThumbParams(raw, { width, quality })
+  cache[cacheKey] = {
+    ts: Date.now(),
+    url: thumbUrl || raw,
+  }
+  writeCache(THUMB_CACHE_KEY, cache)
+  return thumbUrl || raw
 }
 
 function scoreProblemMatch(item, query) {
@@ -264,11 +401,14 @@ function mapProblem(doc) {
 
 async function hydrateProblemImage(item) {
   if (!item) return item
-  const metaImage = await getProblemMeta(item.id)
-  const imageUrl = metaImage || await resolvePublicUrl(item.image_url)
+  const directImage = await resolvePublicUrl(item.image_url)
+  const metaImage = directImage ? '' : await getProblemMeta(item.id)
+  const imageUrl = directImage || metaImage || inferFallbackProblemImage(item)
+  const thumbUrl = await resolveProblemThumbUrl(imageUrl, { width: 360, quality: 72 })
   const hydrated = {
     ...item,
     image_url: imageUrl || '',
+    thumb_url: thumbUrl || imageUrl || '',
   }
   cacheProblemDetail(hydrated)
   return hydrated
@@ -428,19 +568,45 @@ async function getProblemDetail(problemId) {
 
 async function getProblemMeta(problemId) {
   if (!problemId) return ''
+  const metaCache = readCache(META_CACHE_KEY)
+  const cachedEntry = metaCache[problemId]
+  if (cachedEntry?.ts && Date.now() - cachedEntry.ts <= META_CACHE_TTL) {
+    return cachedEntry.imageUrl || ''
+  }
+
+  let imageUrl = ''
+  try {
+    const publicRes = await db.collection('problem_public_covers').where({ problem_id: problemId }).limit(1).get()
+    const publicMeta = publicRes?.data?.[0]
+    if (publicMeta?.image_url) imageUrl = await resolvePublicUrl(publicMeta.image_url)
+    else if (publicMeta?.cloud_path) imageUrl = await resolvePublicUrl(`/${publicMeta.cloud_path}`)
+    else if (publicMeta?.file_id) imageUrl = await resolvePublicUrl(publicMeta.file_id)
+  } catch (error) {
+    console.warn('getProblemMeta public cover failed', error)
+  }
+
+  if (imageUrl) {
+    metaCache[problemId] = { ts: Date.now(), imageUrl }
+    writeCache(META_CACHE_KEY, metaCache)
+    return imageUrl
+  }
+
   try {
     const { data } = await db.collection('problem_meta').where({ problem_id: problemId }).limit(1).get()
     const meta = data?.[0]
-    if (meta?.image_url) return resolvePublicUrl(meta.image_url)
-    if (meta?.cloud_path) return resolvePublicUrl(`/${meta.cloud_path}`)
-    if (meta?.file_id) {
-      return resolvePublicUrl(meta.file_id)
-    }
-    return ''
+    if (meta?.image_url) imageUrl = await resolvePublicUrl(meta.image_url)
+    else if (meta?.cloud_path) imageUrl = await resolvePublicUrl(`/${meta.cloud_path}`)
+    else if (meta?.file_id) imageUrl = await resolvePublicUrl(meta.file_id)
   } catch (error) {
     console.warn('getProblemMeta failed', error)
-    return ''
   }
+
+  metaCache[problemId] = {
+    ts: Date.now(),
+    imageUrl: imageUrl || '',
+  }
+  writeCache(META_CACHE_KEY, metaCache)
+  return imageUrl || ''
 }
 
 async function getRelatedProblems(problem) {
@@ -484,4 +650,5 @@ module.exports = {
   getDiagnosisCandidates,
   clearProblemCache,
   clearProblemCaches,
+  resolveProblemThumbUrl,
 }

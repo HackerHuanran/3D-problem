@@ -1,0 +1,26 @@
+<view class="legal-page">
+  <view class="hero-card">
+    <text class="title">用户服务协议与隐私政策</text>
+    <text class="subtitle">请在使用本小程序前仔细阅读以下内容。</text>
+    <text class="updated">更新时间：{{updatedAt}}</text>
+  </view>
+
+  <view class="panel">
+    <text class="section-title">一、用户服务协议</text>
+    <text class="paragraph">1. 本小程序用于提供 3D 打印问题查询、知识查看、耗材信息参考、问题投稿与经验分享服务。</text>
+    <text class="paragraph">2. 你应合法、合规地使用本小程序，不得发布违法违规、侵权、低俗、骚扰、虚假或误导性内容。</text>
+    <text class="paragraph">3. 你提交的问题、图片、反馈与建议仅应用于小程序内容展示、问题审核、用户服务和平台维护。</text>
+    <text class="paragraph">4. 对于用户投稿内容，平台有权基于审核规则进行展示、修改建议、下架或删除处理。</text>
+    <text class="paragraph">5. 如你对平台服务有疑问，可通过小程序内“反馈与建议”入口联系处理。</text>
+  </view>
+
+  <view class="panel">
+    <text class="section-title">二、隐私政策</text>
+    <text class="paragraph">1. 为实现基础功能，我们可能收集你主动提供的信息，包括：微信昵称、微信头像、你自行修改的昵称和性别、你提交的问题内容、上传的图片、收藏记录、浏览记录以及反馈内容。</text>
+    <text class="paragraph">2. 上述信息仅用于身份展示、内容同步、问题审核、记录保存、功能实现与服务改进，不会超范围使用。</text>
+    <text class="paragraph">3. 你未主动填写的信息，我们不会强制收集。当前版本不要求你填写手机号即可使用主要功能。</text>
+    <text class="paragraph">4. 你上传的图片、投稿内容和资料信息会存储在微信云开发服务中，用于小程序正常运行和数据同步。</text>
+    <text class="paragraph">5. 你可以在“我的 - 编辑资料”中修改昵称、头像和性别；如需反馈隐私相关问题，可通过“反馈与建议”入口提交。</text>
+    <text class="paragraph">6. 如后续功能发生变化，涉及新增个人信息收集场景时，我们会同步更新本说明及微信后台隐私保护指引。</text>
+  </view>
+</view>

@@ -9,7 +9,38 @@ const {
   fetchFavoriteProblems,
   fetchHistoryProblems,
   fetchMyProblemSubmissions,
+  readDashboardCache,
 } = require('../../utils/user-service')
+const AVATAR_TEMP_URL_CACHE_KEY = 'miniapp_avatar_temp_url_cache_v1'
+
+function readAvatarUrlCache() {
+  try {
+    return wx.getStorageSync(AVATAR_TEMP_URL_CACHE_KEY) || {}
+  } catch (error) {
+    return {}
+  }
+}
+
+function writeAvatarUrlCache(cache) {
+  try {
+    wx.setStorageSync(AVATAR_TEMP_URL_CACHE_KEY, cache)
+  } catch (error) {
+    console.warn('writeAvatarUrlCache failed', error)
+  }
+}
+
+function removeAvatarUrlCacheEntry(key = '') {
+  const cacheKey = String(key || '').trim()
+  if (!cacheKey) return
+  try {
+    const cache = wx.getStorageSync(AVATAR_TEMP_URL_CACHE_KEY) || {}
+    if (!cache[cacheKey]) return
+    delete cache[cacheKey]
+    wx.setStorageSync(AVATAR_TEMP_URL_CACHE_KEY, cache)
+  } catch (error) {
+    console.warn('removeAvatarUrlCacheEntry failed', error)
+  }
+}
 
 Page({
   data: {
@@ -27,7 +58,12 @@ Page({
     secondaryLoading: false,
     navigating: false,
     avatarLoadFailed: false,
+    avatarRetrying: false,
+    loadedTabs: {},
   },
+
+  lastLoadAt: 0,
+  lastCountsAt: 0,
 
   normalizeDisplayUser(user, profile) {
     if (!user && !profile) return null
@@ -47,14 +83,26 @@ Page({
     }
   },
 
-  async resolveAvatarDisplayUrl(value) {
+  async resolveAvatarDisplayUrl(value, options = {}) {
     const raw = String(value || '').trim()
     if (!raw) return ''
     if (!raw.startsWith('cloud://')) return raw
+    const forceRefresh = options?.forceRefresh === true
+    const cache = readAvatarUrlCache()
+    const cached = cache[raw]
+    if (!forceRefresh && cached?.url && cached?.ts && Date.now() - cached.ts <= 30 * 60 * 1000) {
+      return cached.url
+    }
 
     try {
       const res = await wx.cloud.getTempFileURL({ fileList: [raw] })
-      return res?.fileList?.[0]?.tempFileURL || raw
+      const nextUrl = res?.fileList?.[0]?.tempFileURL || raw
+      cache[raw] = {
+        ts: Date.now(),
+        url: nextUrl,
+      }
+      writeAvatarUrlCache(cache)
+      return nextUrl
     } catch (error) {
       console.warn('resolve account avatar failed', error)
       return raw
@@ -86,11 +134,10 @@ Page({
     }
   },
 
-  async onLoad() {
-    await this.loadAccountData()
-  },
+  onLoad() {},
 
   async onShow() {
+    if (Date.now() - this.lastLoadAt < 800) return
     await this.loadAccountData()
   },
 
@@ -99,35 +146,51 @@ Page({
   },
 
   async loadAccountData() {
+    this.lastLoadAt = Date.now()
     const user = await getCurrentUser()
-    const profile = user?.id ? await getCurrentProfile() : null
+    if (!user?.id) {
+      this.setData({
+        currentUser: null,
+        currentProfile: null,
+        isAdmin: false,
+        favoriteCount: 0,
+        historyCount: 0,
+        submissionCount: 0,
+        favoriteProblems: [],
+        historyProblems: [],
+        problemSubmissions: [],
+        secondaryLoading: false,
+        avatarLoadFailed: false,
+        avatarRetrying: false,
+        loadedTabs: {},
+      })
+      return
+    }
+
+    const profile = await getCurrentProfile()
     const cachedWechatProfile = this.getCachedWechatProfile()
-    const userCacheKeys = getUserCacheKeys(user?.id || '')
+    const userCacheKeys = getUserCacheKeys(user.id)
     const cachedDisplayUser = (() => {
       try {
-        return wx.getStorageSync(userCacheKeys.currentUserDisplayKey) || wx.getStorageSync('currentUserDisplay') || null
+        return wx.getStorageSync(userCacheKeys.currentUserDisplayKey) || null
       } catch (error) {
         return null
       }
     })()
     const fallbackAvatarUrl = profile?.avatarUrl || cachedDisplayUser?.avatarUrl || cachedWechatProfile?.avatarUrl || user?.avatarUrl || ''
-    const displaySource = user || cachedDisplayUser || profile
-    const profileSource = {
+    let displayUser = this.normalizeDisplayUser(user, {
       ...(cachedWechatProfile || {}),
       ...(cachedDisplayUser || {}),
       ...(profile || {}),
       avatarUrl: fallbackAvatarUrl,
-    }
-    let displayUser = this.normalizeDisplayUser(
-      displaySource,
-      profileSource,
-    )
+    })
     displayUser = await this.hydrateDisplayUserAvatar(displayUser)
     this.setData({
       currentUser: displayUser,
       currentProfile: profile,
       isAdmin: !!(user?.isAdmin || profile?.isAdmin),
       avatarLoadFailed: false,
+      avatarRetrying: false,
     })
     if (displayUser?.id) {
       try {
@@ -148,37 +211,95 @@ Page({
     }
     if (!displayUser?.id) return
 
-    if (!this.data.favoriteProblems.length && !this.data.historyProblems.length && !this.data.problemSubmissions.length) {
-      this.setData({ secondaryLoading: true })
+    const dashboardCache = readDashboardCache(displayUser.id)
+    if (dashboardCache) {
+      this.setData({
+        favoriteProblems: dashboardCache.favoriteProblems || this.data.favoriteProblems,
+        historyProblems: dashboardCache.historyProblems || this.data.historyProblems,
+        problemSubmissions: dashboardCache.problemSubmissions || this.data.problemSubmissions,
+        submissionCount: Array.isArray(dashboardCache.problemSubmissions) ? dashboardCache.problemSubmissions.length : this.data.submissionCount,
+        loadedTabs: {
+          favorites: Array.isArray(dashboardCache.favoriteProblems),
+          history: Array.isArray(dashboardCache.historyProblems),
+          submissions: Array.isArray(dashboardCache.problemSubmissions),
+        },
+      })
     }
 
+    this.loadAccountCounts(displayUser.id)
+    this.ensureActiveTabData()
+  },
+
+  async loadAccountCounts(userId = '') {
+    if (!userId) return
+    if (Date.now() - this.lastCountsAt < 1500) return
+    this.lastCountsAt = Date.now()
     Promise.all([
-      fetchFavorites(displayUser.id),
-      fetchHistory(displayUser.id),
-    ]).then(([favorites, history]) => {
+      fetchFavorites(userId),
+      fetchHistory(userId),
+      fetchMyProblemSubmissions(userId),
+    ]).then(([favorites, history, problemSubmissions]) => {
       this.setData({
         favoriteCount: favorites.length,
         historyCount: history.length,
+        submissionCount: problemSubmissions.length,
       })
+      if (!this.data.loadedTabs.submissions && this.data.activeTab === 'submissions') {
+        this.setData({
+          problemSubmissions,
+          loadedTabs: {
+            ...(this.data.loadedTabs || {}),
+            submissions: true,
+          },
+        })
+      }
+    }).catch((error) => {
+      console.warn('loadAccountCounts failed', error)
     })
+  },
 
-    Promise.all([
-      fetchFavoriteProblems(displayUser.id),
-      fetchHistoryProblems(displayUser.id),
-      fetchMyProblemSubmissions(displayUser.id),
-    ]).then(([favoriteProblems, historyProblems, problemSubmissions]) => {
+  async ensureActiveTabData() {
+    const userId = this.data.currentUser?.id || ''
+    const activeTab = this.data.activeTab || 'favorites'
+    if (!userId) return
+    if (this.data.loadedTabs?.[activeTab]) return
+    this.setData({ secondaryLoading: true })
+    try {
+      if (activeTab === 'favorites') {
+        const favoriteProblems = await fetchFavoriteProblems(userId)
+        this.setData({
+          favoriteProblems,
+          loadedTabs: {
+            ...(this.data.loadedTabs || {}),
+            favorites: true,
+          },
+        })
+      } else if (activeTab === 'history') {
+        const historyProblems = await fetchHistoryProblems(userId)
+        this.setData({
+          historyProblems,
+          loadedTabs: {
+            ...(this.data.loadedTabs || {}),
+            history: true,
+          },
+        })
+      } else if (activeTab === 'submissions') {
+        const problemSubmissions = await fetchMyProblemSubmissions(userId)
         this.setData({
           submissionCount: problemSubmissions.length,
-          favoriteProblems,
-          historyProblems,
           problemSubmissions,
-          secondaryLoading: false,
+          loadedTabs: {
+            ...(this.data.loadedTabs || {}),
+            submissions: true,
+          },
         })
-      }).catch((error) => {
-        console.warn('loadAccountData secondary fetch failed', error)
-        this.setData({ secondaryLoading: false })
-        wx.showToast({ title: '我的数据加载失败', icon: 'none' })
-      })
+      }
+    } catch (error) {
+      console.warn('ensureActiveTabData failed', error)
+      wx.showToast({ title: '当前列表加载失败', icon: 'none' })
+    } finally {
+      this.setData({ secondaryLoading: false })
+    }
   },
 
   async loginWechat() {
@@ -219,8 +340,10 @@ Page({
         currentProfile: latestProfile || profile,
         isAdmin: !!(user?.isAdmin || latestProfile?.isAdmin),
         loading: false,
-        secondaryLoading: true,
+        secondaryLoading: false,
         avatarLoadFailed: false,
+        avatarRetrying: false,
+        loadedTabs: {},
       })
       try {
         const keys = getUserCacheKeys(displayUser.id)
@@ -244,33 +367,8 @@ Page({
         icon: 'success',
       })
 
-      Promise.all([
-        fetchFavorites(displayUser.id),
-        fetchHistory(displayUser.id),
-      ]).then(([favorites, history]) => {
-        this.setData({
-          favoriteCount: favorites.length,
-          historyCount: history.length,
-        })
-      })
-
-      Promise.all([
-        fetchFavoriteProblems(displayUser.id),
-        fetchHistoryProblems(displayUser.id),
-        fetchMyProblemSubmissions(displayUser.id),
-      ]).then(([favoriteProblems, historyProblems, problemSubmissions]) => {
-        this.setData({
-          submissionCount: problemSubmissions.length,
-          favoriteProblems,
-          historyProblems,
-          problemSubmissions,
-          secondaryLoading: false,
-        })
-      }).catch((error) => {
-        console.warn('loginWechat secondary fetch failed', error)
-        this.setData({ secondaryLoading: false })
-        wx.showToast({ title: '部分数据加载较慢', icon: 'none' })
-      })
+      this.loadAccountCounts(displayUser.id)
+      this.ensureActiveTabData()
     } catch (error) {
       this.setData({ loading: false })
       wx.showModal({
@@ -281,28 +379,76 @@ Page({
     }
   },
 
-  onAvatarLoadError(e) {
-    const avatarUrl = this.data.currentUser?.avatarSrc || this.data.currentUser?.avatarDisplayUrl || this.data.currentUser?.avatarUrl || ''
-    console.warn('account avatar image load failed', { avatarUrl, detail: e?.detail })
-    this.setData({ avatarLoadFailed: true })
+  async onAvatarLoadError(e) {
+    const currentUser = this.data.currentUser || null
+    const avatarUrl = currentUser?.avatarSrc || currentUser?.avatarDisplayUrl || currentUser?.avatarUrl || ''
+    const rawAvatarUrl = String(currentUser?.rawAvatarUrl || currentUser?.avatarUrl || '').trim()
+    console.warn('account avatar image load failed', { avatarUrl, rawAvatarUrl, detail: e?.detail })
+
+    if (rawAvatarUrl.startsWith('cloud://') && !this.data.avatarRetrying) {
+      try {
+        this.setData({ avatarRetrying: true })
+        removeAvatarUrlCacheEntry(rawAvatarUrl)
+        const nextAvatarUrl = await this.resolveAvatarDisplayUrl(rawAvatarUrl, { forceRefresh: true })
+        if (nextAvatarUrl && nextAvatarUrl !== avatarUrl) {
+          this.setData({
+            currentUser: {
+              ...(currentUser || {}),
+              avatarDisplayUrl: nextAvatarUrl,
+              avatarSrc: nextAvatarUrl,
+              hasAvatarImage: true,
+            },
+            avatarLoadFailed: false,
+          })
+          return
+        }
+      } catch (error) {
+        console.warn('retry account avatar load failed', error)
+      }
+    }
+
+    this.setData({
+      avatarLoadFailed: true,
+      avatarRetrying: false,
+    })
   },
 
   onAvatarLoad() {
-    if (this.data.avatarLoadFailed) {
-      this.setData({ avatarLoadFailed: false })
+    if (this.data.avatarLoadFailed || this.data.avatarRetrying) {
+      this.setData({
+        avatarLoadFailed: false,
+        avatarRetrying: false,
+      })
     }
   },
 
   selectTab(e) {
-    this.setData({ activeTab: e.currentTarget.dataset.tab })
+    const nextTab = e.currentTarget.dataset.tab
+    this.setData({ activeTab: nextTab })
+    this.ensureActiveTabData()
   },
 
   openFeedback() {
     wx.navigateTo({ url: '/pages/feedback/index' })
   },
 
+  openLegal() {
+    wx.navigateTo({ url: '/pages/legal/index' })
+  },
+
   openProblemDetail(e) {
     if (this.data.navigating) return
+    const submissionType = e.currentTarget.dataset.submissionType || ''
+    const submissionId = e.currentTarget.dataset.submissionId || ''
+    if (submissionType === 'knowledge' && submissionId) {
+      this.setData({ navigating: true })
+      wx.showLoading({ title: '正在打开' })
+      wx.navigateTo({
+        url: `/pages/knowledge-submit/index?id=${submissionId}`,
+        complete: () => this.setData({ navigating: false }),
+      })
+      return
+    }
     const problemId = e.currentTarget.dataset.problemId || e.currentTarget.dataset.id
     if (!problemId) return
     this.setData({ navigating: true })
@@ -320,8 +466,12 @@ Page({
     if (!id) return
     this.setData({ navigating: true })
     wx.showLoading({ title: '正在打开' })
+    const item = this.data.problemSubmissions.find((row) => row.id === id)
+    const url = item?.submissionType === 'knowledge'
+      ? `/pages/knowledge-submit/index?id=${id}`
+      : `/pages/problem-submit/index?id=${id}`
     wx.navigateTo({
-      url: `/pages/problem-submit/index?id=${id}`,
+      url,
       complete: () => this.setData({ navigating: false }),
     })
   },
@@ -366,6 +516,11 @@ Page({
           submissionCount: 0,
           problemSubmissions: [],
           secondaryLoading: false,
+          favoriteProblems: [],
+          historyProblems: [],
+          favoriteCount: 0,
+          historyCount: 0,
+          loadedTabs: {},
         })
         wx.showToast({ title: '已退出', icon: 'success' })
       },

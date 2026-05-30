@@ -1,6 +1,35 @@
 const db = wx.cloud.database()
 const { getProblemDetail } = require('./problem-service')
 const MISSING_COLLECTION_CODE = -502005
+const LOGIN_SESSION_KEY = 'miniappLoginSessionUserId'
+const USER_DASHBOARD_CACHE_KEY = 'miniapp_user_dashboard_cache_v1'
+const USER_DASHBOARD_CACHE_TTL = 2 * 60 * 1000
+
+function readDashboardCache(userId = '') {
+  if (!userId) return null
+  try {
+    const cache = wx.getStorageSync(USER_DASHBOARD_CACHE_KEY) || {}
+    const entry = cache[userId]
+    if (!entry?.ts || Date.now() - entry.ts > USER_DASHBOARD_CACHE_TTL) return null
+    return entry.data || null
+  } catch (error) {
+    return null
+  }
+}
+
+function writeDashboardCache(userId = '', data = null) {
+  if (!userId || !data) return
+  try {
+    const cache = wx.getStorageSync(USER_DASHBOARD_CACHE_KEY) || {}
+    cache[userId] = {
+      ts: Date.now(),
+      data,
+    }
+    wx.setStorageSync(USER_DASHBOARD_CACHE_KEY, cache)
+  } catch (error) {
+    console.warn('writeDashboardCache failed', error)
+  }
+}
 
 function getRecordTime(record = {}) {
   const value = record?.updated_at || record?.created_at || record?.updatedAt || record?.createdAt || 0
@@ -117,6 +146,28 @@ function getUserCacheKeys(userId = '') {
   }
 }
 
+function saveLoginSession(userId = '') {
+  try {
+    if (userId) {
+      wx.setStorageSync(LOGIN_SESSION_KEY, String(userId).trim())
+    } else {
+      wx.removeStorageSync(LOGIN_SESSION_KEY)
+    }
+  } catch (error) {
+    console.warn('save login session failed', error)
+  }
+}
+
+function readLoginSession() {
+  try {
+    const value = wx.getStorageSync(LOGIN_SESSION_KEY)
+    return value ? String(value).trim() : ''
+  } catch (error) {
+    console.warn('read login session failed', error)
+    return ''
+  }
+}
+
 async function ensureUser(profile = null) {
   try {
     const res = await wx.cloud.callFunction({
@@ -143,6 +194,7 @@ async function ensureUser(profile = null) {
     getApp().globalData.currentUser = user
     try {
       if (user) {
+        saveLoginSession(user.id)
         const { currentUserKey } = getUserCacheKeys(user.id)
         wx.setStorageSync(currentUserKey, user)
         wx.setStorageSync('currentUser', user)
@@ -160,14 +212,17 @@ async function ensureUser(profile = null) {
 
 async function getCurrentUser() {
   const globalUser = getApp().globalData.currentUser || null
-  if (globalUser) return normalizeUserRecord(globalUser)
+  const loginUserId = readLoginSession()
+  if (globalUser?.id && (!loginUserId || loginUserId === globalUser.id)) {
+    return normalizeUserRecord(globalUser)
+  }
+  if (!loginUserId) return null
   try {
+    const userKeys = getUserCacheKeys(loginUserId)
     const genericCachedUser = wx.getStorageSync('currentUser') || null
-    const genericUserId = genericCachedUser?.id || genericCachedUser?.uid || ''
-    const userKeys = getUserCacheKeys(genericUserId)
-    const cachedUser = (genericUserId ? wx.getStorageSync(userKeys.currentUserKey) : null)
-      || (genericUserId ? wx.getStorageSync(userKeys.currentUserDisplayKey) : null)
-      || genericCachedUser
+    const cachedUser = wx.getStorageSync(userKeys.currentUserKey)
+      || wx.getStorageSync(userKeys.currentUserDisplayKey)
+      || (genericCachedUser?.id === loginUserId ? genericCachedUser : null)
     if (cachedUser) {
       const normalizedUser = normalizeUserRecord(cachedUser)
       getApp().globalData.currentUser = normalizedUser
@@ -176,6 +231,7 @@ async function getCurrentUser() {
   } catch (storageError) {
     console.warn('get currentUser cache failed', storageError)
   }
+  saveLoginSession('')
   return null
 }
 
@@ -245,10 +301,17 @@ async function fetchHistory(userId) {
 }
 
 async function fetchFavoriteProblems(userId) {
+  const cached = readDashboardCache(userId)
+  if (cached?.favoriteProblems) return cached.favoriteProblems
   try {
     const favoriteIds = await fetchFavorites(userId)
     const rows = await Promise.all(favoriteIds.map((id) => getProblemDetail(id)))
-    return rows.filter((item) => item?.id && item.title)
+    const favoriteProblems = rows.filter((item) => item?.id && item.title)
+    writeDashboardCache(userId, {
+      ...(cached || {}),
+      favoriteProblems,
+    })
+    return favoriteProblems
   } catch (error) {
     console.warn('fetchFavoriteProblems failed', error)
     return []
@@ -256,11 +319,18 @@ async function fetchFavoriteProblems(userId) {
 }
 
 async function fetchHistoryProblems(userId) {
+  const cached = readDashboardCache(userId)
+  if (cached?.historyProblems) return cached.historyProblems
   try {
     const historyRows = await fetchHistory(userId)
     const problemIds = historyRows.map((item) => item.problem_id).filter(Boolean)
     const rows = await Promise.all(problemIds.map((id) => getProblemDetail(id)))
-    return rows.filter((item) => item?.id && item.title)
+    const historyProblems = rows.filter((item) => item?.id && item.title)
+    writeDashboardCache(userId, {
+      ...(cached || {}),
+      historyProblems,
+    })
+    return historyProblems
   } catch (error) {
     console.warn('fetchHistoryProblems failed', error)
     return []
@@ -269,6 +339,8 @@ async function fetchHistoryProblems(userId) {
 
 async function fetchMyProblemSubmissions(userId) {
   if (!userId) return []
+  const cached = readDashboardCache(userId)
+  if (cached?.problemSubmissions) return cached.problemSubmissions
   try {
     const { data } = await db.collection('user_problems')
       .where({ user_id: userId })
@@ -276,7 +348,7 @@ async function fetchMyProblemSubmissions(userId) {
       .limit(50)
       .get()
 
-    return (data || []).map((item) => ({
+    const problemSubmissions = (data || []).map((item) => ({
       id: item._id,
       problemId: item.problem_id || item._id || '',
       title: item.title || '',
@@ -285,11 +357,17 @@ async function fetchMyProblemSubmissions(userId) {
       status: item.status || 'pending',
       statusText: item.status === 'published' ? '已通过' : item.status === 'rejected' ? '已拒绝' : '待审核',
       submissionType: item.submission_type || 'problem',
+      detailType: item.submission_type === 'knowledge' ? 'knowledge' : 'problem',
       createdAt: item.created_at || null,
       parentProblemTitle: item.parent_problem_title || '',
       image_url: item.image_url || '',
       steps: item.steps || [],
     }))
+    writeDashboardCache(userId, {
+      ...(cached || {}),
+      problemSubmissions,
+    })
+    return problemSubmissions
   } catch (error) {
     console.warn('fetchMyProblemSubmissions failed', error)
     return []
@@ -326,6 +404,7 @@ async function getSubmissionDetail(submissionId) {
         id: item.problem_id || item._id,
         docId: item._id || '',
         sourceType: 'submission',
+        submissionType: item.submission_type || 'problem',
         category: item.category || '用户投稿',
         printerType: item.printerType || '',
         stages: [],
@@ -338,6 +417,8 @@ async function getSubmissionDetail(submissionId) {
         solutions: normalizedSolutions,
         tips: item.tips || '',
         image_url: item.image_url || '',
+        detailBlocks: item.detail_blocks || [],
+        effectImages: item.effect_images || [],
         searchText: [item.title, item.subtitle, item.description].filter(Boolean).join(' '),
       }
     }
@@ -376,9 +457,10 @@ async function fetchMyMarketPosts(userId) {
 
 function logoutCurrentUser() {
   const currentUser = getApp().globalData.currentUser || null
-  const userId = currentUser?.id || currentUser?.uid || ''
+  const userId = currentUser?.id || currentUser?.uid || readLoginSession() || ''
   getApp().globalData.currentUser = null
   try {
+    saveLoginSession('')
     wx.removeStorageSync('currentUser')
     wx.removeStorageSync('currentUserDisplay')
     wx.removeStorageSync('lastWechatProfile')
@@ -388,6 +470,15 @@ function logoutCurrentUser() {
       wx.removeStorageSync(currentUserDisplayKey)
       wx.removeStorageSync(lastWechatProfileKey)
     }
+    const info = wx.getStorageInfoSync()
+    ;(info.keys || []).forEach((key) => {
+      if (
+        /^currentUser(Display)?\:/.test(key) ||
+        /^lastWechatProfile\:/.test(key)
+      ) {
+        wx.removeStorageSync(key)
+      }
+    })
   } catch (storageError) {
     console.warn('remove currentUser failed', storageError)
   }
@@ -480,4 +571,6 @@ module.exports = {
   submitUserFeedback,
   fetchAdminFeedback,
   markFeedbackResolved,
+  readDashboardCache,
+  writeDashboardCache,
 }

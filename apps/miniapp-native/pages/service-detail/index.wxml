@@ -1,0 +1,49 @@
+<view wx:if="{{loading}}" class="page">
+  <view class="empty-box">
+    <text class="subtitle">正在加载服务详情…</text>
+  </view>
+</view>
+
+<view wx:elif="{{detail}}" class="page service-detail-page">
+  <view class="hero-card detail-hero">
+    <text class="meta">PRINT SERVICE</text>
+    <text class="title detail-title">{{detail.studioName}}</text>
+    <text class="subtitle detail-subtitle">查看完整服务介绍、机器信息与联系方式。</text>
+    <view class="detail-badges">
+      <text class="badge">机器数量：{{detail.machineCount}}</text>
+      <text class="badge">机器种类：{{detail.machineModel}}</text>
+    </view>
+  </view>
+
+  <view class="panel">
+    <text class="title detail-section-title">服务描述</text>
+    <text class="detail-text">{{detail.description || '暂未填写服务描述'}}</text>
+  </view>
+
+  <view class="panel">
+    <view class="row">
+      <view wx:if="{{detail.wechatQrImageDisplay}}" class="detail-actions">
+        <button class="detail-action-btn" bindtap="previewWechatQr">添加微信</button>
+      </view>
+    </view>
+    <text wx:if="{{detail.contact}}" class="detail-text">{{detail.contact}}</text>
+    <text wx:if="{{detail.wechatQrImageDisplay}}" class="detail-tip">打开后可长按识别二维码添加微信</text>
+  </view>
+
+  <view class="panel">
+    <text class="title detail-section-title">展示图片</text>
+    <view wx:if="{{detail.imageDisplays.length}}" class="detail-gallery">
+      <image wx:for="{{detail.imageThumbDisplays}}" wx:key="index" class="detail-gallery-image" src="{{item}}" mode="aspectFill" lazy-load="true"></image>
+    </view>
+    <view wx:else class="detail-gallery-empty">
+      <text class="subtitle">暂未上传展示图片</text>
+    </view>
+  </view>
+</view>
+
+<view wx:else class="page">
+  <view class="empty-box">
+    <text class="title" style="font-size: 34rpx;">服务详情加载失败</text>
+    <text class="subtitle">{{loadError || '当前服务不存在或已删除'}}</text>
+  </view>
+</view>

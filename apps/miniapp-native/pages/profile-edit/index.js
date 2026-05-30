@@ -1,11 +1,24 @@
 const { getCurrentUser, getCurrentProfile, ensureUser, getUserCacheKeys } = require('../../utils/user-service')
+const AVATAR_TEMP_URL_CACHE_KEY = 'miniapp_avatar_temp_url_cache_v1'
+
+function clearAvatarTempCache(fileId = '') {
+  const key = String(fileId || '').trim()
+  if (!key) return
+  try {
+    const cache = wx.getStorageSync(AVATAR_TEMP_URL_CACHE_KEY) || {}
+    if (!cache[key]) return
+    delete cache[key]
+    wx.setStorageSync(AVATAR_TEMP_URL_CACHE_KEY, cache)
+  } catch (error) {
+    console.warn('clearAvatarTempCache failed', error)
+  }
+}
 
 Page({
   data: {
     currentUser: null,
     currentProfile: null,
     username: '',
-    phone: '',
     gender: 'unknown',
     avatarUrl: '',
     avatarDisplayUrl: '',
@@ -42,7 +55,6 @@ Page({
       currentUser,
       currentProfile: profile,
       username: currentUser.username || '',
-      phone: profile?.phone || cachedDisplayUser?.phone || user?.phone || '',
       gender: String(profile?.gender ?? cachedDisplayUser?.gender ?? user?.gender ?? 'unknown'),
       avatarUrl: currentUser.avatarUrl || '',
       avatarDisplayUrl,
@@ -55,6 +67,7 @@ Page({
     if (!raw.startsWith('cloud://')) return raw
 
     try {
+      clearAvatarTempCache(raw)
       const res = await wx.cloud.getTempFileURL({ fileList: [raw] })
       return res?.fileList?.[0]?.tempFileURL || raw
     } catch (error) {
@@ -65,10 +78,6 @@ Page({
 
   onUsernameInput(e) {
     this.setData({ username: e.detail.value })
-  },
-
-  onPhoneInput(e) {
-    this.setData({ phone: e.detail.value })
   },
 
   onGenderChange(e) {
@@ -98,7 +107,6 @@ Page({
     }
 
     const username = String(this.data.username || '').trim()
-    const phone = String(this.data.phone || '').trim()
     const gender = String(this.data.gender || 'unknown')
 
     this.setData({ saving: true })
@@ -120,7 +128,6 @@ Page({
           action: 'saveProfile',
           profile: {
             username: username || '微信用户',
-            phone,
             gender,
             avatarUrl,
           },
@@ -138,7 +145,6 @@ Page({
         username: savedUser.username || username || '微信用户',
         avatarUrl: savedUser.avatarUrl || avatarUrl,
         avatar: savedUser.avatar || (username ? username.slice(0, 1) : '微'),
-        phone: savedUser.phone || phone,
         gender: savedUser.gender || gender,
         source: 'miniapp_profile_edit',
         profileEdited: true,

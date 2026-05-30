@@ -2,10 +2,21 @@
   <view class="hero-card">
     <text class="title">知识库</text>
     <text class="subtitle">新手入门、参数解释和维护常识，先从这里快速了解 3D 打印。</text>
+    <button class="btn-primary knowledge-submit-btn" bindtap="openKnowledgeSubmit">分享心得</button>
   </view>
 
   <view class="panel">
     <input class="search-input" placeholder="搜索知识点…" value="{{query}}" bindinput="onSearchInput" />
+  </view>
+
+  <view wx:if="{{insights.length}}" class="list">
+    <view wx:for="{{insights}}" wx:key="id" class="card">
+      <text class="title" style="font-size: 30rpx;">{{item.title}}</text>
+      <text class="subtitle">{{item.subtitle}}</text>
+      <view wx:if="{{item.effectThumbImages.length}}" class="knowledge-effect-row">
+        <image wx:for="{{item.effectThumbImages}}" wx:key="index" class="knowledge-effect-image" src="{{item}}" mode="aspectFill" lazy-load="true"></image>
+      </view>
+    </view>
   </view>
 
   <view class="list">

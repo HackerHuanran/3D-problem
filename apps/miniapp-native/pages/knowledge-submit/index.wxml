@@ -1,0 +1,63 @@
+<view class="page">
+  <view class="hero-card">
+    <text class="title">{{pageTitle}}</text>
+    <text class="subtitle">提交后需要管理员审核，审核通过后会显示在知识库和我的投稿里。</text>
+  </view>
+
+  <view class="panel">
+    <text class="meta">标题</text>
+    <input class="text-input" placeholder="例如：如何通过回抽参数减少拉丝" value="{{title}}" bindinput="onTitleInput" />
+
+    <view class="step-header">
+      <view>
+        <text class="meta">详细描述</text>
+        <text class="step-header-note">每段都可以写文字并配图</text>
+      </view>
+      <view class="step-add-btn" bindtap="addDescriptionBlock">
+        <text class="step-add-icon">+</text>
+        <text class="step-add-text">添加段落</text>
+      </view>
+    </view>
+
+    <view class="list" style="margin-top: 18rpx;">
+      <view wx:for="{{descriptionBlocks}}" wx:for-item="block" wx:for-index="blockIndex" wx:key="index" class="step-item">
+        <view class="row">
+          <text class="meta">段落 {{blockIndex + 1}}</text>
+          <button wx:if="{{descriptionBlocks.length > 1}}" class="btn-danger" size="mini" data-index="{{blockIndex}}" bindtap="removeDescriptionBlock">删除</button>
+        </view>
+        <textarea class="textarea" placeholder="填写这一段的详细心得、参数经验或注意事项" value="{{block.text}}" data-index="{{blockIndex}}" bindinput="onBlockTextInput"></textarea>
+
+        <view class="upload-mini-head">
+          <text class="meta">段落图片</text>
+          <text class="upload-mini-link" data-index="{{blockIndex}}" bindtap="chooseBlockImages">添加图片</text>
+        </view>
+        <view class="image-grid">
+          <view wx:for="{{block.images}}" wx:for-item="image" wx:for-index="imageIndex" wx:key="index" class="image-grid-item">
+            <image class="image-grid-image" src="{{image}}" mode="aspectFill"></image>
+            <text class="image-grid-remove" data-block-index="{{blockIndex}}" data-image-index="{{imageIndex}}" bindtap="removeBlockImage">删除</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="step-header">
+      <view>
+        <text class="meta">效果展示</text>
+        <text class="step-header-note">上传改善后的效果图片</text>
+      </view>
+      <view class="step-add-btn" bindtap="chooseEffectImages">
+        <text class="step-add-icon">+</text>
+        <text class="step-add-text">上传图片</text>
+      </view>
+    </view>
+
+    <view class="image-grid" style="margin-top: 18rpx;">
+      <view wx:for="{{effectImages}}" wx:key="index" class="image-grid-item image-grid-item-large">
+        <image class="image-grid-image" src="{{item}}" mode="aspectFill"></image>
+        <text class="image-grid-remove" data-index="{{index}}" bindtap="removeEffectImage">删除</text>
+      </view>
+    </view>
+  </view>
+
+  <button class="btn-primary" loading="{{submitting}}" bindtap="submit">提交心得</button>
+</view>

@@ -6,6 +6,7 @@ Page({
     activeMaterial: '全部',
     materials: ['全部', 'PLA', 'PLA+', 'PETG', 'TPU', 'ABS', 'ASA', '光固化树脂'],
     items: [],
+    searchTimer: null,
   },
 
   async onLoad() {
@@ -29,11 +30,23 @@ Page({
 
   onQueryInput(e) {
     this.setData({ query: e.detail.value })
-    this.refreshList()
+    if (this.data.searchTimer) {
+      clearTimeout(this.data.searchTimer)
+    }
+    const searchTimer = setTimeout(() => {
+      this.refreshList()
+    }, 220)
+    this.setData({ searchTimer })
   },
 
   selectMaterial(e) {
     this.setData({ activeMaterial: e.currentTarget.dataset.material })
     this.refreshList()
+  },
+
+  onUnload() {
+    if (this.data.searchTimer) {
+      clearTimeout(this.data.searchTimer)
+    }
   },
 })

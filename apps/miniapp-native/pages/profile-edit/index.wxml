@@ -1,7 +1,7 @@
 <view class="page">
   <view class="hero-card">
     <text class="title">编辑资料</text>
-    <text class="subtitle">可修改头像、昵称、手机号和性别。</text>
+    <text class="subtitle">可修改头像、昵称和性别。</text>
   </view>
 
   <view class="panel">
@@ -16,9 +16,6 @@
 
     <text class="meta" style="margin-top: 22rpx; display:block;">昵称</text>
     <input class="text-input" value="{{username}}" placeholder="请输入昵称" bindinput="onUsernameInput" />
-
-    <text class="meta" style="margin-top: 22rpx; display:block;">手机号</text>
-    <input class="text-input" value="{{phone}}" placeholder="请输入手机号" bindinput="onPhoneInput" />
 
     <text class="meta" style="margin-top: 22rpx; display:block;">性别</text>
     <radio-group class="gender-group" bindchange="onGenderChange">

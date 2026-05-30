@@ -1,0 +1,43 @@
+<view class="page services-page">
+  <view class="hero-card services-hero">
+    <text class="meta">PRINT SERVICE</text>
+    <text class="title">打印服务</text>
+    <text class="subtitle">列表先看简要信息，点进详情再查看完整介绍、联系方式和展示图片。</text>
+  </view>
+
+  <view class="panel">
+    <view class="row">
+      <text class="title" style="font-size: 32rpx;">服务列表</text>
+      <text class="meta">{{services.length}} 家</text>
+    </view>
+
+    <view wx:if="{{loading}}" class="empty-box">
+      <text class="subtitle">正在加载打印服务…</text>
+    </view>
+
+    <view wx:elif="{{services.length}}" class="service-list">
+      <view wx:for="{{services}}" wx:key="id" class="card service-card" data-id="{{item.id}}" bindtap="openServiceDetail">
+        <view class="service-top">
+          <image wx:if="{{item.coverImageThumb || item.coverImageDisplay}}" class="service-cover" src="{{item.coverImageThumb || item.coverImageDisplay}}" mode="aspectFit" lazy-load="true"></image>
+          <view wx:else class="service-cover service-cover-fallback"></view>
+          <view class="service-main">
+            <view class="service-brand">
+              <text class="service-name">{{item.studioName}}</text>
+              <text class="badge service-badge">机器数量：{{item.machineCount}}</text>
+            </view>
+            <text class="service-model">机器种类：{{item.machineModel}}</text>
+            <text wx:if="{{item.briefDescription}}" class="service-brief">{{item.briefDescription}}</text>
+            <view class="service-footer">
+              <text class="service-meta">图片 {{item.imageCount}} 张</text>
+              <text class="service-link">查看详情</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:else class="empty-box">
+      <text class="subtitle">管理员还没有添加打印服务信息。</text>
+    </view>
+  </view>
+</view>

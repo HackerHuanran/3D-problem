@@ -1,0 +1,56 @@
+.legal-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f4f8ff 0%, #eef4ff 100%);
+  padding: 28rpx 24rpx 40rpx;
+  box-sizing: border-box;
+}
+
+.hero-card,
+.panel {
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 24rpx;
+  padding: 28rpx;
+  box-shadow: 0 18rpx 48rpx rgba(37, 99, 235, 0.08);
+}
+
+.panel {
+  margin-top: 20rpx;
+}
+
+.title {
+  display: block;
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #102a43;
+}
+
+.subtitle {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #526581;
+}
+
+.updated {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 22rpx;
+  color: #7b8794;
+}
+
+.section-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #102a43;
+  margin-bottom: 14rpx;
+}
+
+.paragraph {
+  display: block;
+  font-size: 26rpx;
+  line-height: 1.8;
+  color: #334e68;
+  margin-top: 10rpx;
+}

@@ -19,8 +19,8 @@
     <view class="hero-highlight">
       <text class="hero-highlight-label">个人工作台</text>
       <text class="hero-highlight-desc">收藏、最近浏览和投稿会在这里统一同步。</text>
-      <text class="hero-highlight-desc" wx:if="{{currentUser.phone || currentUser.gender}}">
-        {{currentUser.phone ? ('手机号 ' + currentUser.phone) : ''}}{{currentUser.phone && currentUser.gender ? ' · ' : ''}}{{currentUser.gender ? ('性别 ' + (currentUser.gender === 'male' ? '男' : currentUser.gender === 'female' ? '女' : '保密')) : ''}}
+      <text class="hero-highlight-desc" wx:if="{{currentUser.gender}}">
+        {{currentUser.gender ? ('性别 ' + (currentUser.gender === 'male' ? '男' : currentUser.gender === 'female' ? '女' : '保密')) : ''}}
       </text>
     </view>
   </view>
@@ -31,6 +31,10 @@
     <text class="guest-title">登录后同步你的问题记录</text>
     <text class="guest-subtitle">登录后可查看收藏、最近浏览、投稿记录和管理入口。</text>
     <button class="btn-primary guest-btn" loading="{{loading}}" bindtap="loginWechat">微信登录</button>
+    <view class="guest-legal">
+      <text class="guest-legal-text">登录前请阅读并同意</text>
+      <text class="guest-legal-link" bindtap="openLegal">《用户服务协议》与《隐私政策》</text>
+    </view>
   </view>
 
   <view wx:if="{{currentUser}}" class="stats-strip">
@@ -120,12 +124,14 @@
 
     <view wx:if="{{!secondaryLoading && activeTab === 'submissions'}}" class="content-list">
       <view wx:if="{{problemSubmissions.length}}">
-        <view wx:for="{{problemSubmissions}}" wx:key="id" class="content-item" data-id="{{item.problemId || item.id}}" data-problem-id="{{item.problemId}}" bindtap="openProblemDetail">
+        <view wx:for="{{problemSubmissions}}" wx:key="id" class="content-item" data-id="{{item.problemId || item.id}}" data-problem-id="{{item.problemId}}" data-submission-type="{{item.submissionType}}" data-submission-id="{{item.id}}" bindtap="openProblemDetail">
           <view class="content-head">
             <text class="content-title">{{item.title}}</text>
             <text class="content-badge">{{item.statusText || item.status}}</text>
           </view>
-          <text class="content-desc">{{item.submissionType === 'solution' ? ('关联问题：' + item.parentProblemTitle) : item.subtitle}}</text>
+          <text class="content-desc">
+            {{item.submissionType === 'knowledge' ? ('知识心得 · ' + item.subtitle) : item.submissionType === 'solution' ? ('关联问题：' + item.parentProblemTitle) : item.subtitle}}
+          </text>
           <view class="content-foot">
             <text class="content-meta">{{item.updatedAtText || '可继续修改后重新提交'}}</text>
             <button class="edit-button" size="mini" data-id="{{item.id}}" catchtap="editSubmission">修改投稿</button>
@@ -140,6 +146,14 @@
   </view>
 
   <view wx:if="{{currentUser}}" class="menu-card">
+    <view class="menu-cell" bindtap="openLegal">
+      <view class="menu-copy">
+        <text class="menu-title">用户服务协议与隐私政策</text>
+        <text class="menu-desc">查看平台服务规则与个人信息处理说明</text>
+      </view>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-divider"></view>
     <view wx:if="{{isAdmin}}" class="menu-cell" bindtap="openAdmin">
       <view class="menu-copy">
         <text class="menu-title">管理后台</text>

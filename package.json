@@ -8,10 +8,12 @@
     "build": "vite build && node scripts/generate-sitemap.cjs",
     "preview": "vite preview",
     "sync:problems": "node scripts/sync-problems.cjs",
+    "sync:problems:miniapp": "VITE_TCB_ENV_ID=cloud1-d0gqkk2h2dea42d2b node scripts/sync-problems.cjs",
     "sync:user-problems": "node scripts/sync-user-problems-to-library.cjs",
     "export:problem-covers": "node scripts/export-problem-covers.cjs",
     "backfill:problem-images": "node scripts/backfill-problem-images.cjs",
     "sync:problem-public-covers": "node scripts/sync-problem-public-covers.cjs",
+    "sync:problem-public-covers:miniapp": "VITE_TCB_ENV_ID=cloud1-d0gqkk2h2dea42d2b node scripts/sync-problem-public-covers.cjs",
     "cleanup:user-problems": "node scripts/cleanup-unpublished-user-problems.cjs",
     "postinstall": "patch-package"
   },

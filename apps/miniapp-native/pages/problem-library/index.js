@@ -30,26 +30,44 @@ Page({
     loadingMore: false,
     problems: [],
     page: 1,
-    pageSize: 20,
+    pageSize: 10,
     hasMore: true,
     searchTimer: null,
   },
+
+  lastRefreshAt: 0,
+  skipNextShowRefresh: false,
 
   onLoad(query) {
     wx.hideLoading()
     const nextQuery = query.q ? decodeURIComponent(query.q) : ''
     const cache = readLibraryCache()
+    this.skipNextShowRefresh = true
     if (cache && cache.query === nextQuery && Array.isArray(cache.problems)) {
+      this.lastRefreshAt = cache.ts || Date.now()
       this.setData({
         query: cache.query || '',
         problems: cache.problems || [],
         page: cache.page || 1,
         hasMore: cache.hasMore !== false,
       })
-    } else {
-      this.setData({ query: nextQuery })
+      return
     }
+    this.setData({ query: nextQuery })
     this.loadProblems({ reset: true })
+  },
+
+  async onShow() {
+    if (this.skipNextShowRefresh) {
+      this.skipNextShowRefresh = false
+      return
+    }
+    if (String(this.data.query || '').trim()) return
+    if (this.data.loading || this.data.loadingMore) return
+    if (this.data.problems.length && Date.now() - this.lastRefreshAt < LIBRARY_CACHE_TTL) {
+      return
+    }
+    await this.loadProblems({ reset: true })
   },
 
   onUnload() {
@@ -97,6 +115,7 @@ Page({
         page: nextPage + 1,
         hasMore: hasQuery ? false : problems.length === this.data.pageSize,
       })
+      this.lastRefreshAt = Date.now()
       writeLibraryCache({
         query: this.data.query,
         problems: mergedProblems,

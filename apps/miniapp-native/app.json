@@ -6,6 +6,10 @@
     "pages/problem-submit/index",
     "pages/feedback/index",
     "pages/profile-edit/index",
+    "pages/legal/index",
+    "pages/services/index",
+    "pages/service-detail/index",
+    "pages/knowledge-submit/index",
     "pages/filament/index",
     "pages/diagnosis/index",
     "pages/knowledge/index",
@@ -34,5 +38,6 @@
     "navigationBarTextStyle": "black",
     "backgroundColor": "#f4f9ff"
   },
+  "lazyCodeLoading": "requiredComponents",
   "sitemapLocation": "sitemap.json"
 }

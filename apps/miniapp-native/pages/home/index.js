@@ -1,7 +1,8 @@
-const { getCurrentUser } = require('../../utils/user-service')
-const { getProblemCount, getProblemDetail, listProblems } = require('../../utils/problem-service')
+const { getCurrentUser, fetchHistory, readDashboardCache } = require('../../utils/user-service')
+const { getProblemCount, getProblemDetail, listProblems, resolveProblemThumbUrl } = require('../../utils/problem-service')
 const HOME_CACHE_KEY = 'miniapp_home_cache_v1'
 const HOME_CACHE_TTL = 2 * 60 * 1000
+const HOME_REFRESH_INTERVAL = 30 * 1000
 
 function getHomeCache() {
   try {
@@ -52,10 +53,20 @@ Page({
         desc: '学习参数和维护知识',
         image: '/images/home/knowledge-library.svg',
       },
+      {
+        id: 'services',
+        title: '打印服务',
+        desc: '查看工作室与工厂信息',
+        image: '/images/home/services-workshop.jpg',
+      },
     ],
   },
 
+  lastRefreshAt: 0,
+  refreshTimer: null,
+
   onLoad() {
+    wx.hideLoading()
     const cache = getHomeCache()
     if (!cache) return
     this.setData({
@@ -66,11 +77,27 @@ Page({
   },
 
   async onShow() {
-    await Promise.all([
-      this.loadRecentProblems(),
-      this.loadProblemCount(),
-      this.loadFeaturedProblems(),
-    ])
+    wx.hideLoading()
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer)
+      this.refreshTimer = null
+    }
+    const hasVisibleData = !!(this.data.problemCount || this.data.recentProblems.length || this.data.featuredProblems.length)
+    const shouldSkipRefresh = hasVisibleData && Date.now() - this.lastRefreshAt < HOME_REFRESH_INTERVAL
+    if (shouldSkipRefresh) return
+    this.refreshTimer = setTimeout(() => {
+      this.lastRefreshAt = Date.now()
+      this.loadRecentProblems()
+      this.loadProblemCount()
+      this.loadFeaturedProblems()
+    }, hasVisibleData ? 80 : 0)
+  },
+
+  onUnload() {
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer)
+      this.refreshTimer = null
+    }
   },
 
   onQueryInput(e) {
@@ -97,6 +124,7 @@ Page({
   },
 
   async loadFeaturedProblems() {
+    if (this.data.featuredProblems.length) return
     try {
       const featuredProblems = await listProblems({ page: 1, pageSize: 3 })
       this.setData({ featuredProblems })
@@ -150,6 +178,14 @@ Page({
       })
       return
     }
+    if (id === 'services') {
+      wx.showLoading({ title: '正在打开' })
+      wx.navigateTo({
+        url: '/pages/services/index',
+        complete: () => this.setData({ navigating: false }),
+      })
+      return
+    }
     this.setData({ navigating: false })
   },
 
@@ -171,14 +207,24 @@ Page({
       this.setData({ recentProblems: [] })
       return
     }
-    const db = wx.cloud.database()
+    const dashboardCache = readDashboardCache(user.id)
+    if (Array.isArray(dashboardCache?.historyProblems) && dashboardCache.historyProblems.length) {
+      const recentProblems = dashboardCache.historyProblems.map((item, index) => ({
+        id: item._id || item.id || `cached-recent-${index}`,
+        problemId: item.id || item.problemId || '',
+        title: item.title || '',
+        subtitle: item.subtitle || '',
+        category: item.category || '',
+        image_url: item.image_url || '',
+        thumb_url: item.thumb_url || item.image_url || '',
+      })).filter((item) => item.problemId)
+      if (recentProblems.length) {
+        this.setData({ recentProblems })
+        setHomeCache({ recentProblems })
+      }
+    }
     try {
-      const { data } = await db.collection('problem_history')
-        .where({ user_id: user.id })
-        .orderBy('viewed_at', 'desc')
-        .limit(10)
-        .get()
-      const rows = data || []
+      const rows = await fetchHistory(user.id)
       if (!rows.length) {
         this.setData({ recentProblems: [] })
         setHomeCache({ recentProblems: [] })
@@ -189,6 +235,7 @@ Page({
         const doc = await getProblemDetail(historyItem.problem_id)
         if (!doc?.id || seen.has(doc.id)) return null
         seen.add(doc.id)
+        const thumbUrl = await resolveProblemThumbUrl(doc.image_url, { width: 240, quality: 70 })
         return {
           id: historyItem._id || `${historyItem.problem_id || 'recent'}-${index}`,
           problemId: doc.id,
@@ -196,6 +243,7 @@ Page({
           subtitle: doc.subtitle || '',
           category: doc.category || '',
           image_url: doc.image_url || '',
+          thumb_url: thumbUrl || doc.thumb_url || doc.image_url || '',
         }
       }))).filter(Boolean)
       this.setData({ recentProblems })

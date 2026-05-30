@@ -1,1 +1,17 @@
-/* 复用全局样式即可 */
+.knowledge-submit-btn {
+  margin-top: 24rpx;
+  width: 100%;
+}
+
+.knowledge-effect-row {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 18rpx;
+}
+
+.knowledge-effect-image {
+  width: calc((100% - 24rpx) / 3);
+  height: 180rpx;
+  border-radius: 18rpx;
+  background: #e8eef6;
+}

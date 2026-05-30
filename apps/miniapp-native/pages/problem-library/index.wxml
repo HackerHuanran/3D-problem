@@ -20,7 +20,7 @@
 
     <view wx:elif="{{problems.length}}" class="problem-list">
       <view wx:for="{{problems}}" wx:key="id" class="card problem-card" data-id="{{item.id}}" bindtap="openDetail">
-        <image wx:if="{{item.image_url}}" class="problem-thumb" src="{{item.image_url}}" mode="aspectFill" lazy-load="true"></image>
+        <image wx:if="{{item.thumb_url || item.image_url}}" class="problem-thumb" src="{{item.thumb_url || item.image_url}}" mode="aspectFit" lazy-load="true"></image>
         <view wx:else class="problem-thumb problem-thumb-fallback"></view>
         <view class="problem-copy">
           <view class="row problem-head">

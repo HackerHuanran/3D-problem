@@ -1,0 +1,97 @@
+.service-detail-page {
+  gap: 22rpx;
+}
+
+.detail-hero {
+  padding: 34rpx 28rpx 28rpx;
+  border-radius: 30rpx;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(96, 165, 250, 0.22), transparent 34%),
+    radial-gradient(circle at 88% 0%, rgba(20, 184, 166, 0.2), transparent 30%),
+    linear-gradient(135deg, #08111f 0%, #10213d 56%, #0b3f46 100%);
+  border: 1rpx solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 24rpx 60rpx rgba(7, 21, 41, 0.18);
+}
+
+.detail-title {
+  color: #ffffff;
+}
+
+.detail-subtitle {
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 18rpx;
+}
+
+.detail-section-title {
+  font-size: 30rpx;
+}
+
+.detail-text {
+  display: block;
+  margin-top: 16rpx;
+  color: #08203d;
+  font-size: 26rpx;
+  line-height: 1.8;
+}
+
+.detail-copy {
+  color: #1d4ed8;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.detail-actions {
+  display: flex;
+  width: 100%;
+}
+
+.detail-action-btn {
+  margin: 0;
+  width: 100%;
+  padding: 0 28rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: #ffffff;
+  font-size: 26rpx;
+  font-weight: 700;
+  text-align: center;
+}
+
+.detail-action-btn::after {
+  border: none;
+}
+
+.detail-tip {
+  display: block;
+  margin-top: 14rpx;
+  color: #6b86a8;
+  font-size: 22rpx;
+  line-height: 1.7;
+}
+
+.detail-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-top: 16rpx;
+}
+
+.detail-gallery-image {
+  width: 100%;
+  height: 360rpx;
+  border-radius: 24rpx;
+  background: #e8eef6;
+  display: block;
+}
+
+.detail-gallery-empty {
+  margin-top: 16rpx;
+}

@@ -1,0 +1,120 @@
+.textarea {
+  margin-top: 14rpx;
+  width: 100%;
+  min-height: 190rpx;
+  padding: 22rpx;
+  box-sizing: border-box;
+  border-radius: 20rpx;
+  background: #f8fbff;
+  border: 1rpx solid rgba(37, 99, 235, 0.08);
+  font-size: 28rpx;
+  color: #08203d;
+}
+
+.step-header {
+  margin-top: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.step-header-note {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #6b86a8;
+}
+
+.step-add-btn {
+  flex-shrink: 0;
+  min-height: 72rpx;
+  padding: 0 22rpx;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, rgba(29, 78, 216, 0.1) 0%, rgba(20, 184, 166, 0.12) 100%);
+  border: 1rpx solid rgba(29, 78, 216, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+  box-sizing: border-box;
+}
+
+.step-add-icon {
+  color: #1d4ed8;
+  font-size: 30rpx;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.step-add-text {
+  color: #1d4ed8;
+  font-size: 26rpx;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.step-item {
+  padding: 20rpx;
+  border-radius: 22rpx;
+  background: #fbfdff;
+  border: 1rpx solid rgba(37, 99, 235, 0.08);
+}
+
+.upload-mini-head {
+  margin-top: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.upload-mini-link {
+  color: #1d4ed8;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.image-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin-top: 14rpx;
+}
+
+.image-grid-item {
+  position: relative;
+  width: calc((100% - 28rpx) / 3);
+  height: 180rpx;
+  border-radius: 18rpx;
+  overflow: hidden;
+  background: #e8eef6;
+}
+
+.image-grid-item-large {
+  width: calc((100% - 14rpx) / 2);
+  height: 220rpx;
+}
+
+.image-grid-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.image-grid-remove {
+  position: absolute;
+  right: 10rpx;
+  bottom: 10rpx;
+  padding: 6rpx 12rpx;
+  border-radius: 999rpx;
+  background: rgba(15, 23, 42, 0.72);
+  color: #ffffff;
+  font-size: 20rpx;
+}
+
+.btn-primary {
+  margin-top: 24rpx;
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+}
