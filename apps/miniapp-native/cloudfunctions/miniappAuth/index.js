@@ -82,6 +82,25 @@ function normalizeGender(value) {
   return ['male', 'female', 'unknown'].includes(gender) ? gender : 'unknown'
 }
 
+function normalizePoints(value) {
+  const points = Number(value || 0)
+  return Number.isFinite(points) && points > 0 ? Math.floor(points) : 0
+}
+
+function buildPointsLogId(uid = '', sourceType = '', sourceId = '') {
+  return `${String(uid || '').trim()}_${String(sourceType || '').trim()}_${String(sourceId || '').trim()}`
+    .replace(/[^a-zA-Z0-9_-]/g, '')
+}
+
+function getChinaDateKey(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
+
 function buildUser(openid, profile = {}) {
   const uid = `wx_${openid}`
   const username = String(profile.username || pickWechatName(profile) || `微信用户${String(openid).slice(-4).toUpperCase()}`).trim()
@@ -229,6 +248,386 @@ async function syncLoginProfile(uid, openid, wechatProfile = {}) {
   }
   await db.collection('profiles').add({ data: addProfile })
   return addProfile
+}
+
+async function ensureProfile(uid, openid = '') {
+  const rows = await loadProfileRows(uid)
+  const existed = pickPreferredProfile(rows)
+  if (existed) {
+    await cleanupDuplicateProfiles(rows, existed._id)
+    return existed
+  }
+
+  const username = `微信用户${String(openid || uid).slice(-4).toUpperCase()}`
+  const profile = {
+    uid,
+    username,
+    avatar: username.slice(0, 1) || '微',
+    avatarUrl: '',
+    phone: '',
+    gender: 'unknown',
+    points: 0,
+    status: 'active',
+    isAdmin: false,
+    source: 'miniapp_auto_create',
+    profileEdited: false,
+    created_at: db.serverDate(),
+    updated_at: db.serverDate(),
+  }
+  const addRes = await db.collection('profiles').add({ data: profile })
+  return {
+    ...profile,
+    _id: addRes?._id || '',
+  }
+}
+
+async function awardSubmissionPoints({ uid = '', openid = '', submissionId = '', submissionType = '', operatorUid = '' } = {}) {
+  const safeSubmissionId = String(submissionId || '').trim()
+  const safeSubmissionType = String(submissionType || 'problem').trim() || 'problem'
+  const safeOperatorUid = String(operatorUid || uid || '').trim()
+  if (!uid || !safeSubmissionId) {
+    return {
+      ok: false,
+      error: '缺少积分来源信息',
+    }
+  }
+
+  if (safeOperatorUid && safeOperatorUid !== uid) {
+    const rows = await loadProfileRows(safeOperatorUid)
+    const operatorProfile = pickPreferredProfile(rows) || {}
+    if (!isAdminProfile(operatorProfile)) {
+      return {
+        ok: false,
+        error: '仅管理员可给其他用户发放积分',
+      }
+    }
+  }
+
+  try {
+    const { data } = await db.collection('user_problems').where({ _id: safeSubmissionId }).limit(1).get()
+    const submission = data?.[0] || null
+    if (!submission) {
+      return {
+        ok: false,
+        error: '投稿不存在，无法发放积分',
+      }
+    }
+    if (submission.user_id && submission.user_id !== uid) {
+      const rows = await loadProfileRows(safeOperatorUid)
+      const operatorProfile = pickPreferredProfile(rows) || {}
+      if (!isAdminProfile(operatorProfile)) {
+        return {
+          ok: false,
+          error: '只能给投稿作者发放积分',
+        }
+      }
+    }
+    if (submission.status !== 'published') {
+      return {
+        ok: false,
+        error: '投稿审核通过后才会发放积分',
+      }
+    }
+    if (submission?.points_awarded === true) {
+      const profile = await ensureProfile(uid, openid)
+      return {
+        ok: true,
+        awarded: false,
+        points: normalizePoints(profile.points),
+      }
+    }
+  } catch (error) {
+    console.warn('load submission points status failed', safeSubmissionId, error)
+    return {
+      ok: false,
+      error: error?.message || '读取投稿失败',
+    }
+  }
+
+  const logId = buildPointsLogId(uid, safeSubmissionType, safeSubmissionId)
+  try {
+    const { data } = await db.collection('points_logs').where({ _id: logId }).limit(1).get()
+    if (Array.isArray(data) && data.length) {
+      const profile = await ensureProfile(uid, openid)
+      return {
+        ok: true,
+        awarded: false,
+        points: normalizePoints(profile.points),
+      }
+    }
+  } catch (error) {
+    console.warn('load points log failed', logId, error)
+  }
+
+  const dayKey = getChinaDateKey(new Date())
+  try {
+    const countRes = await db.collection('points_logs')
+      .where({
+        uid,
+        type: 'earn',
+        day_key: dayKey,
+      })
+      .count()
+    const todayCount = Number(countRes?.total || countRes?.count || 0)
+    if (todayCount >= 5) {
+      await db.collection('user_problems').doc(safeSubmissionId).update({
+        data: {
+          points_awarded: false,
+          points_award_skipped: true,
+          points_award_skip_reason: 'daily_limit',
+          points_award_checked_at: db.serverDate(),
+          updated_at: db.serverDate(),
+        },
+      })
+      return {
+        ok: true,
+        awarded: false,
+        dailyLimitReached: true,
+        dailyLimit: 5,
+        todayCount,
+        error: '今日积分奖励已达上限',
+      }
+    }
+  } catch (error) {
+    console.warn('count daily points failed', uid, dayKey, error)
+  }
+
+  const profile = await ensureProfile(uid, openid)
+  const nextPoints = normalizePoints(profile.points) + 1
+
+  if (profile?._id) {
+    await db.collection('profiles').doc(profile._id).update({
+      data: {
+        points: nextPoints,
+        updated_at: db.serverDate(),
+      },
+    })
+  }
+
+  try {
+    await db.collection('user_problems').doc(safeSubmissionId).update({
+      data: {
+        points_awarded: true,
+        points_awarded_at: db.serverDate(),
+        updated_at: db.serverDate(),
+      },
+    })
+  } catch (error) {
+    console.warn('mark submission points awarded failed', safeSubmissionId, error)
+  }
+
+  try {
+    await db.collection('points_logs').add({
+      data: {
+        _id: logId,
+        uid,
+        source_type: safeSubmissionType,
+        source_id: safeSubmissionId,
+        points: 1,
+        type: 'earn',
+        day_key: dayKey,
+        title: safeSubmissionType === 'knowledge' ? '分享知识奖励' : '分享问题奖励',
+        created_at: db.serverDate(),
+        updated_at: db.serverDate(),
+      },
+    })
+  } catch (error) {
+    console.warn('save points log failed', logId, error)
+  }
+
+  return {
+    ok: true,
+    awarded: true,
+    points: nextPoints,
+    dailyLimit: 5,
+  }
+}
+
+async function createRewardOrder({ uid = '', openid = '', goodsId = '', addressId = '' } = {}) {
+  const safeGoodsId = String(goodsId || '').trim()
+  const safeAddressId = String(addressId || '').trim()
+  if (!uid) {
+    return {
+      ok: false,
+      error: '请先登录',
+    }
+  }
+  if (!safeGoodsId) {
+    return {
+      ok: false,
+      error: '请选择兑换商品',
+    }
+  }
+  if (!safeAddressId) {
+    return {
+      ok: false,
+      error: '请先填写收货地址',
+    }
+  }
+
+  const [profile, goodsRes, addressRes] = await Promise.all([
+    ensureProfile(uid, openid),
+    db.collection('reward_goods').where({ _id: safeGoodsId }).limit(1).get(),
+    db.collection('user_addresses').where({ _id: safeAddressId, user_id: uid }).limit(1).get(),
+  ])
+
+  const goods = goodsRes?.data?.[0] || null
+  const address = addressRes?.data?.[0] || null
+  if (!goods) {
+    return {
+      ok: false,
+      error: '兑换商品不存在或已下架',
+    }
+  }
+  if (!address) {
+    return {
+      ok: false,
+      error: '收货地址不存在，请重新选择',
+    }
+  }
+
+  const currentStock = normalizePoints(goods.quantity)
+  const costPoints = normalizePoints(goods.points_cost || goods.pointsCost)
+  const userPoints = normalizePoints(profile.points)
+  if (currentStock <= 0) {
+    return {
+      ok: false,
+      error: '该商品已兑换完',
+    }
+  }
+  if (costPoints <= 0) {
+    return {
+      ok: false,
+      error: '该商品积分配置异常',
+    }
+  }
+  if (userPoints < costPoints) {
+    return {
+      ok: false,
+      error: '积分不足，暂时无法兑换',
+    }
+  }
+
+  const nextStock = currentStock - 1
+  const nextPoints = userPoints - costPoints
+
+  await db.collection('reward_goods').doc(goods._id).update({
+    data: {
+      quantity: nextStock,
+      updated_at: db.serverDate(),
+    },
+  })
+  await db.collection('profiles').doc(profile._id).update({
+    data: {
+      points: nextPoints,
+      updated_at: db.serverDate(),
+    },
+  })
+
+  const orderRes = await db.collection('reward_orders').add({
+    data: {
+      user_id: uid,
+      goods_id: goods._id,
+      goods_name: goods.name || '',
+      goods_image: goods.image_url || '',
+      points_cost: costPoints,
+      status: 'pending',
+      status_text: '待处理',
+      address_snapshot: {
+        recipient: address.recipient || '',
+        phone: address.phone || '',
+        region: address.region || [],
+        region_text: address.region_text || '',
+        detail: address.detail || '',
+      },
+      created_at: db.serverDate(),
+      updated_at: db.serverDate(),
+    },
+  })
+
+  try {
+    await db.collection('points_logs').add({
+      data: {
+        uid,
+        source_type: 'reward_exchange',
+        source_id: orderRes?._id || safeGoodsId,
+        points: -costPoints,
+        type: 'spend',
+        title: `兑换商品：${goods.name || '积分商品'}`,
+        created_at: db.serverDate(),
+        updated_at: db.serverDate(),
+      },
+    })
+  } catch (error) {
+    console.warn('save spend points log failed', error)
+  }
+
+  return {
+    ok: true,
+    orderId: orderRes?._id || '',
+    points: nextPoints,
+    stock: nextStock,
+  }
+}
+
+async function getRewardOrders({ uid = '', limit = 20 } = {}) {
+  if (!uid) {
+    return {
+      ok: false,
+      error: '请先登录',
+    }
+  }
+
+  const safeLimit = Math.min(50, Math.max(1, Number(limit) || 20))
+  const { data } = await db.collection('reward_orders')
+    .where({ user_id: uid })
+    .orderBy('created_at', 'desc')
+    .limit(safeLimit)
+    .get()
+
+  return {
+    ok: true,
+    orders: (data || []).map((item) => ({
+      id: item._id,
+      goodsName: item.goods_name || '',
+      goodsImage: item.goods_image || '',
+      pointsCost: Number(item.points_cost || 0),
+      status: item.status || 'pending',
+      statusText: item.status_text || (item.status === 'pending' ? '待处理' : item.status || ''),
+      addressSnapshot: item.address_snapshot || {},
+      createdAt: item.created_at || null,
+    })),
+  }
+}
+
+async function getUserAddresses({ uid = '', limit = 20 } = {}) {
+  if (!uid) {
+    return {
+      ok: false,
+      error: '请先登录',
+    }
+  }
+
+  const safeLimit = Math.min(50, Math.max(1, Number(limit) || 20))
+  const { data } = await db.collection('user_addresses')
+    .where({ user_id: uid })
+    .orderBy('updated_at', 'desc')
+    .limit(safeLimit)
+    .get()
+
+  return {
+    ok: true,
+    addresses: (data || []).map((item) => ({
+      id: item._id,
+      recipient: item.recipient || item.name || item.receiver || '',
+      phone: item.phone || item.mobile || item.tel || '',
+      region: item.region || [],
+      regionText: item.region_text || item.regionText || '',
+      detail: item.detail || item.detail_address || item.address || '',
+      isDefault: item.is_default === true || item.isDefault === true,
+      updatedAt: item.updated_at || null,
+    })),
+  }
 }
 
 async function upsertUsageRecord(collectionName = '', recordId = '', createData = {}, updateData = {}) {
@@ -439,6 +838,40 @@ exports.main = async (event = {}) => {
         profileSynced: true,
         user: buildUser(openid, savedProfile),
       }
+    }
+
+    if (event.action === 'awardSubmissionPoints') {
+      const targetUserId = String(event.targetUserId || uid).trim()
+      return await awardSubmissionPoints({
+        uid: targetUserId,
+        openid,
+        operatorUid: uid,
+        submissionId: event.submissionId,
+        submissionType: event.submissionType,
+      })
+    }
+
+    if (event.action === 'redeemRewardGoods') {
+      return await createRewardOrder({
+        uid,
+        openid,
+        goodsId: event.goodsId,
+        addressId: event.addressId,
+      })
+    }
+
+    if (event.action === 'getRewardOrders') {
+      return await getRewardOrders({
+        uid,
+        limit: event.limit,
+      })
+    }
+
+    if (event.action === 'getUserAddresses') {
+      return await getUserAddresses({
+        uid,
+        limit: event.limit,
+      })
     }
 
     let profileSynced = true

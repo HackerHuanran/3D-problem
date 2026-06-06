@@ -1,4 +1,5 @@
 const { listMarketPosts } = require('../../utils/market-service')
+const { withAppLoading } = require('../../utils/loading')
 
 Page({
   data: {
@@ -9,11 +10,11 @@ Page({
   },
 
   async onLoad() {
-    await this.refreshList()
+    await withAppLoading(() => this.refreshList(), '加载中')
   },
 
   async onShow() {
-    await this.refreshList()
+    await withAppLoading(() => this.refreshList(), '加载中')
   },
 
   async refreshList() {

@@ -1,4 +1,5 @@
 const { getCurrentUser, getCurrentProfile, ensureUser, getUserCacheKeys } = require('../../utils/user-service')
+const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 const AVATAR_TEMP_URL_CACHE_KEY = 'miniapp_avatar_temp_url_cache_v1'
 
 function clearAvatarTempCache(fileId = '') {
@@ -26,7 +27,12 @@ Page({
   },
 
   async onLoad() {
-    await this.loadProfile()
+    showAppLoading('加载中')
+    try {
+      await this.loadProfile()
+    } finally {
+      hideAppLoading()
+    }
   },
 
   async loadProfile() {
@@ -110,6 +116,7 @@ Page({
     const gender = String(this.data.gender || 'unknown')
 
     this.setData({ saving: true })
+    showAppLoading('保存中')
     try {
       let avatarUrl = this.data.avatarUrl || ''
       if (avatarUrl && !String(avatarUrl).startsWith('http') && !String(avatarUrl).startsWith('cloud://')) {
@@ -204,6 +211,7 @@ Page({
       })
     } finally {
       this.setData({ saving: false })
+      hideAppLoading()
     }
   },
 })

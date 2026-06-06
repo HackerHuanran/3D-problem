@@ -174,6 +174,36 @@
   gap: 8rpx;
 }
 
+.guest-legal-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.guest-legal-box {
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: 8rpx;
+  border: 2rpx solid rgba(221, 235, 255, 0.56);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.guest-legal-box.checked {
+  background: rgba(94, 234, 212, 0.18);
+  border-color: rgba(94, 234, 212, 0.72);
+}
+
+.guest-legal-box-icon {
+  color: #ccfbf1;
+  font-size: 20rpx;
+  line-height: 1;
+  font-weight: 800;
+}
+
 .guest-legal-text {
   color: rgba(221, 235, 255, 0.68);
   font-size: 22rpx;
@@ -204,6 +234,15 @@
   box-shadow: 0 12rpx 34rpx rgba(13, 41, 87, 0.06);
 }
 
+.stats-item-link {
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.stats-item-link:active {
+  transform: scale(0.985);
+  box-shadow: 0 8rpx 24rpx rgba(13, 41, 87, 0.08);
+}
+
 .stats-value {
   color: #08203d;
   font-size: 42rpx;
@@ -217,8 +256,6 @@
   font-size: 23rpx;
 }
 
-.quick-card,
-.content-card,
 .menu-card {
   margin-top: 22rpx;
   padding: 28rpx;
@@ -228,163 +265,15 @@
   box-shadow: 0 16rpx 42rpx rgba(13, 41, 87, 0.07);
 }
 
-.section-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-}
-
-.section-title {
-  color: #08203d;
-  font-size: 34rpx;
-  font-weight: 800;
-}
-
-.section-note {
-  color: #8da0b7;
-  font-size: 22rpx;
-}
-
-.quick-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14rpx;
-  margin-top: 24rpx;
-}
-
-.quick-item {
-  padding: 22rpx 16rpx;
-  border-radius: 22rpx;
-  background: #f8fbff;
-  border: 1rpx solid rgba(37, 99, 235, 0.08);
-}
-
-.quick-item.active {
-  background: linear-gradient(135deg, #1d4ed8 0%, #14b8a6 100%);
-  box-shadow: 0 14rpx 34rpx rgba(29, 78, 216, 0.18);
-}
-
-.quick-item.active .quick-name,
-.quick-item.active .quick-meta {
-  color: #ffffff;
-}
-
-.quick-item-link {
-  background: linear-gradient(135deg, rgba(29, 78, 216, 0.09), rgba(20, 184, 166, 0.09));
-}
-
-.quick-name {
-  display: block;
-  color: #08203d;
-  font-size: 26rpx;
-  font-weight: 750;
-}
-
-.quick-meta {
-  display: block;
-  margin-top: 8rpx;
-  color: #7890aa;
-  font-size: 22rpx;
-}
-
-.loading-box,
-.empty-box {
-  margin-top: 22rpx;
-  padding: 28rpx 24rpx;
-  border-radius: 24rpx;
-  background: #f8fbff;
-  border: 1rpx solid rgba(37, 99, 235, 0.08);
-}
-
-.loading-title {
-  display: block;
-  color: #08203d;
-  font-size: 30rpx;
-  font-weight: 750;
-}
-
-.loading-subtitle {
-  display: block;
-  margin-top: 10rpx;
-  color: #6b86a8;
-  font-size: 24rpx;
-  line-height: 1.7;
-}
-
-.content-list {
-  margin-top: 20rpx;
-  display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-}
-
-.content-item {
-  padding: 22rpx;
-  border-radius: 22rpx;
-  background: #fbfdff;
-  border: 1rpx solid rgba(37, 99, 235, 0.08);
-}
-
-.content-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18rpx;
-}
-
-.content-title {
-  flex: 1;
-  color: #08203d;
-  font-size: 29rpx;
-  font-weight: 750;
-  line-height: 1.5;
-}
-
-.content-badge {
-  flex-shrink: 0;
-  padding: 8rpx 16rpx;
+.hero-highlight-points {
+  display: inline-flex;
+  margin-top: 14rpx;
+  padding: 10rpx 18rpx;
   border-radius: 999rpx;
-  background: rgba(29, 78, 216, 0.08);
-  color: #1d4ed8;
-  font-size: 22rpx;
-}
-
-.content-desc {
-  display: block;
-  margin-top: 12rpx;
-  color: #6b86a8;
-  font-size: 24rpx;
-  line-height: 1.7;
-}
-
-.content-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20rpx;
-  margin-top: 16rpx;
-}
-
-.content-meta {
-  color: #8da0b7;
-  font-size: 22rpx;
-}
-
-.edit-button {
-  margin: 0;
-  padding: 0 22rpx;
-  height: 58rpx;
-  line-height: 58rpx;
-  border-radius: 16rpx;
-  background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+  background: rgba(255, 255, 255, 0.14);
   color: #ffffff;
   font-size: 24rpx;
-  font-weight: 700;
-}
-
-.edit-button::after {
-  border: none;
+  font-weight: 760;
 }
 
 .menu-card {
@@ -426,6 +315,21 @@
   color: #a8b3c3;
   font-size: 36rpx;
   line-height: 1;
+}
+
+.menu-badge {
+  min-width: 38rpx;
+  height: 38rpx;
+  padding: 0 12rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+  color: #ffffff;
+  font-size: 22rpx;
+  font-weight: 800;
+  line-height: 38rpx;
+  text-align: center;
+  box-shadow: 0 8rpx 18rpx rgba(239, 68, 68, 0.26);
+  box-sizing: border-box;
 }
 
 .menu-arrow.danger {

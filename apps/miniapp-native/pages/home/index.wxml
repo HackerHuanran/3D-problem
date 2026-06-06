@@ -1,17 +1,17 @@
 <view class="page home-page">
   <view class="hero-card home-hero">
     <text class="hero-eyebrow">3D PRINT TROUBLESHOOTER</text>
-    <text class="hero-title">先搜索现象，再找到解决办法</text>
-    <text class="hero-subtitle">共收录 {{problemCount}} 个打印问题，覆盖翘边、拉丝、堵嘴、层移等常见故障。</text>
+    <text class="hero-title">别塌了模型</text>
+    <text class="hero-subtitle">3D打印排障助手，共收录 {{problemCount}} 个打印问题，覆盖翘边、拉丝、堵嘴、层移等常见故障。</text>
     <view class="search-wrap">
       <input class="search-input home-search" placeholder="搜索翘边、拉丝、堵嘴、层移…" value="{{query}}" bindinput="onQueryInput" confirm-type="search" bindconfirm="searchProblems" />
-      <button class="search-btn btn-primary" bindtap="searchProblems">搜索</button>
+      <button class="search-btn btn-primary" hover-class="button-hover" hover-stay-time="70" bindtap="searchProblems">搜索</button>
     </view>
     <view class="hero-actions">
-      <view class="share-btn" bindtap="shareProblem">
+      <view class="share-btn interactive-chip" hover-class="interactive-chip-hover" hover-stay-time="70" bindtap="shareProblem">
         <text class="share-btn-text">分享打印问题</text>
       </view>
-      <view class="hero-count" bindtap="searchProblems">
+      <view class="hero-count interactive-chip" hover-class="interactive-chip-hover" hover-stay-time="70" bindtap="searchProblems">
         <text class="hero-count-main">{{problemCount}}</text>
         <text class="hero-count-label">个问题</text>
       </view>
@@ -19,8 +19,9 @@
   </view>
 
   <view class="module-grid">
-    <view class="module-card module-card-large" data-id="problems" bindtap="openEntry">
-      <image class="module-image" src="/images/home/problem-center.jpg" mode="aspectFill" lazy-load="true"></image>
+    <view class="module-card module-card-large interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-id="problems" bindtap="openEntry">
+      <image wx:if="{{!moduleImageErrorMap[0]}}" class="module-image" src="/images/home/problem-center.jpg" mode="aspectFill" lazy-load="true" data-index="0" binderror="onModuleImageError"></image>
+      <view wx:else class="module-image module-image-fallback"></view>
       <view class="module-mask"></view>
       <view class="module-copy">
         <text class="module-title">问题中心</text>
@@ -28,8 +29,9 @@
       </view>
     </view>
 
-    <view class="module-card module-card-half" data-id="filament" bindtap="openEntry">
-      <image class="module-image" src="/images/home/filament-library.jpg" mode="aspectFill" lazy-load="true"></image>
+    <view class="module-card module-card-half interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-id="filament" bindtap="openEntry">
+      <image wx:if="{{!moduleImageErrorMap[1]}}" class="module-image" src="/images/home/filament-library.jpg" mode="aspectFill" lazy-load="true" data-index="1" binderror="onModuleImageError"></image>
+      <view wx:else class="module-image module-image-fallback"></view>
       <view class="module-mask"></view>
       <view class="module-copy">
         <text class="module-title">耗材库</text>
@@ -37,8 +39,9 @@
       </view>
     </view>
 
-    <view class="module-card module-card-half" data-id="knowledge" bindtap="openEntry">
-      <image class="module-image" src="/images/home/knowledge-library.svg" mode="aspectFill" lazy-load="true"></image>
+    <view class="module-card module-card-half interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-id="knowledge" bindtap="openEntry">
+      <image wx:if="{{!moduleImageErrorMap[2]}}" class="module-image" src="/images/home/knowledge-library.svg" mode="aspectFill" lazy-load="true" data-index="2" binderror="onModuleImageError"></image>
+      <view wx:else class="module-image module-image-fallback"></view>
       <view class="module-mask"></view>
       <view class="module-copy">
         <text class="module-title">知识库</text>
@@ -46,8 +49,9 @@
       </view>
     </view>
 
-    <view class="module-card module-card-large" data-id="services" bindtap="openEntry">
-      <image class="module-image" src="/images/home/services-workshop.jpg" mode="aspectFill" lazy-load="true"></image>
+    <view class="module-card module-card-large interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-id="services" bindtap="openEntry">
+      <image wx:if="{{!moduleImageErrorMap[3]}}" class="module-image" src="/images/home/services-workshop.jpg" mode="aspectFill" lazy-load="true" data-index="3" binderror="onModuleImageError"></image>
+      <view wx:else class="module-image module-image-fallback"></view>
       <view class="module-mask"></view>
       <view class="module-copy">
         <text class="module-title">打印服务</text>
@@ -63,8 +67,8 @@
     </view>
 
     <view class="recent-list">
-      <view wx:for="{{recentProblems}}" wx:key="id" class="recent-item" data-problem-id="{{item.problemId}}" bindtap="openRecentProblem">
-        <image wx:if="{{item.thumb_url || item.image_url}}" class="recent-image" src="{{item.thumb_url || item.image_url}}" mode="aspectFill" lazy-load="true"></image>
+      <view wx:for="{{recentProblems}}" wx:key="id" class="recent-item interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-problem-id="{{item.problemId}}" bindtap="openRecentProblem">
+        <image wx:if="{{(item.thumb_url || item.image_url) && !recentImageErrorMap[item.id || item.problemId]}}" class="recent-image" src="{{item.thumb_url || item.image_url}}" mode="aspectFill" lazy-load="true" data-key="{{item.id || item.problemId}}" binderror="onRecentImageError"></image>
         <view wx:else class="recent-image recent-image-fallback"></view>
         <view class="recent-copy">
           <text class="recent-title">{{item.title}}</text>
@@ -80,8 +84,8 @@
       <text class="section-note">先从常见问题开始</text>
     </view>
     <view class="recent-list">
-      <view wx:for="{{featuredProblems}}" wx:key="id" class="recent-item" data-problem-id="{{item.id}}" bindtap="openRecentProblem">
-        <image wx:if="{{item.thumb_url || item.image_url}}" class="recent-image" src="{{item.thumb_url || item.image_url}}" mode="aspectFill" lazy-load="true"></image>
+      <view wx:for="{{featuredProblems}}" wx:key="id" class="recent-item interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-problem-id="{{item.id}}" bindtap="openRecentProblem">
+        <image wx:if="{{(item.thumb_url || item.image_url) && !recentImageErrorMap[item.id]}}" class="recent-image" src="{{item.thumb_url || item.image_url}}" mode="aspectFill" lazy-load="true" data-key="{{item.id}}" binderror="onRecentImageError"></image>
         <view wx:else class="recent-image recent-image-fallback"></view>
         <view class="recent-copy">
           <text class="recent-title">{{item.title}}</text>

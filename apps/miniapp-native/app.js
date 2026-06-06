@@ -4,6 +4,9 @@ App({
     currentUser: null,
   },
 
+  announcementChecking: false,
+  lastAnnouncementCheckAt: 0,
+
   onLaunch() {
     if (wx.cloud) {
       wx.cloud.init({
@@ -12,10 +15,69 @@ App({
       })
     }
     this.trackDailyUsage('launch')
+    this.checkAppAnnouncement({ delay: 900 })
   },
 
   onShow() {
     this.trackDailyUsage('show')
+    this.checkAppAnnouncement({ delay: 900 })
+  },
+
+  getAnnouncementReadKey(announcementId = '') {
+    return `miniapp_announcement_read_${String(announcementId || '').trim()}`
+  },
+
+  hasReadAnnouncement(announcementId = '') {
+    if (!announcementId) return true
+    try {
+      return wx.getStorageSync(this.getAnnouncementReadKey(announcementId)) === true
+    } catch (error) {
+      return false
+    }
+  },
+
+  markAnnouncementRead(announcementId = '') {
+    if (!announcementId) return
+    try {
+      wx.setStorageSync(this.getAnnouncementReadKey(announcementId), true)
+    } catch (error) {
+      console.warn('mark announcement read failed', error)
+    }
+  },
+
+  async checkAppAnnouncement({ delay = 0, force = false } = {}) {
+    if (!wx.cloud || this.announcementChecking) return
+    if (!force && Date.now() - this.lastAnnouncementCheckAt < 5 * 60 * 1000) return
+    this.announcementChecking = true
+    this.lastAnnouncementCheckAt = Date.now()
+
+    setTimeout(async () => {
+      try {
+        const db = wx.cloud.database()
+        const { data } = await db.collection('app_announcements')
+          .where({ enabled: true })
+          .orderBy('updated_at', 'desc')
+          .limit(1)
+          .get()
+        const announcement = data?.[0]
+        const announcementId = announcement?._id || announcement?.notice_id || ''
+        if (!announcementId || this.hasReadAnnouncement(announcementId)) return
+
+        wx.showModal({
+          title: announcement.title || '功能更新',
+          content: announcement.content || '有新的功能上线啦，欢迎体验。',
+          showCancel: false,
+          confirmText: announcement.confirm_text || '知道了',
+          success: () => {
+            this.markAnnouncementRead(announcementId)
+          },
+        })
+      } catch (error) {
+        console.warn('checkAppAnnouncement failed', error)
+      } finally {
+        this.announcementChecking = false
+      }
+    }, Math.max(0, Number(delay) || 0))
   },
 
   trackDailyUsage(scene = 'show') {

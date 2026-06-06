@@ -23,6 +23,16 @@
   background: #fbfdff;
 }
 
+.interactive-card {
+  transform: scale(1);
+  transition: transform 0.16s ease, opacity 0.16s ease, box-shadow 0.16s ease;
+}
+
+.interactive-card-hover {
+  transform: scale(0.988);
+  opacity: 0.97;
+}
+
 .problem-thumb {
   width: 180rpx;
   height: 150rpx;

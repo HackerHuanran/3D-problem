@@ -27,6 +27,32 @@
   background: #e8eef6;
 }
 
+.detail-hero-image-fallback {
+  background:
+    radial-gradient(circle at 22% 20%, rgba(56, 189, 248, 0.34), transparent 34%),
+    linear-gradient(135deg, #dbeafe 0%, #ccfbf1 100%);
+}
+
+.interactive-card {
+  transform: scale(1);
+  transition: transform 0.16s ease, opacity 0.16s ease, box-shadow 0.16s ease;
+}
+
+.interactive-card-hover {
+  transform: scale(0.988);
+  opacity: 0.97;
+}
+
+.interactive-chip {
+  transform: scale(1);
+  transition: transform 0.14s ease, opacity 0.14s ease;
+}
+
+.interactive-chip-hover {
+  transform: scale(0.97);
+  opacity: 0.92;
+}
+
 .detail-section {
   padding: 28rpx;
 }

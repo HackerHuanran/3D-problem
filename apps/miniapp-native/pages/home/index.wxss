@@ -160,6 +160,26 @@
   box-shadow: 0 18rpx 46rpx rgba(15, 23, 42, 0.12);
 }
 
+.interactive-card {
+  transform: scale(1);
+  transition: transform 0.16s ease, opacity 0.16s ease, box-shadow 0.16s ease;
+}
+
+.interactive-card-hover {
+  transform: scale(0.985);
+  opacity: 0.96;
+}
+
+.interactive-chip {
+  transform: scale(1);
+  transition: transform 0.14s ease, opacity 0.14s ease;
+}
+
+.interactive-chip-hover {
+  transform: scale(0.97);
+  opacity: 0.92;
+}
+
 .module-card-large {
   grid-column: 1 / -1;
   min-height: 324rpx;
@@ -170,6 +190,12 @@
   height: 100%;
   display: block;
   opacity: 0.98;
+}
+
+.module-image-fallback {
+  background:
+    radial-gradient(circle at 24% 18%, rgba(56, 189, 248, 0.34), transparent 34%),
+    linear-gradient(135deg, #0b1831 0%, #12365e 52%, #0f766e 100%);
 }
 
 .module-mask {

@@ -1,3 +1,4 @@
+const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 const SERVICES_CACHE_KEY = 'miniapp_services_cache_v1'
 const SERVICES_CACHE_TTL = 5 * 60 * 1000
 const SERVICE_IMAGE_CACHE_KEY = 'miniapp_service_image_cache_v1'
@@ -101,14 +102,25 @@ Page({
     await this.loadServices()
   },
 
+  async onPullDownRefresh() {
+    try {
+      this.lastRefreshAt = 0
+      await this.loadServices({ force: true })
+    } finally {
+      wx.stopPullDownRefresh()
+    }
+  },
+
   onUnload() {
     wx.hideLoading()
   },
 
-  async loadServices() {
+  async loadServices({ force = false } = {}) {
     const db = wx.cloud.database()
-    if (!this.data.services.length) {
+    const shouldShowLoading = !this.data.services.length || force
+    if (shouldShowLoading) {
       this.setData({ loading: true })
+      showAppLoading('加载中')
     }
     try {
       const { data } = await db.collection('studio_services')
@@ -140,6 +152,9 @@ Page({
       wx.showToast({ title: '打印服务加载失败', icon: 'none' })
     } finally {
       this.setData({ loading: false })
+      if (shouldShowLoading) {
+        hideAppLoading()
+      }
     }
   },
 
@@ -213,11 +228,11 @@ Page({
   openServiceDetail(e) {
     const id = e.currentTarget.dataset.id
     if (!id) return
-    wx.showLoading({ title: '正在打开' })
+    showAppLoading('正在打开')
     wx.navigateTo({
       url: `/pages/service-detail/index?id=${id}`,
       complete: () => {
-        wx.hideLoading()
+        hideAppLoading()
       },
     })
   },

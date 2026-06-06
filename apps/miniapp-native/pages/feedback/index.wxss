@@ -53,4 +53,8 @@
 
 .submit-btn {
   margin-top: 4rpx;
+  width: 100%;
+  height: 84rpx;
+  line-height: 84rpx;
+  box-sizing: border-box;
 }

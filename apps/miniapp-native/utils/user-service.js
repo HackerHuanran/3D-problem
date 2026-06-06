@@ -85,6 +85,11 @@ function normalizeCauseList(value) {
     .filter(Boolean)
 }
 
+function isDeletedSubmission(item = {}) {
+  const status = String(item.status || '').trim().toLowerCase()
+  return item.deleted === true || item.is_deleted === true || ['deleted', 'removed'].includes(status)
+}
+
 function normalizeUserRecord(record = null) {
   if (!record) return null
   const id = record.id || record.uid || record.user_id || ''
@@ -337,9 +342,10 @@ async function fetchHistoryProblems(userId) {
   }
 }
 
-async function fetchMyProblemSubmissions(userId) {
+async function fetchMyProblemSubmissions(userId, options = {}) {
   if (!userId) return []
-  const cached = readDashboardCache(userId)
+  const force = options?.force === true
+  const cached = force ? null : readDashboardCache(userId)
   if (cached?.problemSubmissions) return cached.problemSubmissions
   try {
     const { data } = await db.collection('user_problems')
@@ -348,21 +354,23 @@ async function fetchMyProblemSubmissions(userId) {
       .limit(50)
       .get()
 
-    const problemSubmissions = (data || []).map((item) => ({
-      id: item._id,
-      problemId: item.problem_id || item._id || '',
-      title: item.title || '',
-      subtitle: item.subtitle || '',
-      category: item.category || '未分类',
-      status: item.status || 'pending',
-      statusText: item.status === 'published' ? '已通过' : item.status === 'rejected' ? '已拒绝' : '待审核',
-      submissionType: item.submission_type || 'problem',
-      detailType: item.submission_type === 'knowledge' ? 'knowledge' : 'problem',
-      createdAt: item.created_at || null,
-      parentProblemTitle: item.parent_problem_title || '',
-      image_url: item.image_url || '',
-      steps: item.steps || [],
-    }))
+    const problemSubmissions = (data || [])
+      .filter((item) => !isDeletedSubmission(item))
+      .map((item) => ({
+        id: item._id,
+        problemId: item.problem_id || item._id || '',
+        title: item.title || '',
+        subtitle: item.subtitle || '',
+        category: item.category || '未分类',
+        status: item.status || 'pending',
+        statusText: item.status === 'published' ? '已通过' : item.status === 'rejected' ? '已拒绝' : item.status === 'hidden' ? '已下架' : '待审核',
+        submissionType: item.submission_type || 'problem',
+        detailType: item.submission_type === 'knowledge' ? 'knowledge' : 'problem',
+        createdAt: item.created_at || null,
+        parentProblemTitle: item.parent_problem_title || '',
+        image_url: item.image_url || '',
+        steps: item.steps || [],
+      }))
     writeDashboardCache(userId, {
       ...(cached || {}),
       problemSubmissions,
@@ -390,6 +398,7 @@ async function getSubmissionDetail(submissionId) {
 
       const item = data?.[0]
       if (!item) continue
+      if (isDeletedSubmission(item)) continue
 
       const normalizedCauses = normalizeCauseList(item.causes)
 

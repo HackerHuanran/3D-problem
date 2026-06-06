@@ -1,3 +1,4 @@
 {
-  "navigationBarTitleText": "耗材参数库"
+  "navigationBarTitleText": "耗材参数库",
+  "enablePullDownRefresh": true
 }

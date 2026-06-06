@@ -1,4 +1,5 @@
 const { ensureUser } = require('../../utils/user-service')
+const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 
 Page({
   data: {
@@ -24,10 +25,17 @@ Page({
     if (!submissionId) return
 
     const db = wx.cloud.database()
+    showAppLoading('加载中')
     try {
       const { data } = await db.collection('user_problems').where({ _id: submissionId }).limit(1).get()
       const item = data?.[0]
-      if (!item) return
+      if (!item || item.deleted === true || item.is_deleted === true || ['deleted', 'removed'].includes(String(item.status || '').trim().toLowerCase())) {
+        wx.showToast({ title: '投稿已被删除', icon: 'none' })
+        setTimeout(() => {
+          wx.navigateBack({ delta: 1 })
+        }, 600)
+        return
+      }
       this.setData({
         submissionId,
         title: item.title || '',
@@ -46,6 +54,8 @@ Page({
       wx.setNavigationBarTitle({ title: '修改投稿' })
     } catch (error) {
       console.warn('load submission for edit failed', error)
+    } finally {
+      hideAppLoading()
     }
   },
 
@@ -138,6 +148,7 @@ Page({
     }
 
     this.setData({ submitting: true })
+    showAppLoading(this.data.submissionId ? '保存中' : '提交中')
     try {
       const user = await ensureUser()
       const db = wx.cloud.database()
@@ -199,6 +210,7 @@ Page({
       })
     } finally {
       this.setData({ submitting: false })
+      hideAppLoading()
     }
   },
 })

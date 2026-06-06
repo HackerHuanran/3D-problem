@@ -1,5 +1,6 @@
 const { getCurrentUser, fetchHistory, readDashboardCache } = require('../../utils/user-service')
 const { getProblemCount, getProblemDetail, listProblems, resolveProblemThumbUrl } = require('../../utils/problem-service')
+const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 const HOME_CACHE_KEY = 'miniapp_home_cache_v1'
 const HOME_CACHE_TTL = 2 * 60 * 1000
 const HOME_REFRESH_INTERVAL = 30 * 1000
@@ -34,6 +35,8 @@ Page({
     recentProblems: [],
     featuredProblems: [],
     navigating: false,
+    moduleImageErrorMap: {},
+    recentImageErrorMap: {},
     entries: [
       {
         id: 'problems',
@@ -64,9 +67,14 @@ Page({
 
   lastRefreshAt: 0,
   refreshTimer: null,
+  refreshingHome: false,
+  lastNavigateAt: 0,
 
   onLoad() {
     wx.hideLoading()
+    wx.showShareMenu({
+      menus: ['shareAppMessage', 'shareTimeline'],
+    })
     const cache = getHomeCache()
     if (!cache) return
     this.setData({
@@ -86,10 +94,7 @@ Page({
     const shouldSkipRefresh = hasVisibleData && Date.now() - this.lastRefreshAt < HOME_REFRESH_INTERVAL
     if (shouldSkipRefresh) return
     this.refreshTimer = setTimeout(() => {
-      this.lastRefreshAt = Date.now()
-      this.loadRecentProblems()
-      this.loadProblemCount()
-      this.loadFeaturedProblems()
+      this.refreshHomeData()
     }, hasVisibleData ? 80 : 0)
   },
 
@@ -102,6 +107,21 @@ Page({
 
   onQueryInput(e) {
     this.setData({ query: e.detail.value })
+  },
+
+  async refreshHomeData() {
+    if (this.refreshingHome) return
+    this.refreshingHome = true
+    this.lastRefreshAt = Date.now()
+    try {
+      await Promise.allSettled([
+        this.loadProblemCount(),
+        this.loadRecentProblems(),
+      ])
+      await this.loadFeaturedProblems()
+    } finally {
+      this.refreshingHome = false
+    }
   },
 
   searchProblems() {
@@ -124,7 +144,7 @@ Page({
   },
 
   async loadFeaturedProblems() {
-    if (this.data.featuredProblems.length) return
+    if (this.data.featuredProblems.length || this.data.recentProblems.length) return
     try {
       const featuredProblems = await listProblems({ page: 1, pageSize: 3 })
       this.setData({ featuredProblems })
@@ -152,37 +172,51 @@ Page({
 
   openEntry(e) {
     if (this.data.navigating) return
+    if (Date.now() - this.lastNavigateAt < 320) return
+    this.lastNavigateAt = Date.now()
     const id = e.currentTarget.dataset.id
     this.setData({ navigating: true })
     if (id === 'problems') {
-      wx.showLoading({ title: '正在打开' })
+      showAppLoading('正在打开')
       wx.navigateTo({
         url: '/pages/problem-library/index',
-        complete: () => this.setData({ navigating: false }),
+        complete: () => {
+          this.setData({ navigating: false })
+          hideAppLoading()
+        },
       })
       return
     }
     if (id === 'filament') {
-      wx.showLoading({ title: '正在打开' })
+      showAppLoading('正在打开')
       wx.navigateTo({
         url: '/pages/filament/index',
-        complete: () => this.setData({ navigating: false }),
+        complete: () => {
+          this.setData({ navigating: false })
+          hideAppLoading()
+        },
       })
       return
     }
     if (id === 'knowledge') {
-      wx.showLoading({ title: '正在打开' })
+      showAppLoading('正在打开')
       wx.navigateTo({
         url: '/pages/knowledge/index',
-        complete: () => this.setData({ navigating: false }),
+        complete: () => {
+          this.setData({ navigating: false })
+          hideAppLoading()
+        },
       })
       return
     }
     if (id === 'services') {
-      wx.showLoading({ title: '正在打开' })
+      showAppLoading('正在打开')
       wx.navigateTo({
         url: '/pages/services/index',
-        complete: () => this.setData({ navigating: false }),
+        complete: () => {
+          this.setData({ navigating: false })
+          hideAppLoading()
+        },
       })
       return
     }
@@ -191,14 +225,51 @@ Page({
 
   openRecentProblem(e) {
     if (this.data.navigating) return
+    if (Date.now() - this.lastNavigateAt < 320) return
+    this.lastNavigateAt = Date.now()
     const problemId = e.currentTarget.dataset.problemId
     if (!problemId) return
     this.setData({ navigating: true })
-    wx.showLoading({ title: '正在打开' })
+    showAppLoading('正在打开')
     wx.navigateTo({
       url: `/pages/problem-detail/index?id=${problemId}`,
-      complete: () => this.setData({ navigating: false }),
+      complete: () => {
+        this.setData({ navigating: false })
+        hideAppLoading()
+      },
     })
+  },
+
+  onModuleImageError(e) {
+    const index = Number(e.currentTarget.dataset.index)
+    if (Number.isNaN(index)) return
+    this.setData({
+      [`moduleImageErrorMap.${index}`]: true,
+    })
+  },
+
+  onRecentImageError(e) {
+    const key = String(e.currentTarget.dataset.key || '').trim()
+    if (!key) return
+    this.setData({
+      [`recentImageErrorMap.${key}`]: true,
+    })
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '别塌了模型 | 3D打印排障助手',
+      path: '/pages/home/index',
+      imageUrl: '/images/home/problem-center.jpg',
+    }
+  },
+
+  onShareTimeline() {
+    return {
+      title: '别塌了模型 | 3D打印排障助手',
+      query: '',
+      imageUrl: '/images/home/problem-center.jpg',
+    }
   },
 
   async loadRecentProblems() {

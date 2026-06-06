@@ -1,5 +1,6 @@
 const { getProblemDetail, getRelatedProblems, resolveProblemThumbUrl } = require('../../utils/problem-service')
 const { getCurrentUser, ensureUser, fetchFavorites, toggleFavorite, recordHistory, getSubmissionDetail } = require('../../utils/user-service')
+const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 
 Page({
   data: {
@@ -9,6 +10,8 @@ Page({
     currentUser: null,
     isFav: false,
     loadingRelated: false,
+    relatedReady: false,
+    heroImageFailed: false,
   },
 
   async prepareDetail(detail = null) {
@@ -64,7 +67,10 @@ Page({
   async onLoad(query) {
     const id = query.id || ''
     wx.hideLoading()
-    wx.showLoading({ title: '正在加载' })
+    wx.showShareMenu({
+      menus: ['shareAppMessage', 'shareTimeline'],
+    })
+    showAppLoading('加载中')
     this.setData({
       id,
       detail: null,
@@ -72,6 +78,8 @@ Page({
       currentUser: null,
       isFav: false,
       loadingRelated: false,
+      relatedReady: false,
+      heroImageFailed: false,
     })
 
     const problemDetailPromise = getProblemDetail(id)
@@ -83,7 +91,7 @@ Page({
         detail: preparedDetail,
         loadingRelated: true,
       })
-      wx.hideLoading()
+      hideAppLoading()
     }).catch((error) => {
       console.warn('prepare cached problem detail failed', error)
     })
@@ -108,12 +116,13 @@ Page({
         related: [],
         isFav: false,
         loadingRelated: !!normalizedDetail,
+        relatedReady: false,
       })
       if (!normalizedDetail) {
         wx.showToast({ title: '问题不存在或已删除', icon: 'none' })
         return
       }
-      wx.hideLoading()
+      hideAppLoading()
 
       if (user?.id) {
         recordHistory(user.id, id).catch((error) => {
@@ -129,16 +138,20 @@ Page({
           related,
           isFav: favorites.includes(id),
           loadingRelated: false,
+          relatedReady: true,
         })
       }).catch((error) => {
         console.warn('load problem detail secondary failed', error)
-        this.setData({ loadingRelated: false })
+        this.setData({
+          loadingRelated: false,
+          relatedReady: true,
+        })
       })
     } catch (error) {
       console.warn('load problem detail failed', error)
       wx.showToast({ title: '详情加载失败，请稍后重试', icon: 'none' })
     } finally {
-      wx.hideLoading()
+      hideAppLoading()
     }
   },
 
@@ -167,6 +180,41 @@ Page({
 
   openRelated(e) {
     const id = e.currentTarget.dataset.id
-    wx.navigateTo({ url: `/pages/problem-detail/index?id=${id}` })
+    if (!id) return
+    showAppLoading('正在打开')
+    wx.navigateTo({
+      url: `/pages/problem-detail/index?id=${id}`,
+      complete: () => {
+        hideAppLoading()
+      },
+    })
+  },
+
+  onHeroImageError() {
+    this.setData({ heroImageFailed: true })
+  },
+
+  onShareAppMessage() {
+    const detail = this.data.detail || {}
+    const title = detail.title
+      ? `${detail.title} | 别塌了模型`
+      : '别塌了模型 | 3D打印排障助手'
+    return {
+      title,
+      path: `/pages/problem-detail/index?id=${this.data.id}`,
+      imageUrl: detail.image_url || '/images/home/problem-center.jpg',
+    }
+  },
+
+  onShareTimeline() {
+    const detail = this.data.detail || {}
+    const title = detail.title
+      ? `${detail.title} | 别塌了模型`
+      : '别塌了模型 | 3D打印排障助手'
+    return {
+      title,
+      query: `id=${this.data.id}`,
+      imageUrl: detail.image_url || '/images/home/problem-center.jpg',
+    }
   },
 })

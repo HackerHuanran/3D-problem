@@ -9,7 +9,7 @@
       </view>
       <view class="hero-copy">
         <text class="hero-name">{{currentUser.displayName || '微信用户'}}</text>
-        <text class="hero-tag">3D打印问题库用户</text>
+        <text class="hero-tag">别塌了模型用户</text>
       </view>
       <view class="hero-edit-pill">
         <text>编辑</text>
@@ -19,6 +19,7 @@
     <view class="hero-highlight">
       <text class="hero-highlight-label">个人工作台</text>
       <text class="hero-highlight-desc">收藏、最近浏览和投稿会在这里统一同步。</text>
+      <text class="hero-highlight-points">当前积分 {{currentUser.points || currentProfile.points || 0}}</text>
       <text class="hero-highlight-desc" wx:if="{{currentUser.gender}}">
         {{currentUser.gender ? ('性别 ' + (currentUser.gender === 'male' ? '男' : currentUser.gender === 'female' ? '女' : '保密')) : ''}}
       </text>
@@ -30,126 +31,70 @@
     <view class="hero-bg hero-bg-right"></view>
     <text class="guest-title">登录后同步你的问题记录</text>
     <text class="guest-subtitle">登录后可查看收藏、最近浏览、投稿记录和管理入口。</text>
-    <button class="btn-primary guest-btn" loading="{{loading}}" bindtap="loginWechat">微信登录</button>
     <view class="guest-legal">
-      <text class="guest-legal-text">登录前请阅读并同意</text>
+      <view class="guest-legal-check" bindtap="toggleLegalAccepted">
+        <view class="guest-legal-box {{legalAccepted ? 'checked' : ''}}">
+          <text wx:if="{{legalAccepted}}" class="guest-legal-box-icon">✓</text>
+        </view>
+        <text class="guest-legal-text">我已阅读并同意</text>
+      </view>
       <text class="guest-legal-link" bindtap="openLegal">《用户服务协议》与《隐私政策》</text>
     </view>
+    <button class="btn-primary guest-btn" loading="{{loading}}" bindtap="loginWechat">微信登录</button>
   </view>
 
   <view wx:if="{{currentUser}}" class="stats-strip">
-    <view class="stats-item">
+    <view class="stats-item stats-item-link" bindtap="openFavorites">
       <text class="stats-value">{{favoriteCount}}</text>
       <text class="stats-label">收藏</text>
     </view>
-    <view class="stats-item">
+    <view class="stats-item stats-item-link" bindtap="openHistory">
       <text class="stats-value">{{historyCount}}</text>
       <text class="stats-label">浏览</text>
     </view>
-    <view class="stats-item">
+    <view class="stats-item stats-item-link" bindtap="openSubmissions">
       <text class="stats-value">{{submissionCount}}</text>
       <text class="stats-label">投稿</text>
     </view>
   </view>
 
-  <view wx:if="{{currentUser}}" class="quick-card">
-    <view class="section-row">
-      <text class="section-title">常用入口</text>
-      <text class="section-note">选择一个列表查看</text>
-    </view>
-    <view class="quick-grid">
-      <view class="quick-item {{activeTab === 'favorites' ? 'active' : ''}}" data-tab="favorites" bindtap="selectTab">
-        <text class="quick-name">我的收藏</text>
-        <text class="quick-meta">{{favoriteCount}} 条</text>
-      </view>
-      <view class="quick-item {{activeTab === 'history' ? 'active' : ''}}" data-tab="history" bindtap="selectTab">
-        <text class="quick-name">最近浏览</text>
-        <text class="quick-meta">{{historyCount}} 条</text>
-      </view>
-      <view class="quick-item {{activeTab === 'submissions' ? 'active' : ''}}" data-tab="submissions" bindtap="selectTab">
-        <text class="quick-name">我的投稿</text>
-        <text class="quick-meta">{{submissionCount}} 条</text>
-      </view>
-      <view class="quick-item quick-item-link" bindtap="openFeedback">
-        <text class="quick-name">反馈与建议</text>
-        <text class="quick-meta">仅管理员可见</text>
-      </view>
-    </view>
-  </view>
-
-  <view wx:if="{{currentUser}}" class="content-card">
-    <view class="section-row">
-      <text wx:if="{{activeTab === 'favorites'}}" class="section-title">我的收藏</text>
-      <text wx:if="{{activeTab === 'history'}}" class="section-title">最近浏览</text>
-      <text wx:if="{{activeTab === 'submissions'}}" class="section-title">我的投稿</text>
-      <text class="section-note">按最新记录展示</text>
-    </view>
-
-    <view wx:if="{{secondaryLoading}}" class="empty-box loading-box">
-      <text class="loading-title">正在同步你的数据</text>
-      <text class="loading-subtitle">收藏、浏览和投稿列表会在加载完成后显示。</text>
-    </view>
-
-    <view wx:if="{{!secondaryLoading && activeTab === 'favorites'}}" class="content-list">
-      <view wx:if="{{favoriteProblems.length}}">
-        <view wx:for="{{favoriteProblems}}" wx:key="id" class="content-item" data-id="{{item.id}}" bindtap="openProblemDetail">
-          <view class="content-head">
-            <text class="content-title">{{item.title}}</text>
-            <text class="content-badge">{{item.category}}</text>
-          </view>
-          <text class="content-desc">{{item.subtitle}}</text>
-        </view>
-      </view>
-      <view wx:if="{{!favoriteProblems.length}}" class="empty-box">
-        <text class="loading-title">还没有收藏问题</text>
-        <text class="loading-subtitle">你在问题详情里点收藏后，这里就会自动显示。</text>
-      </view>
-    </view>
-
-    <view wx:if="{{!secondaryLoading && activeTab === 'history'}}" class="content-list">
-      <view wx:if="{{historyProblems.length}}">
-        <view wx:for="{{historyProblems}}" wx:key="id" class="content-item" data-id="{{item.id}}" bindtap="openProblemDetail">
-          <view class="content-head">
-            <text class="content-title">{{item.title}}</text>
-            <text class="content-badge">{{item.category}}</text>
-          </view>
-          <text class="content-desc">{{item.subtitle}}</text>
-        </view>
-      </view>
-      <view wx:if="{{!historyProblems.length}}" class="empty-box">
-        <text class="loading-title">还没有浏览记录</text>
-        <text class="loading-subtitle">你查看过的问题详情，会按最近顺序出现在这里。</text>
-      </view>
-    </view>
-
-    <view wx:if="{{!secondaryLoading && activeTab === 'submissions'}}" class="content-list">
-      <view wx:if="{{problemSubmissions.length}}">
-        <view wx:for="{{problemSubmissions}}" wx:key="id" class="content-item" data-id="{{item.problemId || item.id}}" data-problem-id="{{item.problemId}}" data-submission-type="{{item.submissionType}}" data-submission-id="{{item.id}}" bindtap="openProblemDetail">
-          <view class="content-head">
-            <text class="content-title">{{item.title}}</text>
-            <text class="content-badge">{{item.statusText || item.status}}</text>
-          </view>
-          <text class="content-desc">
-            {{item.submissionType === 'knowledge' ? ('知识心得 · ' + item.subtitle) : item.submissionType === 'solution' ? ('关联问题：' + item.parentProblemTitle) : item.subtitle}}
-          </text>
-          <view class="content-foot">
-            <text class="content-meta">{{item.updatedAtText || '可继续修改后重新提交'}}</text>
-            <button class="edit-button" size="mini" data-id="{{item.id}}" catchtap="editSubmission">修改投稿</button>
-          </view>
-        </view>
-      </view>
-      <view wx:if="{{!problemSubmissions.length}}" class="empty-box">
-        <text class="loading-title">还没有投稿记录</text>
-        <text class="loading-subtitle">后面接上小程序投稿入口后，这里会显示你的问题和补充方案。</text>
-      </view>
-    </view>
-  </view>
-
   <view wx:if="{{currentUser}}" class="menu-card">
+    <view class="menu-cell" bindtap="openRewards">
+      <view class="menu-copy">
+        <text class="menu-title">积分兑换</text>
+        <text class="menu-desc">用已获得的积分兑换耗材商品</text>
+      </view>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-divider"></view>
+    <view class="menu-cell" bindtap="openRewardOrders">
+      <view class="menu-copy">
+        <text class="menu-title">我的兑换记录</text>
+        <text class="menu-desc">查看积分兑换耗材的处理状态</text>
+      </view>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-divider"></view>
+    <view class="menu-cell" bindtap="openAddresses">
+      <view class="menu-copy">
+        <text class="menu-title">地址管理</text>
+        <text class="menu-desc">维护积分兑换收货地址与默认地址</text>
+      </view>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-divider"></view>
     <view class="menu-cell" bindtap="openLegal">
       <view class="menu-copy">
         <text class="menu-title">用户服务协议与隐私政策</text>
         <text class="menu-desc">查看平台服务规则与个人信息处理说明</text>
+      </view>
+      <text class="menu-arrow">›</text>
+    </view>
+    <view class="menu-divider"></view>
+    <view class="menu-cell" bindtap="openFeedback">
+      <view class="menu-copy">
+        <text class="menu-title">反馈与建议</text>
+        <text class="menu-desc">填写使用建议或问题反馈，只有管理员可以查看</text>
       </view>
       <text class="menu-arrow">›</text>
     </view>
@@ -159,6 +104,7 @@
         <text class="menu-title">管理后台</text>
         <text class="menu-desc">审核投稿、管理图片、维护内容</text>
       </view>
+      <text wx:if="{{adminNoticeCount > 0}}" class="menu-badge">{{adminNoticeText}}</text>
       <text class="menu-arrow">›</text>
     </view>
     <view wx:if="{{isAdmin}}" class="menu-divider"></view>

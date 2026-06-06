@@ -5,6 +5,10 @@
     "pages/problem-detail/index",
     "pages/problem-submit/index",
     "pages/feedback/index",
+    "pages/rewards/index",
+    "pages/rewardOrders/index",
+    "pages/address/index",
+    "pages/accountList/index",
     "pages/profile-edit/index",
     "pages/legal/index",
     "pages/services/index",
@@ -33,7 +37,7 @@
     ]
   },
   "window": {
-    "navigationBarTitleText": "3D故障库",
+    "navigationBarTitleText": "别塌了模型",
     "navigationBarBackgroundColor": "#f8fbff",
     "navigationBarTextStyle": "black",
     "backgroundColor": "#f4f9ff"

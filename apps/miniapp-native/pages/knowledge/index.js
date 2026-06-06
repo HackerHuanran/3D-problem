@@ -1,3 +1,4 @@
+const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 const KNOWLEDGE_INSIGHTS_CACHE_KEY = 'miniapp_knowledge_insights_v1'
 const KNOWLEDGE_INSIGHTS_CACHE_TTL = 5 * 60 * 1000
 const KNOWLEDGE_IMAGE_CACHE_KEY = 'miniapp_knowledge_image_cache_v1'
@@ -52,77 +53,56 @@ function buildKnowledgeThumbUrl(url = '', { width = 520, quality = 72 } = {}) {
 Page({
   data: {
     query: '',
-    filteredSections: [],
     insights: [],
+    filteredInsights: [],
     loadingInsights: false,
-    sections: [
-      {
-        id: 'starter',
-        title: '入门基础',
-        desc: '先理解调平、首层、温度和速度这些最常见概念。',
-        items: ['为什么第一层最重要', '什么情况下先调平再改切片', '新手最容易忽略的 3 个参数'],
-      },
-      {
-        id: 'params',
-        title: '参数解释',
-        desc: '把喷嘴温度、热床温度、打印速度、层高和回抽讲清楚。',
-        items: ['喷嘴温度高低分别会带来什么现象', '回抽距离和回抽速度怎么理解', '层高为什么会影响表面和时间'],
-      },
-      {
-        id: 'maintenance',
-        title: '维护常识',
-        desc: '喷嘴清理、热床清洁、耗材保存和日常检查。',
-        items: ['多久该清一次热床', '喷嘴堵了先排查什么', '耗材为什么一定要防潮'],
-      },
-      {
-        id: 'troubleshooting',
-        title: '常见故障',
-        desc: '围绕翘边、拉丝、堵嘴和层移做快速判断。',
-        items: ['翘边先看热床和环境风', '拉丝优先检查回抽和温度', '堵嘴要排查喷嘴和耗材'],
-      },
-    ],
   },
 
   onLoad() {
-    wx.hideLoading()
-    wx.showLoading({ title: '正在加载' })
-    try {
-      this.setData({ filteredSections: this.data.sections })
-    } finally {
-      wx.hideLoading()
-    }
     const cache = readInsightsCache()
     if (Array.isArray(cache?.insights) && cache.insights.length) {
-      this.setData({ insights: cache.insights })
+      this.setData({
+        insights: cache.insights,
+        filteredInsights: this.filterInsights(cache.insights, this.data.query),
+      })
     }
     this.loadInsights()
   },
 
+  async onPullDownRefresh() {
+    try {
+      await this.loadInsights({ force: true })
+    } finally {
+      wx.stopPullDownRefresh()
+    }
+  },
+
   onSearchInput(e) {
     const query = String(e.detail.value || '').trim()
-    const q = query.toLowerCase()
-    const filteredSections = !q
-      ? this.data.sections
-      : this.data.sections
-        .map((section) => {
-          const items = (section.items || []).filter((item) => String(item).toLowerCase().includes(q))
-          const matchSection = String(section.title + section.desc).toLowerCase().includes(q)
-          if (!items.length && !matchSection) return null
-          return { ...section, items: items.length ? items : section.items }
-        })
-        .filter(Boolean)
+    this.setData({
+      query,
+      filteredInsights: this.filterInsights(this.data.insights, query),
+    })
+  },
 
-    this.setData({ query, filteredSections })
+  filterInsights(insights = [], query = '') {
+    const q = String(query || '').trim().toLowerCase()
+    if (!q) return insights || []
+    return (insights || []).filter((item) => {
+      return String(`${item.title || ''} ${item.subtitle || ''}`).toLowerCase().includes(q)
+    })
   },
 
   openKnowledgeSubmit() {
     wx.navigateTo({ url: '/pages/knowledge-submit/index' })
   },
 
-  async loadInsights() {
+  async loadInsights({ force = false } = {}) {
     const db = wx.cloud.database()
-    if (!this.data.insights.length) {
+    const shouldShowLoading = !this.data.insights.length || force
+    if (shouldShowLoading) {
       this.setData({ loadingInsights: true })
+      showAppLoading('加载中')
     }
     try {
       const { data } = await db.collection('user_problems')
@@ -145,12 +125,19 @@ Page({
         effectThumbImages: (item.effectImages || []).map((url) => buildKnowledgeThumbUrl(url, { width: 520, quality: 72 })),
       }))
       this.setData({ insights: normalizedInsights })
+      this.setData({ filteredInsights: this.filterInsights(normalizedInsights, this.data.query) })
       writeInsightsCache(normalizedInsights)
     } catch (error) {
       console.warn('loadInsights failed', error)
-      this.setData({ insights: [] })
+      this.setData({
+        insights: [],
+        filteredInsights: [],
+      })
     } finally {
       this.setData({ loadingInsights: false })
+      if (shouldShowLoading) {
+        hideAppLoading()
+      }
     }
   },
 

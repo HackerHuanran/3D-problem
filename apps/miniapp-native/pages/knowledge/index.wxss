@@ -15,3 +15,18 @@
   border-radius: 18rpx;
   background: #e8eef6;
 }
+
+.loading-title {
+  display: block;
+  color: #08203d;
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.loading-subtitle {
+  display: block;
+  margin-top: 10rpx;
+  color: #6b86a8;
+  font-size: 24rpx;
+  line-height: 1.7;
+}

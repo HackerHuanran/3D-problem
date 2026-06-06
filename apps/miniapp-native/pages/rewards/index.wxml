@@ -1,0 +1,79 @@
+<view class="page rewards-page">
+  <view wx:if="{{!currentUser}}" class="hero-card">
+    <text class="title">积分兑换</text>
+    <text class="subtitle">请先登录后再查看积分和兑换耗材。</text>
+  </view>
+
+  <block wx:if="{{currentUser}}">
+    <view class="hero-card rewards-hero">
+      <text class="title">积分兑换</text>
+      <text class="subtitle">分享问题和知识心得都可积累积分，用积分兑换耗材。</text>
+      <view class="points-hero">
+        <text class="points-hero-label">当前积分</text>
+        <text class="points-hero-value">{{points}}</text>
+      </view>
+    </view>
+
+    <view class="panel">
+      <view class="row">
+        <text class="title" style="font-size: 30rpx;">可兑换耗材</text>
+        <text class="meta">{{goods.length}} 件</text>
+      </view>
+      <view wx:if="{{goods.length}}" class="list" style="margin-top: 20rpx;">
+        <view wx:for="{{goods}}" wx:key="id" class="card reward-card">
+          <image wx:if="{{item.imageDisplayUrl}}" class="reward-image" src="{{item.imageDisplayUrl}}" mode="aspectFill"></image>
+          <view wx:else class="reward-image reward-image-fallback"></view>
+          <text class="reward-title">{{item.name}}</text>
+          <view class="reward-meta-row">
+            <text class="reward-meta">所需积分：{{item.pointsCost}}</text>
+            <text class="reward-meta">库存：{{item.quantity}}</text>
+          </view>
+          <button class="btn-primary reward-btn" data-id="{{item.id}}" loading="{{redeemingId === item.id}}" disabled="{{item.quantity <= 0 || redeemingId === item.id}}" bindtap="redeemGoods">{{item.quantity > 0 ? '立即兑换' : '已兑完'}}</button>
+        </view>
+      </view>
+      <view wx:else class="empty-box">
+        <text class="subtitle">管理员还没有上架积分商品。</text>
+      </view>
+    </view>
+
+  </block>
+
+  <view wx:if="{{addressSheetVisible}}" class="address-sheet-mask" catchtap="closeAddressSheet">
+    <view class="address-sheet" catchtap="noop">
+      <view class="address-sheet-handle"></view>
+      <view class="address-sheet-head">
+        <view class="address-sheet-title-wrap">
+          <text class="address-sheet-title">选择收货地址</text>
+          <text class="address-sheet-subtitle">兑换 {{selectedGoods.name}} · {{selectedGoods.pointsCost}} 积分</text>
+        </view>
+        <text class="address-sheet-close" catchtap="closeAddressSheet">×</text>
+      </view>
+
+      <view class="address-sheet-list">
+        <view
+          wx:for="{{addresses}}"
+          wx:key="id"
+          class="address-sheet-item {{selectedAddressId === item.id ? 'active' : ''}}"
+          data-id="{{item.id}}"
+          bindtap="selectAddress"
+        >
+          <view class="address-select-dot">
+            <view wx:if="{{selectedAddressId === item.id}}" class="address-select-dot-inner"></view>
+          </view>
+          <view class="address-sheet-copy">
+            <view class="address-sheet-name-row">
+              <text class="address-sheet-name">{{item.recipient}} {{item.phone}}</text>
+              <text wx:if="{{item.isDefault}}" class="address-default-tag">默认</text>
+            </view>
+            <text class="address-sheet-detail">{{item.regionText}} {{item.detail}}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="address-sheet-actions">
+        <button class="btn-ghost address-manage-btn" bindtap="openAddressPage">管理地址</button>
+        <button class="btn-primary address-confirm-btn" loading="{{!!redeemingId}}" bindtap="confirmRedeem">确认兑换</button>
+      </view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,29 @@
+<view class="page account-list-page">
+  <view class="hero-card">
+    <text class="title">{{title}}</text>
+    <text class="subtitle">{{subtitle}}</text>
+  </view>
+
+  <view wx:if="{{items.length}}" class="panel">
+    <view class="content-list">
+      <view wx:for="{{items}}" wx:key="id" class="content-item" data-id="{{item.id}}" bindtap="openItem">
+        <view class="content-head">
+          <text class="content-title">{{item.title}}</text>
+          <text class="content-badge">{{type === 'submissions' ? (item.statusText || item.status) : (item.category || '问题')}}</text>
+        </view>
+        <text class="content-desc">
+          {{type === 'submissions' ? (item.submissionType === 'knowledge' ? ('知识心得 · ' + item.subtitle) : item.subtitle) : item.subtitle}}
+        </text>
+        <view wx:if="{{type === 'submissions'}}" class="content-foot">
+          <text class="content-meta">{{item.updatedAtText || '可继续修改后重新提交'}}</text>
+          <button class="edit-button" size="mini" data-id="{{item.id}}" catchtap="editSubmission">修改投稿</button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="empty-box">
+    <text class="loading-title">{{type === 'favorites' ? '还没有收藏问题' : type === 'history' ? '还没有浏览记录' : '还没有投稿记录'}}</text>
+    <text class="loading-subtitle">{{type === 'favorites' ? '你在问题详情里点收藏后，这里就会自动显示。' : type === 'history' ? '你查看过的问题详情，会按最近顺序出现在这里。' : '后面你分享的问题和知识心得都会显示在这里。'}}</text>
+  </view>
+</view>

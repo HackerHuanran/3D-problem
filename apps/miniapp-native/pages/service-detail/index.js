@@ -1,3 +1,4 @@
+const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 const SERVICE_DETAIL_CACHE_KEY = 'miniapp_service_detail_cache_v1'
 const SERVICE_DETAIL_CACHE_TTL = 10 * 60 * 1000
 const SERVICE_DETAIL_IMAGE_CACHE_KEY = 'miniapp_service_detail_image_cache_v1'
@@ -81,15 +82,20 @@ Page({
     loading: true,
     detail: null,
     loadError: '',
+    galleryImageErrorMap: {},
   },
 
   async onLoad(query) {
     const id = query.id || ''
+    wx.showShareMenu({
+      menus: ['shareAppMessage', 'shareTimeline'],
+    })
     const cachedDetail = readServiceDetailCache(id)
     this.setData({
       id,
       detail: cachedDetail,
       loading: !cachedDetail,
+      galleryImageErrorMap: {},
     })
     if (!cachedDetail) {
       await this.loadDetail(id)
@@ -108,7 +114,11 @@ Page({
       this.setData({ loading: false, detail: null, loadError: '缺少服务编号' })
       return
     }
-    this.setData({ loading: !this.data.detail, loadError: '' })
+    const shouldShowLoading = !this.data.detail
+    this.setData({ loading: shouldShowLoading, loadError: '' })
+    if (shouldShowLoading) {
+      showAppLoading('加载中')
+    }
     try {
       const db = wx.cloud.database()
       const { data } = await db.collection('studio_services').doc(id).get()
@@ -123,6 +133,9 @@ Page({
       })
     } finally {
       this.setData({ loading: false })
+      if (shouldShowLoading) {
+        hideAppLoading()
+      }
     }
   },
 
@@ -211,14 +224,65 @@ Page({
     return results
   },
   previewWechatQr() {
+    const contact = String(this.data.detail?.contact || '').trim()
     const url = String(this.data.detail?.wechatQrImageDisplay || '').trim()
-    if (!url) {
-      wx.showToast({ title: '暂未上传微信二维码', icon: 'none' })
+    if (url) {
+      wx.previewImage({
+        current: url,
+        urls: [url],
+      })
       return
     }
-    wx.previewImage({
-      current: url,
-      urls: [url],
+    if (!contact) {
+      wx.showToast({ title: '暂未填写联系方式', icon: 'none' })
+      return
+    }
+    wx.showModal({
+      title: '添加微信',
+      content: `微信号：${contact}`,
+      confirmText: '复制',
+      cancelText: '关闭',
+      success: (res) => {
+        if (!res.confirm) return
+        wx.setClipboardData({
+          data: contact,
+          success: () => {
+            wx.showToast({ title: '微信号已复制', icon: 'success' })
+          },
+        })
+      },
     })
+  },
+
+  onGalleryImageError(e) {
+    const key = String(e.currentTarget.dataset.key || '').trim()
+    if (!key) return
+    this.setData({
+      [`galleryImageErrorMap.${key}`]: true,
+    })
+  },
+
+  onShareAppMessage() {
+    const detail = this.data.detail || {}
+    const title = detail.studioName
+      ? `${detail.studioName} | 别塌了模型`
+      : '别塌了模型 | 打印服务'
+    return {
+      title,
+      path: `/pages/service-detail/index?id=${this.data.id}`,
+      imageUrl: detail.imageDisplays?.[0] || '/images/home/services-workshop.jpg',
+    }
+  },
+
+  onShareTimeline() {
+    const detail = this.data.detail || {}
+    const title = detail.studioName
+      ? `${detail.studioName} | 别塌了模型`
+      : '别塌了模型 | 打印服务'
+    return {
+      title,
+      query: `id=${this.data.id}`,
+      imageUrl: detail.imageDisplays?.[0] || '/images/home/services-workshop.jpg',
+    }
   },
 })

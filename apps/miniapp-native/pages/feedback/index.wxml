@@ -38,5 +38,5 @@
     <text class="count-text">{{content.length}}/800</text>
   </view>
 
-  <button class="btn-primary submit-btn" loading="{{submitting}}" bindtap="submit">提交反馈</button>
+  <button class="btn-primary submit-btn" bindtap="submit">提交反馈</button>
 </view>

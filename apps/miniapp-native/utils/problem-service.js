@@ -3,7 +3,7 @@ const db = wx.cloud.database()
 const FETCH_BATCH_SIZE = 20
 const DETAIL_CACHE_KEY = 'problem_detail_cache_v1'
 const COUNT_CACHE_KEY = 'problem_count_cache_v1'
-const LIST_CACHE_KEY = 'problem_list_cache_v1'
+const LIST_CACHE_KEY = 'problem_list_cache_v2_title_only'
 const PUBLIC_URL_CACHE_KEY = 'problem_public_url_cache_v1'
 const META_CACHE_KEY = 'problem_meta_image_cache_v1'
 const THUMB_CACHE_KEY = 'problem_thumb_url_cache_v1'
@@ -344,26 +344,10 @@ function scoreProblemMatch(item, query) {
   const q = normalizeText(query)
   if (!q) return 0
 
-  let score = 0
   const title = normalizeText(item.title)
-  const subtitle = normalizeText(item.subtitle)
-  const description = normalizeText(item.description)
-  const tips = normalizeText(item.tips)
-  const causes = normalizeText((item.causes || []).join(' '))
-  const solutions = normalizeText((item.solutions || []).map((solution) => `${solution.title || ''} ${solution.detail || ''}`).join(' '))
-
-  if (title === q) score += 120
-  else if (title.includes(q)) score += 80
-
-  if (subtitle.includes(q)) score += 50
-  if (description.includes(q)) score += 35
-  if (causes.includes(q)) score += 30
-  if (solutions.includes(q)) score += 24
-  if (tips.includes(q)) score += 18
-  if (normalizeText(item.searchText).includes(q)) score += 12
-  if (buildSearchCorpus(item).includes(q)) score += 10
-
-  return score
+  if (title === q) return 120
+  if (title.includes(q)) return 80
+  return 0
 }
 
 function mapProblem(doc) {
@@ -466,8 +450,7 @@ async function listProblems({ query = '', category = '全部', page = 1, pageSiz
   const matched = allDocs
     .map(mapProblem)
     .filter((item) => {
-      const corpus = buildSearchCorpus(item)
-      return corpus.includes(q)
+      return normalizeText(item.title).includes(q)
     })
     .map((item) => ({
       ...item,

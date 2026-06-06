@@ -5,6 +5,7 @@ const {
   markFeedbackResolved,
 } = require('../../utils/user-service')
 const { listProblems, clearProblemCache, clearProblemCaches } = require('../../utils/problem-service')
+const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 
 function normalizeServiceAsset(value) {
   if (!value) return ''
@@ -52,6 +53,7 @@ Page({
     opTargetId: '',
     submissions: [],
     feedbackList: [],
+    announcements: [],
     usageStats: [],
     usageSummary: {
       today: 0,
@@ -64,6 +66,8 @@ Page({
     },
     problems: [],
     services: [],
+    rewardGoods: [],
+    rewardOrders: [],
     serviceForm: {
       id: '',
       studioName: '',
@@ -75,6 +79,21 @@ Page({
       imageDisplays: [],
       wechatQrImage: '',
       wechatQrImageDisplay: '',
+    },
+    rewardForm: {
+      id: '',
+      name: '',
+      imageUrl: '',
+      imageDisplayUrl: '',
+      quantity: '',
+      pointsCost: '',
+    },
+    announcementForm: {
+      id: '',
+      title: '',
+      content: '',
+      confirmText: '知道了',
+      enabled: true,
     },
     problemPage: 1,
     problemPageSize: 10,
@@ -88,6 +107,7 @@ Page({
 
   async loadAdminState() {
     this.setData({ loading: true, opLoading: false, opAction: '', opTargetId: '' })
+    showAppLoading('加载中')
     try {
       const user = await getCurrentUser()
       const profile = await getCurrentProfile()
@@ -101,12 +121,16 @@ Page({
       await Promise.all([
         this.loadSubmissions(),
         this.loadFeedback(),
+        this.loadAnnouncements(),
         this.loadUsageStats(),
         this.loadProblems({ reset: true }),
         this.loadServices(),
+        this.loadRewardGoods(),
+        this.loadRewardOrders(),
       ])
     } finally {
       this.setData({ loading: false })
+      hideAppLoading()
     }
   },
 
@@ -120,6 +144,7 @@ Page({
       const submissions = (data || []).map((item) => ({
         _id: item._id,
         id: item._id,
+        userId: item.user_id || '',
         problemId: item.problem_id || item._id,
         title: item.title || '',
         subtitle: item.subtitle || '',
@@ -155,6 +180,29 @@ Page({
     } catch (error) {
       console.warn('loadFeedback failed', error)
       this.setData({ feedbackList: [] })
+    }
+  },
+
+  async loadAnnouncements() {
+    const db = wx.cloud.database()
+    try {
+      const { data } = await db.collection('app_announcements')
+        .orderBy('updated_at', 'desc')
+        .limit(50)
+        .get()
+      const announcements = (data || []).map((item) => ({
+        id: item._id,
+        title: item.title || '',
+        content: item.content || '',
+        confirmText: item.confirm_text || '知道了',
+        enabled: item.enabled === true,
+        statusText: item.enabled === true ? '启用中' : '已停用',
+        updatedAt: item.updated_at || item.created_at || null,
+      }))
+      this.setData({ announcements })
+    } catch (error) {
+      console.warn('loadAnnouncements failed', error)
+      this.setData({ announcements: [] })
     }
   },
 
@@ -206,6 +254,9 @@ Page({
     }
     const nextPage = reset ? 1 : this.data.problemPage
     this.setData(reset ? { loading: true } : { loadingMore: true })
+    if (reset) {
+      showAppLoading('加载中')
+    }
     try {
       const items = await listProblems({
         page: nextPage,
@@ -229,6 +280,9 @@ Page({
         loading: false,
         loadingMore: false,
       })
+      if (reset) {
+        hideAppLoading()
+      }
     }
   },
 
@@ -244,6 +298,57 @@ Page({
     } catch (error) {
       console.warn('loadServices failed', error)
       this.setData({ services: [] })
+    }
+  },
+
+  async loadRewardGoods() {
+    const db = wx.cloud.database()
+    try {
+      const { data } = await db.collection('reward_goods')
+        .orderBy('updated_at', 'desc')
+        .limit(100)
+        .get()
+      const rewardGoods = await Promise.all((data || []).map(async (item) => ({
+        id: item._id,
+        name: item.name || '',
+        quantity: item.quantity || 0,
+        pointsCost: item.points_cost || item.pointsCost || 0,
+        imageUrl: normalizeServiceAsset(item.image_url),
+        imageDisplayUrl: await this.resolveCloudFile(item.image_url),
+        updatedAt: item.updated_at || item.created_at || null,
+      })))
+      this.setData({ rewardGoods })
+    } catch (error) {
+      console.warn('loadRewardGoods failed', error)
+      this.setData({ rewardGoods: [] })
+    }
+  },
+
+  async loadRewardOrders() {
+    const db = wx.cloud.database()
+    try {
+      const { data } = await db.collection('reward_orders')
+        .orderBy('created_at', 'desc')
+        .limit(100)
+        .get()
+      const rewardOrders = await Promise.all((data || []).map(async (item) => ({
+        id: item._id,
+        userId: item.user_id || '',
+        goodsId: item.goods_id || '',
+        goodsName: item.goods_name || '',
+        goodsImage: normalizeServiceAsset(item.goods_image),
+        goodsImageDisplay: await this.resolveCloudFile(item.goods_image),
+        pointsCost: Number(item.points_cost || 0),
+        status: item.status || 'pending',
+        statusText: item.status_text || (item.status === 'done' ? '已处理' : '待处理'),
+        address: item.address_snapshot || {},
+        addressText: `${item.address_snapshot?.recipient || ''} ${item.address_snapshot?.phone || ''} ${item.address_snapshot?.region_text || ''} ${item.address_snapshot?.detail || ''}`.trim(),
+        createdAt: item.created_at || null,
+      })))
+      this.setData({ rewardOrders })
+    } catch (error) {
+      console.warn('loadRewardOrders failed', error)
+      this.setData({ rewardOrders: [] })
     }
   },
 
@@ -355,12 +460,165 @@ Page({
     if (section === 'feedback' && !this.data.feedbackList.length) {
       this.loadFeedback()
     }
+    if (section === 'announcements' && !this.data.announcements.length) {
+      this.loadAnnouncements()
+    }
     if (section === 'analytics' && !this.data.usageStats.length) {
       this.loadUsageStats()
     }
     if (section === 'services' && !this.data.services.length) {
       this.loadServices()
     }
+    if (section === 'rewards' && !this.data.rewardGoods.length) {
+      this.loadRewardGoods()
+    }
+    if (section === 'rewardOrders' && !this.data.rewardOrders.length) {
+      this.loadRewardOrders()
+    }
+  },
+
+  onAnnouncementInput(e) {
+    const field = e.currentTarget.dataset.field
+    if (!field) return
+    this.setData({
+      [`announcementForm.${field}`]: e.detail.value,
+    })
+  },
+
+  onAnnouncementEnabledChange(e) {
+    this.setData({
+      'announcementForm.enabled': !!e.detail.value,
+    })
+  },
+
+  resetAnnouncementForm() {
+    this.setData({
+      announcementForm: {
+        id: '',
+        title: '',
+        content: '',
+        confirmText: '知道了',
+        enabled: true,
+      },
+    })
+  },
+
+  editAnnouncement(e) {
+    const id = e.currentTarget.dataset.id
+    const item = this.data.announcements.find((row) => row.id === id)
+    if (!item) return
+    this.setData({
+      announcementForm: {
+        id: item.id,
+        title: item.title || '',
+        content: item.content || '',
+        confirmText: item.confirmText || '知道了',
+        enabled: item.enabled === true,
+      },
+    })
+  },
+
+  async saveAnnouncement() {
+    const db = wx.cloud.database()
+    const form = this.data.announcementForm || {}
+    const title = String(form.title || '').trim()
+    const content = String(form.content || '').trim()
+    const confirmText = String(form.confirmText || '').trim() || '知道了'
+    const enabled = form.enabled === true
+
+    if (!title || !content) {
+      wx.showToast({ title: '请填写公告标题和内容', icon: 'none' })
+      return
+    }
+
+    this.setOperationState('save-announcement', form.id || 'new')
+    showAppLoading('保存中')
+    try {
+      const payload = {
+        title,
+        content,
+        confirm_text: confirmText,
+        enabled,
+        updated_at: db.serverDate(),
+      }
+      if (form.id) {
+        await db.collection('app_announcements').doc(form.id).update({ data: payload })
+      } else {
+        await db.collection('app_announcements').add({
+          data: {
+            ...payload,
+            created_at: db.serverDate(),
+          },
+        })
+      }
+      wx.showToast({ title: form.id ? '已更新公告' : '已发布公告', icon: 'success' })
+      this.resetAnnouncementForm()
+      await this.loadAnnouncements()
+    } catch (error) {
+      wx.showModal({
+        title: '保存失败',
+        content: error?.message || '请检查 app_announcements 集合和权限',
+        showCancel: false,
+      })
+    } finally {
+      this.clearOperationState()
+      hideAppLoading()
+    }
+  },
+
+  async toggleAnnouncement(e) {
+    const id = e.currentTarget.dataset.id
+    const item = this.data.announcements.find((row) => row.id === id)
+    if (!item) return
+    this.setOperationState('toggle-announcement', item.id)
+    try {
+      await wx.cloud.database().collection('app_announcements').doc(item.id).update({
+        data: {
+          enabled: !item.enabled,
+          updated_at: wx.cloud.database().serverDate(),
+        },
+      })
+      wx.showToast({ title: item.enabled ? '已停用' : '已启用', icon: 'success' })
+      await this.loadAnnouncements()
+    } catch (error) {
+      wx.showModal({
+        title: '操作失败',
+        content: error?.message || '请检查数据库权限',
+        showCancel: false,
+      })
+    } finally {
+      this.clearOperationState()
+    }
+  },
+
+  deleteAnnouncement(e) {
+    const id = e.currentTarget.dataset.id
+    const item = this.data.announcements.find((row) => row.id === id)
+    if (!item) return
+    wx.showModal({
+      title: '删除公告',
+      content: `确定删除「${item.title}」吗？`,
+      success: async (res) => {
+        if (!res.confirm) return
+        this.setOperationState('delete-announcement', item.id)
+        try {
+          await wx.cloud.database().collection('app_announcements').doc(item.id).remove()
+          if (this.data.announcementForm.id === item.id) {
+            this.resetAnnouncementForm()
+          }
+          wx.showToast({ title: '已删除', icon: 'success' })
+          await this.loadAnnouncements()
+        } catch (error) {
+          wx.showModal({
+            title: '删除失败',
+            content: error?.message || '请检查数据库权限',
+            showCancel: false,
+          })
+        } finally {
+          this.clearOperationState()
+        }
+      },
+    })
   },
 
   onServiceInput(e) {
@@ -385,6 +643,228 @@ Page({
         wechatQrImage: '',
         wechatQrImageDisplay: '',
       },
+    })
+  },
+
+  onRewardInput(e) {
+    const field = e.currentTarget.dataset.field
+    if (!field) return
+    this.setData({
+      [`rewardForm.${field}`]: e.detail.value,
+    })
+  },
+
+  resetRewardForm() {
+    this.setData({
+      rewardForm: {
+        id: '',
+        name: '',
+        imageUrl: '',
+        imageDisplayUrl: '',
+        quantity: '',
+        pointsCost: '',
+      },
+    })
+  },
+
+  editRewardGood(e) {
+    const id = e.currentTarget.dataset.id
+    const item = this.data.rewardGoods.find((row) => row.id === id)
+    if (!item) return
+    this.setData({
+      rewardForm: {
+        id: item.id,
+        name: item.name || '',
+        imageUrl: item.imageUrl || '',
+        imageDisplayUrl: item.imageDisplayUrl || item.imageUrl || '',
+        quantity: String(item.quantity || ''),
+        pointsCost: String(item.pointsCost || ''),
+      },
+    })
+  },
+
+  chooseRewardImage() {
+    wx.chooseMedia({
+      count: 1,
+      mediaType: ['image'],
+      sourceType: ['album', 'camera'],
+      success: (res) => {
+        const file = res.tempFiles?.[0]?.tempFilePath
+        if (!file) return
+        this.setData({
+          'rewardForm.imageUrl': file,
+          'rewardForm.imageDisplayUrl': file,
+        })
+      },
+    })
+  },
+
+  clearRewardImage() {
+    this.setData({
+      'rewardForm.imageUrl': '',
+      'rewardForm.imageDisplayUrl': '',
+    })
+  },
+
+  async saveRewardGood() {
+    const db = wx.cloud.database()
+    const form = this.data.rewardForm || {}
+    const name = String(form.name || '').trim()
+    const quantity = Number(form.quantity || 0)
+    const pointsCost = Number(form.pointsCost || 0)
+    let imageUrl = String(form.imageUrl || '').trim()
+
+    if (!name || quantity < 0 || pointsCost <= 0) {
+      wx.showToast({ title: '请完整填写商品信息', icon: 'none' })
+      return
+    }
+
+    this.setOperationState('save-reward', form.id || 'new')
+    showAppLoading('保存中')
+    try {
+      if (imageUrl && !isUploadedAsset(imageUrl)) {
+        const ext = (imageUrl.split('.').pop() || 'jpg').toLowerCase()
+        const cloudPath = `reward-goods/${form.id || Date.now()}-${Date.now()}.${ext}`
+        const upload = await wx.cloud.uploadFile({
+          cloudPath,
+          filePath: imageUrl,
+        })
+        imageUrl = upload.fileID || ''
+      }
+
+      const payload = {
+        name,
+        image_url: imageUrl,
+        quantity: Math.max(0, Math.floor(quantity)),
+        points_cost: Math.max(1, Math.floor(pointsCost)),
+        updated_at: db.serverDate(),
+      }
+
+      if (form.id) {
+        await db.collection('reward_goods').doc(form.id).update({ data: payload })
+      } else {
+        await db.collection('reward_goods').add({
+          data: {
+            ...payload,
+            created_at: db.serverDate(),
+          },
+        })
+      }
+
+      wx.showToast({ title: form.id ? '已更新' : '已上架', icon: 'success' })
+      this.resetRewardForm()
+      await this.loadRewardGoods()
+    } catch (error) {
+      wx.showModal({
+        title: '保存失败',
+        content: error?.message || '请检查 reward_goods 集合和权限',
+        showCancel: false,
+      })
+    } finally {
+      this.clearOperationState()
+      hideAppLoading()
+    }
+  },
+
+  deleteRewardGood(e) {
+    const id = e.currentTarget.dataset.id
+    const item = this.data.rewardGoods.find((row) => row.id === id)
+    if (!item) return
+    wx.showModal({
+      title: '删除积分商品',
+      content: `确定删除「${item.name}」吗？`,
+      success: async (res) => {
+        if (!res.confirm) return
+        this.setOperationState('delete-reward', item.id)
+        try {
+          await wx.cloud.database().collection('reward_goods').doc(item.id).remove()
+          if (this.data.rewardForm.id === item.id) {
+            this.resetRewardForm()
+          }
+          wx.showToast({ title: '已删除', icon: 'success' })
+          await this.loadRewardGoods()
+        } catch (error) {
+          wx.showModal({
+            title: '删除失败',
+            content: error?.message || '请检查数据库权限',
+            showCancel: false,
+          })
+        } finally {
+          this.clearOperationState()
+        }
+      },
+    })
+  },
+
+  async awardPointsForSubmission(item) {
+    if (!item?.id || !item?.userId) return null
+    try {
+      const res = await wx.cloud.callFunction({
+        name: 'miniappAuth',
+        data: {
+          action: 'awardSubmissionPoints',
+          targetUserId: item.userId,
+          submissionId: item.id,
+          submissionType: item.submissionType || 'problem',
+        },
+      })
+      const result = res?.result || {}
+      if (result?.ok === false) {
+        throw new Error(result?.error || '积分发放失败')
+      }
+      return result
+    } catch (error) {
+      console.warn('award approved submission points failed', error)
+      return {
+        ok: false,
+        error: error?.message || '积分发放失败',
+      }
+    }
+  },
+
+  async markRewardOrderDone(e) {
+    const id = e.currentTarget.dataset.id
+    const item = this.data.rewardOrders.find((row) => row.id === id)
+    if (!item?.id) return
+    if (item.status === 'done') {
+      wx.showToast({ title: '该订单已处理', icon: 'none' })
+      return
+    }
+
+    this.setOperationState('done-reward-order', item.id)
+    showAppLoading('处理中')
+    try {
+      const db = wx.cloud.database()
+      await db.collection('reward_orders').doc(item.id).update({
+        data: {
+          status: 'done',
+          status_text: '已处理',
+          updated_at: db.serverDate(),
+        },
+      })
+      wx.showToast({ title: '已标记处理', icon: 'success' })
+      await this.loadRewardOrders()
+    } catch (error) {
+      wx.showModal({
+        title: '操作失败',
+        content: error?.message || '请检查 reward_orders 集合权限',
+        showCancel: false,
+      })
+    } finally {
+      this.clearOperationState()
+      hideAppLoading()
+    }
+  },
+
+  viewRewardOrderAddress(e) {
+    const id = e.currentTarget.dataset.id
+    const item = this.data.rewardOrders.find((row) => row.id === id)
+    if (!item) return
+    wx.showModal({
+      title: item.goodsName || '兑换订单',
+      content: `用户：${item.userId}\n商品：${item.goodsName}\n积分：${item.pointsCost}\n状态：${item.statusText}\n\n收货地址：\n${item.addressText || '未填写'}`,
+      showCancel: false,
+      confirmText: '知道了',
     })
   },
 
@@ -473,16 +953,17 @@ Page({
     const machineModel = String(form.machineModel || '').trim()
     const machineCount = String(form.machineCount || '').trim()
     const description = String(form.description || '').trim()
+    const contact = String(form.contact || '').trim()
     const inputImages = (form.images || []).filter(Boolean).slice(0, 3)
     let wechatQrImage = String(form.wechatQrImage || '').trim()
 
-    if (!studioName || !machineModel || !machineCount || !description || !inputImages.length) {
+    if (!studioName || !machineModel || !machineCount || !description) {
       wx.showToast({ title: '请完整填写服务信息', icon: 'none' })
       return
     }
 
     this.setOperationState('save-service', form.id || 'new')
-    wx.showLoading({ title: '正在保存' })
+    showAppLoading('保存中')
     try {
       const uploadedImages = []
       for (let index = 0; index < inputImages.length; index += 1) {
@@ -515,7 +996,7 @@ Page({
         studioName,
         machineModel,
         machineCount,
-        contact: '',
+        contact,
         description,
         images: uploadedImages,
         environmentImage: uploadedImages[0] || '',
@@ -543,7 +1024,7 @@ Page({
       })
     } finally {
       this.clearOperationState()
-      wx.hideLoading()
+      hideAppLoading()
     }
   },
 
@@ -591,7 +1072,7 @@ Page({
     }
     const db = wx.cloud.database()
     this.setOperationState('approve', item.id)
-    wx.showLoading({ title: '正在审核' })
+    showAppLoading('处理中')
     try {
       await db.collection('user_problems').doc(item.id).update({
         data: {
@@ -637,7 +1118,14 @@ Page({
           })
         }
       }
-      wx.showToast({ title: '已通过', icon: 'success' })
+      const pointsResult = await this.awardPointsForSubmission(item)
+      wx.showToast({
+        title: pointsResult?.awarded ? '已通过并加积分' : '已通过',
+        icon: 'success',
+      })
+      if (pointsResult?.dailyLimitReached) {
+        wx.showToast({ title: '该用户今日积分已达上限', icon: 'none' })
+      }
       clearProblemCaches()
       await this.loadSubmissions()
       await this.loadProblems({ reset: true })
@@ -654,7 +1142,7 @@ Page({
       })
     } finally {
       this.clearOperationState()
-      wx.hideLoading()
+      hideAppLoading()
     }
   },
 
@@ -664,7 +1152,7 @@ Page({
     if (!item?.id) return
     const db = wx.cloud.database()
     this.setOperationState('reject', item.id)
-    wx.showLoading({ title: '正在处理' })
+    showAppLoading('处理中')
     try {
       await db.collection('user_problems').doc(item.id).update({
         data: {
@@ -683,7 +1171,7 @@ Page({
       })
     } finally {
       this.clearOperationState()
-      wx.hideLoading()
+      hideAppLoading()
     }
   },
 
@@ -745,7 +1233,7 @@ Page({
     if (!item?.id) return
     const db = wx.cloud.database()
     this.setOperationState('delete', item.id)
-    wx.showLoading({ title: '正在删除' })
+    showAppLoading('删除中')
     try {
       await db.collection('user_problems').doc(item.id).remove()
       clearProblemCache(item.problemId)
@@ -772,7 +1260,7 @@ Page({
       })
     } finally {
       this.clearOperationState()
-      wx.hideLoading()
+      hideAppLoading()
     }
   },
 
@@ -796,7 +1284,7 @@ Page({
   async uploadProblemImage(problem, file) {
     if (!problem?.id || !file) return
     const db = wx.cloud.database()
-    wx.showLoading({ title: '上传中' })
+    showAppLoading('上传中')
     try {
       const ext = (file.split('.').pop() || 'jpg').toLowerCase()
       const cloudPath = `problem-covers/${problem.id}/${Date.now()}.${ext}`
@@ -834,7 +1322,7 @@ Page({
         showCancel: false,
       })
     } finally {
-      wx.hideLoading()
+      hideAppLoading()
     }
   },
 
@@ -842,10 +1330,17 @@ Page({
     const id = e.currentTarget.dataset.id
     if (!id) return
     this.setOperationState('view-problem', id)
-    wx.showLoading({ title: '正在打开' })
+    showAppLoading('正在打开')
     wx.navigateTo({
       url: `/pages/problem-detail/index?id=${id}`,
-      fail: () => this.clearOperationState(),
+      fail: () => {
+        this.clearOperationState()
+        hideAppLoading()
+      },
+      complete: () => {
+        this.clearOperationState()
+        hideAppLoading()
+      },
     })
   },
 
@@ -854,12 +1349,19 @@ Page({
     if (!id) return
     const item = this.data.submissions.find((row) => row.id === id)
     this.setOperationState('view', id)
-    wx.showLoading({ title: '正在打开' })
+    showAppLoading('正在打开')
     wx.navigateTo({
       url: item?.submissionType === 'knowledge'
         ? `/pages/knowledge-submit/index?id=${id}`
         : `/pages/problem-detail/index?id=${id}`,
-      fail: () => this.clearOperationState(),
+      fail: () => {
+        this.clearOperationState()
+        hideAppLoading()
+      },
+      complete: () => {
+        this.clearOperationState()
+        hideAppLoading()
+      },
     })
   },
 

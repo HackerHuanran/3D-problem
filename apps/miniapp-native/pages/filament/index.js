@@ -1,4 +1,5 @@
 const { listFilaments } = require('../../utils/filament-service')
+const { withAppLoading } = require('../../utils/loading')
 
 Page({
   data: {
@@ -10,12 +11,14 @@ Page({
   },
 
   async onLoad() {
-    wx.hideLoading()
-    wx.showLoading({ title: '正在加载' })
+    await withAppLoading(() => this.refreshList(), '加载中')
+  },
+
+  async onPullDownRefresh() {
     try {
       await this.refreshList()
     } finally {
-      wx.hideLoading()
+      wx.stopPullDownRefresh()
     }
   },
 

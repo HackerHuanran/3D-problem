@@ -1,4 +1,5 @@
-const { listProblems } = require('../../utils/problem-service')
+const { listProblems, clearProblemCaches } = require('../../utils/problem-service')
+const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 const LIBRARY_CACHE_KEY = 'problem_library_state_v1'
 const LIBRARY_CACHE_TTL = 3 * 60 * 1000
 
@@ -70,6 +71,16 @@ Page({
     await this.loadProblems({ reset: true })
   },
 
+  async onPullDownRefresh() {
+    try {
+      clearProblemCaches()
+      this.lastRefreshAt = 0
+      await this.loadProblems({ reset: true })
+    } finally {
+      wx.stopPullDownRefresh()
+    }
+  },
+
   onUnload() {
     if (this.data.searchTimer) {
       clearTimeout(this.data.searchTimer)
@@ -96,6 +107,9 @@ Page({
     }
 
     this.setData(reset ? { loading: true } : { loadingMore: true })
+    if (reset) {
+      showAppLoading('加载中')
+    }
     try {
       const problems = await listProblems({
         query: this.data.query,
@@ -133,6 +147,9 @@ Page({
         loading: false,
         loadingMore: false,
       })
+      if (reset) {
+        hideAppLoading()
+      }
     }
   },
 
@@ -152,7 +169,12 @@ Page({
   openDetail(e) {
     const id = e.currentTarget.dataset.id
     if (!id) return
-    wx.showLoading({ title: '正在打开' })
-    wx.navigateTo({ url: `/pages/problem-detail/index?id=${id}` })
+    showAppLoading('正在打开')
+    wx.navigateTo({
+      url: `/pages/problem-detail/index?id=${id}`,
+      complete: () => {
+        hideAppLoading()
+      },
+    })
   },
 })

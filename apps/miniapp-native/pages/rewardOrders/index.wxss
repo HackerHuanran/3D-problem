@@ -1,0 +1,48 @@
+.reward-orders-page {
+  gap: 22rpx;
+}
+
+.order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.order-card {
+  display: flex;
+  gap: 18rpx;
+  padding: 20rpx;
+}
+
+.order-image {
+  width: 150rpx;
+  height: 150rpx;
+  border-radius: 20rpx;
+  flex-shrink: 0;
+  background: #e8eef6;
+}
+
+.order-image-fallback {
+  background: linear-gradient(135deg, #dbeafe 0%, #d1fae5 100%);
+}
+
+.order-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.order-title {
+  flex: 1;
+  color: #08203d;
+  font-size: 28rpx;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.order-meta {
+  display: block;
+  margin-top: 10rpx;
+  color: #57708f;
+  font-size: 24rpx;
+  line-height: 1.6;
+}

@@ -4,13 +4,8 @@ const {
   ensureUser,
   logoutCurrentUser,
   getUserCacheKeys,
-  fetchFavorites,
-  fetchHistory,
-  fetchFavoriteProblems,
-  fetchHistoryProblems,
-  fetchMyProblemSubmissions,
-  readDashboardCache,
 } = require('../../utils/user-service')
+const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 const AVATAR_TEMP_URL_CACHE_KEY = 'miniapp_avatar_temp_url_cache_v1'
 
 function readAvatarUrlCache() {
@@ -50,20 +45,18 @@ Page({
     favoriteCount: 0,
     historyCount: 0,
     submissionCount: 0,
+    adminNoticeCount: 0,
+    adminNoticeText: '',
     loading: false,
-    activeTab: 'favorites',
-    favoriteProblems: [],
-    historyProblems: [],
-    problemSubmissions: [],
-    secondaryLoading: false,
     navigating: false,
     avatarLoadFailed: false,
     avatarRetrying: false,
-    loadedTabs: {},
+    legalAccepted: false,
   },
 
   lastLoadAt: 0,
   lastCountsAt: 0,
+  lastAdminNoticeAt: 0,
 
   normalizeDisplayUser(user, profile) {
     if (!user && !profile) return null
@@ -156,13 +149,10 @@ Page({
         favoriteCount: 0,
         historyCount: 0,
         submissionCount: 0,
-        favoriteProblems: [],
-        historyProblems: [],
-        problemSubmissions: [],
-        secondaryLoading: false,
+        adminNoticeCount: 0,
+        adminNoticeText: '',
         avatarLoadFailed: false,
         avatarRetrying: false,
-        loadedTabs: {},
       })
       return
     }
@@ -185,49 +175,38 @@ Page({
       avatarUrl: fallbackAvatarUrl,
     })
     displayUser = await this.hydrateDisplayUserAvatar(displayUser)
+    const isAdmin = !!(user?.isAdmin || profile?.isAdmin || ['admin', 'administrator', 'root'].includes(String(profile?.role || '').trim().toLowerCase()))
     this.setData({
       currentUser: displayUser,
       currentProfile: profile,
-      isAdmin: !!(user?.isAdmin || profile?.isAdmin),
+      isAdmin,
+      adminNoticeCount: isAdmin ? this.data.adminNoticeCount : 0,
+      adminNoticeText: isAdmin ? this.data.adminNoticeText : '',
       avatarLoadFailed: false,
       avatarRetrying: false,
     })
-    if (displayUser?.id) {
-      try {
-        const mergedUser = {
-          ...(user || {}),
-          ...(profile || {}),
-          ...displayUser,
-        }
-        const keys = getUserCacheKeys(displayUser.id)
-        wx.setStorageSync(keys.currentUserKey, mergedUser)
-        wx.setStorageSync(keys.currentUserDisplayKey, displayUser)
-        wx.setStorageSync('currentUser', mergedUser)
-        wx.setStorageSync('currentUserDisplay', displayUser)
-        getApp().globalData.currentUser = mergedUser
-      } catch (error) {
-        console.warn('sync latest display user failed', error)
-      }
-    }
     if (!displayUser?.id) return
 
-    const dashboardCache = readDashboardCache(displayUser.id)
-    if (dashboardCache) {
-      this.setData({
-        favoriteProblems: dashboardCache.favoriteProblems || this.data.favoriteProblems,
-        historyProblems: dashboardCache.historyProblems || this.data.historyProblems,
-        problemSubmissions: dashboardCache.problemSubmissions || this.data.problemSubmissions,
-        submissionCount: Array.isArray(dashboardCache.problemSubmissions) ? dashboardCache.problemSubmissions.length : this.data.submissionCount,
-        loadedTabs: {
-          favorites: Array.isArray(dashboardCache.favoriteProblems),
-          history: Array.isArray(dashboardCache.historyProblems),
-          submissions: Array.isArray(dashboardCache.problemSubmissions),
-        },
-      })
+    try {
+      const mergedUser = {
+        ...(user || {}),
+        ...(profile || {}),
+        ...displayUser,
+      }
+      const keys = getUserCacheKeys(displayUser.id)
+      wx.setStorageSync(keys.currentUserKey, mergedUser)
+      wx.setStorageSync(keys.currentUserDisplayKey, displayUser)
+      wx.setStorageSync('currentUser', mergedUser)
+      wx.setStorageSync('currentUserDisplay', displayUser)
+      getApp().globalData.currentUser = mergedUser
+    } catch (error) {
+      console.warn('sync latest display user failed', error)
     }
 
     this.loadAccountCounts(displayUser.id)
-    this.ensureActiveTabData()
+    if (isAdmin) {
+      this.loadAdminNoticeCount({ force: true })
+    }
   },
 
   async loadAccountCounts(userId = '') {
@@ -235,74 +214,113 @@ Page({
     if (Date.now() - this.lastCountsAt < 1500) return
     this.lastCountsAt = Date.now()
     Promise.all([
-      fetchFavorites(userId),
-      fetchHistory(userId),
-      fetchMyProblemSubmissions(userId),
-    ]).then(([favorites, history, problemSubmissions]) => {
+      wx.cloud.database().collection('problem_favorites').where({ user_id: userId }).count(),
+      wx.cloud.database().collection('problem_history').where({ user_id: userId }).count(),
+      this.countUserSubmissions(userId),
+    ]).then(([favorites, history, submissions]) => {
       this.setData({
-        favoriteCount: favorites.length,
-        historyCount: history.length,
-        submissionCount: problemSubmissions.length,
+        favoriteCount: Number(favorites?.total || favorites?.count || 0),
+        historyCount: Number(history?.total || history?.count || 0),
+        submissionCount: Number(submissions || 0),
       })
-      if (!this.data.loadedTabs.submissions && this.data.activeTab === 'submissions') {
-        this.setData({
-          problemSubmissions,
-          loadedTabs: {
-            ...(this.data.loadedTabs || {}),
-            submissions: true,
-          },
-        })
-      }
     }).catch((error) => {
       console.warn('loadAccountCounts failed', error)
     })
   },
 
-  async ensureActiveTabData() {
-    const userId = this.data.currentUser?.id || ''
-    const activeTab = this.data.activeTab || 'favorites'
-    if (!userId) return
-    if (this.data.loadedTabs?.[activeTab]) return
-    this.setData({ secondaryLoading: true })
+  isVisibleSubmission(item = {}) {
+    const status = String(item.status || '').trim().toLowerCase()
+    return item.deleted !== true && item.is_deleted !== true && !['deleted', 'removed'].includes(status)
+  },
+
+  async countUserSubmissions(userId = '') {
+    if (!userId) return 0
     try {
-      if (activeTab === 'favorites') {
-        const favoriteProblems = await fetchFavoriteProblems(userId)
-        this.setData({
-          favoriteProblems,
-          loadedTabs: {
-            ...(this.data.loadedTabs || {}),
-            favorites: true,
-          },
-        })
-      } else if (activeTab === 'history') {
-        const historyProblems = await fetchHistoryProblems(userId)
-        this.setData({
-          historyProblems,
-          loadedTabs: {
-            ...(this.data.loadedTabs || {}),
-            history: true,
-          },
-        })
-      } else if (activeTab === 'submissions') {
-        const problemSubmissions = await fetchMyProblemSubmissions(userId)
-        this.setData({
-          submissionCount: problemSubmissions.length,
-          problemSubmissions,
-          loadedTabs: {
-            ...(this.data.loadedTabs || {}),
-            submissions: true,
-          },
-        })
+      const db = wx.cloud.database()
+      let total = 0
+      let skip = 0
+      const pageSize = 100
+      while (true) {
+        const { data } = await db.collection('user_problems')
+          .where({ user_id: userId })
+          .skip(skip)
+          .limit(pageSize)
+          .get()
+        const rows = data || []
+        total += rows.filter((item) => this.isVisibleSubmission(item)).length
+        if (rows.length < pageSize) break
+        skip += rows.length
       }
+      return total
     } catch (error) {
-      console.warn('ensureActiveTabData failed', error)
-      wx.showToast({ title: '当前列表加载失败', icon: 'none' })
-    } finally {
-      this.setData({ secondaryLoading: false })
+      console.warn('count user submissions failed', error)
+      return 0
+    }
+  },
+
+  async safeCount(collectionName, where = {}) {
+    try {
+      const res = await wx.cloud.database().collection(collectionName).where(where).count()
+      return Number(res?.total || res?.count || 0)
+    } catch (error) {
+      console.warn(`count ${collectionName} failed`, error)
+      return 0
+    }
+  },
+
+  async countPendingSubmissions() {
+    try {
+      const db = wx.cloud.database()
+      let total = 0
+      let skip = 0
+      const pageSize = 100
+      while (true) {
+        const { data } = await db.collection('user_problems')
+          .where({ status: 'pending' })
+          .skip(skip)
+          .limit(pageSize)
+          .get()
+        const rows = data || []
+        total += rows.filter((item) => this.isVisibleSubmission(item)).length
+        if (rows.length < pageSize) break
+        skip += rows.length
+      }
+      return total
+    } catch (error) {
+      console.warn('count pending submissions failed', error)
+      return 0
+    }
+  },
+
+  async loadAdminNoticeCount(options = {}) {
+    const force = options?.force === true
+    if (!force && Date.now() - this.lastAdminNoticeAt < 1500) return
+    this.lastAdminNoticeAt = Date.now()
+    try {
+      const [pendingSubmissions, pendingFeedback, pendingRewardOrders] = await Promise.all([
+        this.countPendingSubmissions(),
+        this.safeCount('user_feedback', { status: 'pending' }),
+        this.safeCount('reward_orders', { status: 'pending' }),
+      ])
+      const total = pendingSubmissions + pendingFeedback + pendingRewardOrders
+      this.setData({
+        adminNoticeCount: total,
+        adminNoticeText: total > 99 ? '99+' : String(total),
+      })
+    } catch (error) {
+      console.warn('loadAdminNoticeCount failed', error)
+      this.setData({
+        adminNoticeCount: 0,
+        adminNoticeText: '',
+      })
     }
   },
 
   async loginWechat() {
+    if (!this.data.legalAccepted) {
+      wx.showToast({ title: '请先阅读并同意相关协议', icon: 'none' })
+      return
+    }
     this.setData({ loading: true })
     try {
       let profile = null
@@ -338,12 +356,10 @@ Page({
       this.setData({
         currentUser: displayUser,
         currentProfile: latestProfile || profile,
-        isAdmin: !!(user?.isAdmin || latestProfile?.isAdmin),
+        isAdmin: !!(user?.isAdmin || latestProfile?.isAdmin || ['admin', 'administrator', 'root'].includes(String(latestProfile?.role || '').trim().toLowerCase())),
         loading: false,
-        secondaryLoading: false,
         avatarLoadFailed: false,
         avatarRetrying: false,
-        loadedTabs: {},
       })
       try {
         const keys = getUserCacheKeys(displayUser.id)
@@ -368,7 +384,9 @@ Page({
       })
 
       this.loadAccountCounts(displayUser.id)
-      this.ensureActiveTabData()
+      if (this.data.isAdmin) {
+        this.loadAdminNoticeCount({ force: true })
+      }
     } catch (error) {
       this.setData({ loading: false })
       wx.showModal({
@@ -377,6 +395,12 @@ Page({
         showCancel: false,
       })
     }
+  },
+
+  toggleLegalAccepted() {
+    this.setData({
+      legalAccepted: !this.data.legalAccepted,
+    })
   },
 
   async onAvatarLoadError(e) {
@@ -422,84 +446,66 @@ Page({
     }
   },
 
-  selectTab(e) {
-    const nextTab = e.currentTarget.dataset.tab
-    this.setData({ activeTab: nextTab })
-    this.ensureActiveTabData()
-  },
-
   openFeedback() {
     wx.navigateTo({ url: '/pages/feedback/index' })
+  },
+
+  navigateToPage(url = '', requiresLogin = true) {
+    if (!url) return
+    if (requiresLogin && !this.data.currentUser?.id) {
+      wx.showToast({ title: '请先登录', icon: 'none' })
+      return
+    }
+    if (this.data.navigating) return
+    this.setData({ navigating: true })
+    showAppLoading('正在打开')
+    wx.navigateTo({
+      url,
+      complete: () => {
+        this.setData({ navigating: false })
+        hideAppLoading()
+      },
+    })
+  },
+
+  openFavorites() {
+    this.navigateToPage('/pages/accountList/index?type=favorites')
+  },
+
+  openHistory() {
+    this.navigateToPage('/pages/accountList/index?type=history')
+  },
+
+  openSubmissions() {
+    this.navigateToPage('/pages/accountList/index?type=submissions')
+  },
+
+  openRewards() {
+    this.navigateToPage('/pages/rewards/index')
+  },
+
+  openRewardOrders() {
+    this.navigateToPage('/pages/rewardOrders/index')
+  },
+
+  openAddresses() {
+    this.navigateToPage('/pages/address/index')
   },
 
   openLegal() {
     wx.navigateTo({ url: '/pages/legal/index' })
   },
 
-  openProblemDetail(e) {
-    if (this.data.navigating) return
-    const submissionType = e.currentTarget.dataset.submissionType || ''
-    const submissionId = e.currentTarget.dataset.submissionId || ''
-    if (submissionType === 'knowledge' && submissionId) {
-      this.setData({ navigating: true })
-      wx.showLoading({ title: '正在打开' })
-      wx.navigateTo({
-        url: `/pages/knowledge-submit/index?id=${submissionId}`,
-        complete: () => this.setData({ navigating: false }),
-      })
-      return
-    }
-    const problemId = e.currentTarget.dataset.problemId || e.currentTarget.dataset.id
-    if (!problemId) return
-    this.setData({ navigating: true })
-    wx.showLoading({ title: '正在打开' })
-    wx.navigateTo({
-      url: `/pages/problem-detail/index?id=${problemId}`,
-      complete: () => this.setData({ navigating: false }),
-    })
-  },
-
-  editSubmission(e) {
-    if (e?.stopPropagation) e.stopPropagation()
-    if (this.data.navigating) return
-    const id = e.currentTarget.dataset.id
-    if (!id) return
-    this.setData({ navigating: true })
-    wx.showLoading({ title: '正在打开' })
-    const item = this.data.problemSubmissions.find((row) => row.id === id)
-    const url = item?.submissionType === 'knowledge'
-      ? `/pages/knowledge-submit/index?id=${id}`
-      : `/pages/problem-submit/index?id=${id}`
-    wx.navigateTo({
-      url,
-      complete: () => this.setData({ navigating: false }),
-    })
-  },
-
   openAdmin() {
-    if (!this.data.currentUser?.isAdmin && !this.data.currentProfile?.isAdmin) {
+    if (!this.data.isAdmin) {
       wx.showToast({ title: '仅管理员可进入', icon: 'none' })
       return
     }
-    if (this.data.navigating) return
-    this.setData({ navigating: true })
-    wx.navigateTo({
-      url: '/pages/admin/index',
-      complete: () => this.setData({ navigating: false }),
-    })
+    this.navigateToPage('/pages/admin/index', false)
   },
 
   openProfileEdit() {
-    if (!this.data.currentUser?.id) {
-      wx.showToast({ title: '请先登录', icon: 'none' })
-      return
-    }
-    if (this.data.navigating) return
-    this.setData({ navigating: true })
-    wx.navigateTo({
-      url: '/pages/profile-edit/index',
-      complete: () => this.setData({ navigating: false }),
-    })
+    this.navigateToPage('/pages/profile-edit/index')
   },
 
   logout() {
@@ -514,13 +520,10 @@ Page({
           currentProfile: null,
           isAdmin: false,
           submissionCount: 0,
-          problemSubmissions: [],
-          secondaryLoading: false,
-          favoriteProblems: [],
-          historyProblems: [],
           favoriteCount: 0,
           historyCount: 0,
-          loadedTabs: {},
+          adminNoticeCount: 0,
+          adminNoticeText: '',
         })
         wx.showToast({ title: '已退出', icon: 'success' })
       },

@@ -11,12 +11,8 @@
       <text class="meta">{{services.length}} 家</text>
     </view>
 
-    <view wx:if="{{loading}}" class="empty-box">
-      <text class="subtitle">正在加载打印服务…</text>
-    </view>
-
-    <view wx:elif="{{services.length}}" class="service-list">
-      <view wx:for="{{services}}" wx:key="id" class="card service-card" data-id="{{item.id}}" bindtap="openServiceDetail">
+    <view wx:if="{{services.length}}" class="service-list">
+      <view wx:for="{{services}}" wx:key="id" class="card service-card interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-id="{{item.id}}" bindtap="openServiceDetail">
         <view class="service-top">
           <image wx:if="{{item.coverImageThumb || item.coverImageDisplay}}" class="service-cover" src="{{item.coverImageThumb || item.coverImageDisplay}}" mode="aspectFit" lazy-load="true"></image>
           <view wx:else class="service-cover service-cover-fallback"></view>
@@ -36,7 +32,7 @@
       </view>
     </view>
 
-    <view wx:else class="empty-box">
+    <view wx:elif="{{!loading}}" class="empty-box">
       <text class="subtitle">管理员还没有添加打印服务信息。</text>
     </view>
   </view>

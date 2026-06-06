@@ -31,5 +31,5 @@
     </radio-group>
   </view>
 
-  <button class="btn-primary" loading="{{saving}}" bindtap="saveProfile">保存资料</button>
+  <button class="btn-primary" bindtap="saveProfile">保存资料</button>
 </view>

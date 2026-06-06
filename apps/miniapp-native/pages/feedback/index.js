@@ -1,4 +1,5 @@
 const { getCurrentUser, submitUserFeedback } = require('../../utils/user-service')
+const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 
 Page({
   data: {
@@ -11,8 +12,13 @@ Page({
   },
 
   async onLoad() {
+    showAppLoading('加载中')
+    try {
     const user = await getCurrentUser()
     this.setData({ currentUser: user })
+    } finally {
+      hideAppLoading()
+    }
   },
 
   onTypeTap(e) {
@@ -49,6 +55,7 @@ Page({
     }
 
     this.setData({ submitting: true })
+    showAppLoading('提交中')
     try {
       await submitUserFeedback({
         userId: user.id,
@@ -67,6 +74,7 @@ Page({
       })
     } finally {
       this.setData({ submitting: false })
+      hideAppLoading()
     }
   },
 })

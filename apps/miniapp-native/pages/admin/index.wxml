@@ -11,9 +11,12 @@
       <view class="admin-tabs">
         <view class="admin-tab {{section === 'submissions' ? 'active' : ''}}" data-section="submissions" bindtap="switchSection">投稿审核</view>
         <view class="admin-tab {{section === 'feedback' ? 'active' : ''}}" data-section="feedback" bindtap="switchSection">用户反馈</view>
+        <view class="admin-tab {{section === 'announcements' ? 'active' : ''}}" data-section="announcements" bindtap="switchSection">公告通知</view>
         <view class="admin-tab {{section === 'analytics' ? 'active' : ''}}" data-section="analytics" bindtap="switchSection">使用统计</view>
         <view class="admin-tab {{section === 'problems' ? 'active' : ''}}" data-section="problems" bindtap="switchSection">问题图片</view>
         <view class="admin-tab {{section === 'services' ? 'active' : ''}}" data-section="services" bindtap="switchSection">打印服务</view>
+        <view class="admin-tab {{section === 'rewards' ? 'active' : ''}}" data-section="rewards" bindtap="switchSection">积分商品</view>
+        <view class="admin-tab {{section === 'rewardOrders' ? 'active' : ''}}" data-section="rewardOrders" bindtap="switchSection">兑换订单</view>
       </view>
     </view>
 
@@ -64,10 +67,7 @@
         <text class="title" style="font-size: 32rpx;">用户投稿</text>
         <text class="admin-link admin-link-right" bindtap="loadSubmissions">刷新</text>
       </view>
-      <view wx:if="{{loading}}" class="empty-box">
-        <text class="subtitle">正在加载…</text>
-      </view>
-      <view wx:elif="{{submissions.length}}" class="list">
+      <view wx:if="{{submissions.length}}" class="list">
         <view wx:for="{{submissions}}" wx:key="id" class="card">
           <view class="row">
             <text class="title" style="font-size: 28rpx; flex: 1;">{{item.title}}</text>
@@ -92,10 +92,7 @@
         <text class="title" style="font-size: 32rpx;">用户反馈</text>
         <text class="admin-link admin-link-right" bindtap="loadFeedback">刷新</text>
       </view>
-      <view wx:if="{{loading}}" class="empty-box">
-        <text class="subtitle">正在加载…</text>
-      </view>
-      <view wx:elif="{{feedbackList.length}}" class="list">
+      <view wx:if="{{feedbackList.length}}" class="list">
         <view wx:for="{{feedbackList}}" wx:key="id" class="card">
           <view class="row">
             <text class="title" style="font-size: 28rpx; flex: 1;">{{item.title}}</text>
@@ -114,15 +111,64 @@
       </view>
     </view>
 
+    <view wx:if="{{section === 'announcements'}}" class="panel">
+      <view class="row">
+        <text class="title" style="font-size: 32rpx;">公告通知</text>
+        <text class="admin-link admin-link-right" bindtap="loadAnnouncements">刷新</text>
+      </view>
+
+      <view class="service-form">
+        <text class="service-form-tip">发布新功能或重要提醒后，用户进入小程序会看到弹窗；用户点过按钮后，同一条公告不会重复弹出。</text>
+        <view class="service-field">
+          <text class="service-field-label">公告标题</text>
+          <input class="admin-input" placeholder="例如：积分兑换上线啦" value="{{announcementForm.title}}" data-field="title" bindinput="onAnnouncementInput" />
+        </view>
+        <view class="service-field">
+          <text class="service-field-label">公告内容</text>
+          <textarea class="admin-textarea announcement-textarea" maxlength="500" placeholder="写给用户看的更新内容，建议 1-3 句话。" value="{{announcementForm.content}}" data-field="content" bindinput="onAnnouncementInput" />
+        </view>
+        <view class="service-field">
+          <text class="service-field-label">按钮文字</text>
+          <input class="admin-input" placeholder="例如：知道了" value="{{announcementForm.confirmText}}" data-field="confirmText" bindinput="onAnnouncementInput" />
+        </view>
+        <view class="announcement-switch-row">
+          <view>
+            <text class="service-field-label">是否启用</text>
+            <text class="subtitle">启用后，用户进入小程序会看到这条公告。</text>
+          </view>
+          <switch checked="{{announcementForm.enabled}}" color="#1d4ed8" bindchange="onAnnouncementEnabledChange" />
+        </view>
+        <view class="admin-actions admin-actions-buttons">
+          <button class="admin-action-btn admin-action-approve" size="mini" bindtap="saveAnnouncement" disabled="{{opLoading && opAction === 'save-announcement'}}">{{announcementForm.id ? '保存公告' : '发布公告'}}</button>
+          <button class="admin-action-btn admin-action-delete" size="mini" bindtap="resetAnnouncementForm" disabled="{{opLoading && opAction === 'save-announcement'}}">清空表单</button>
+        </view>
+      </view>
+
+      <view wx:if="{{announcements.length}}" class="list">
+        <view wx:for="{{announcements}}" wx:key="id" class="card">
+          <view class="row">
+            <text class="title" style="font-size: 28rpx; flex: 1;">{{item.title}}</text>
+            <text class="badge {{item.enabled ? 'badge-done' : ''}}">{{item.statusText}}</text>
+          </view>
+          <text class="feedback-preview">{{item.content}}</text>
+          <view class="admin-actions admin-actions-buttons">
+            <button class="admin-action-btn admin-action-view" size="mini" data-id="{{item.id}}" bindtap="editAnnouncement" disabled="{{opLoading && opTargetId === item.id}}">修改</button>
+            <button class="admin-action-btn {{item.enabled ? 'admin-action-disabled' : 'admin-action-approve'}}" size="mini" data-id="{{item.id}}" bindtap="toggleAnnouncement" disabled="{{opLoading && opTargetId === item.id}}">{{item.enabled ? '停用' : '启用'}}</button>
+            <button class="admin-action-btn admin-action-delete" size="mini" data-id="{{item.id}}" bindtap="deleteAnnouncement" disabled="{{opLoading && opTargetId === item.id}}">删除</button>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="empty-box">
+        <text class="subtitle">还没有公告，发布一条后用户进入小程序就能看到。</text>
+      </view>
+    </view>
+
     <view wx:if="{{section === 'problems'}}" class="panel">
       <view class="row">
         <text class="title" style="font-size: 32rpx;">问题图片</text>
         <text class="admin-link admin-link-right" bindtap="refreshProblems">刷新</text>
       </view>
-      <view wx:if="{{loading}}" class="empty-box">
-        <text class="subtitle">正在加载…</text>
-      </view>
-      <view wx:elif="{{problems.length}}" class="list">
+      <view wx:if="{{problems.length}}" class="list">
         <view wx:for="{{problems}}" wx:key="id" class="card">
           <view class="row">
             <text class="title" style="font-size: 28rpx; flex: 1;">{{item.title}}</text>
@@ -134,9 +180,6 @@
             <text class="admin-link" data-id="{{item.id}}" bindtap="openProblemDetail">查看详情</text>
             <text class="admin-link" data-id="{{item.id}}" bindtap="openProblemImagePicker">上传图片</text>
           </view>
-        </view>
-        <view wx:if="{{loadingMore}}" class="empty-box">
-          <text class="subtitle">正在加载更多…</text>
         </view>
         <view wx:if="{{!problemHasMore}}" class="empty-box">
           <text class="subtitle">已经到底了</text>
@@ -173,6 +216,7 @@
         </view>
         <view class="service-field">
           <text class="service-field-label">展示图片（最多 3 张）</text>
+          <text class="subtitle">选填，不上传也可以保存。</text>
           <view class="service-image-grid">
             <view wx:for="{{serviceForm.imageDisplays}}" wx:key="index" class="service-thumb-card">
               <image class="service-thumb-image" src="{{item}}" mode="aspectFill"></image>
@@ -191,6 +235,10 @@
         </view>
         <view class="service-field">
           <text class="service-field-label">联系方式</text>
+          <input class="admin-input" placeholder="例如：微信号 model-help-01" value="{{serviceForm.contact}}" data-field="contact" bindinput="onServiceInput" />
+        </view>
+        <view class="service-field">
+          <text class="service-field-label">联系方式二维码</text>
           <view class="service-image-picker" bindtap="chooseWechatQrImage">
             <image wx:if="{{serviceForm.wechatQrImageDisplay}}" class="service-image-preview" src="{{serviceForm.wechatQrImageDisplay}}" mode="aspectFill"></image>
             <view wx:else class="service-image-placeholder">
@@ -216,11 +264,11 @@
           </view>
           <text class="subtitle">机器型号：{{item.machineModel}}</text>
           <text class="subtitle">服务描述：{{item.descriptionPreview || '未填写描述'}}</text>
+          <text class="subtitle">微信号：{{item.contact || '未填写微信号'}}</text>
           <text class="subtitle">{{item.wechatQrImageDisplay ? '已上传联系方式二维码' : '未上传联系方式二维码'}}</text>
           <view wx:if="{{item.imageDisplays.length}}" class="service-admin-gallery">
             <image wx:for="{{item.imageDisplays}}" wx:key="index" class="service-admin-gallery-image" src="{{item}}" mode="aspectFill"></image>
           </view>
-          <view wx:else class="admin-problem-image admin-problem-image-fallback"></view>
           <view class="admin-actions admin-actions-buttons">
             <button class="admin-action-btn admin-action-view" size="mini" data-id="{{item.id}}" bindtap="editService" disabled="{{opLoading && opTargetId === item.id}}">修改</button>
             <button class="admin-action-btn admin-action-delete" size="mini" data-id="{{item.id}}" bindtap="deleteService" disabled="{{opLoading && opTargetId === item.id}}">删除</button>
@@ -229,6 +277,96 @@
       </view>
       <view wx:else class="empty-box">
         <text class="subtitle">还没有添加打印服务信息</text>
+      </view>
+    </view>
+
+    <view wx:if="{{section === 'rewards'}}" class="panel">
+      <view class="row">
+        <text class="title" style="font-size: 32rpx;">积分商品管理</text>
+        <text class="admin-link admin-link-right" bindtap="loadRewardGoods">刷新</text>
+      </view>
+
+      <view class="service-form">
+        <text class="service-form-tip">这里上架积分兑换耗材，用户在小程序里可直接用积分兑换。</text>
+        <view class="service-field">
+          <text class="service-field-label">商品名称</text>
+          <input class="admin-input" placeholder="例如：PLA 白色 1kg" value="{{rewardForm.name}}" data-field="name" bindinput="onRewardInput" />
+        </view>
+        <view class="service-field">
+          <text class="service-field-label">商品图片</text>
+          <view class="service-image-picker" bindtap="chooseRewardImage">
+            <image wx:if="{{rewardForm.imageDisplayUrl}}" class="service-image-preview" src="{{rewardForm.imageDisplayUrl}}" mode="aspectFill"></image>
+            <view wx:else class="service-image-placeholder">
+              <text class="service-image-placeholder-text">点击上传商品图片</text>
+            </view>
+          </view>
+          <view class="admin-actions">
+            <text class="admin-link" bindtap="chooseRewardImage">选择图片</text>
+            <text wx:if="{{rewardForm.imageDisplayUrl}}" class="admin-link" bindtap="clearRewardImage">清空图片</text>
+          </view>
+        </view>
+        <view class="service-field">
+          <text class="service-field-label">商品数量</text>
+          <input class="admin-input" type="number" placeholder="例如：20" value="{{rewardForm.quantity}}" data-field="quantity" bindinput="onRewardInput" />
+        </view>
+        <view class="service-field">
+          <text class="service-field-label">所需积分</text>
+          <input class="admin-input" type="number" placeholder="例如：10（代表 10 积分兑换 1 卷）" value="{{rewardForm.pointsCost}}" data-field="pointsCost" bindinput="onRewardInput" />
+        </view>
+        <view class="admin-actions admin-actions-buttons">
+          <button class="admin-action-btn admin-action-approve" size="mini" bindtap="saveRewardGood" disabled="{{opLoading && opAction === 'save-reward'}}">{{rewardForm.id ? '保存修改' : '上架商品'}}</button>
+          <button class="admin-action-btn admin-action-delete" size="mini" bindtap="resetRewardForm" disabled="{{opLoading && opAction === 'save-reward'}}">清空表单</button>
+        </view>
+      </view>
+
+      <view wx:if="{{rewardGoods.length}}" class="list">
+        <view wx:for="{{rewardGoods}}" wx:key="id" class="card">
+          <view class="row">
+            <text class="title" style="font-size: 28rpx; flex: 1;">{{item.name}}</text>
+            <text class="badge">剩余 {{item.quantity}}</text>
+          </view>
+          <image wx:if="{{item.imageDisplayUrl}}" class="admin-problem-image" src="{{item.imageDisplayUrl}}" mode="aspectFill"></image>
+          <view wx:else class="admin-problem-image admin-problem-image-fallback"></view>
+          <text class="subtitle">兑换积分：{{item.pointsCost}} 积分 / 卷</text>
+          <view class="admin-actions admin-actions-buttons">
+            <button class="admin-action-btn admin-action-view" size="mini" data-id="{{item.id}}" bindtap="editRewardGood" disabled="{{opLoading && opTargetId === item.id}}">修改</button>
+            <button class="admin-action-btn admin-action-delete" size="mini" data-id="{{item.id}}" bindtap="deleteRewardGood" disabled="{{opLoading && opTargetId === item.id}}">删除</button>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="empty-box">
+        <text class="subtitle">还没有上架积分商品</text>
+      </view>
+    </view>
+
+    <view wx:if="{{section === 'rewardOrders'}}" class="panel">
+      <view class="row">
+        <text class="title" style="font-size: 32rpx;">兑换订单</text>
+        <text class="admin-link admin-link-right" bindtap="loadRewardOrders">刷新</text>
+      </view>
+      <view wx:if="{{rewardOrders.length}}" class="list">
+        <view wx:for="{{rewardOrders}}" wx:key="id" class="card">
+          <view class="row">
+            <text class="title" style="font-size: 28rpx; flex: 1;">{{item.goodsName}}</text>
+            <text class="badge {{item.status === 'done' ? 'badge-done' : ''}}">{{item.statusText}}</text>
+          </view>
+          <view class="reward-order-row">
+            <image wx:if="{{item.goodsImageDisplay}}" class="reward-order-image" src="{{item.goodsImageDisplay}}" mode="aspectFill"></image>
+            <view wx:else class="reward-order-image reward-order-image-fallback"></view>
+            <view class="reward-order-copy">
+              <text class="subtitle">消耗积分：{{item.pointsCost}}</text>
+              <text class="subtitle">用户：{{item.userId}}</text>
+              <text class="subtitle">地址：{{item.addressText || '未填写地址'}}</text>
+            </view>
+          </view>
+          <view class="admin-actions admin-actions-buttons">
+            <button class="admin-action-btn admin-action-view" size="mini" data-id="{{item.id}}" bindtap="viewRewardOrderAddress" disabled="{{opLoading && opTargetId === item.id}}">查看地址</button>
+            <button class="admin-action-btn {{item.status === 'done' ? 'admin-action-disabled' : 'admin-action-approve'}}" size="mini" data-id="{{item.id}}" bindtap="markRewardOrderDone" disabled="{{item.status === 'done' || (opLoading && opTargetId === item.id)}}">{{item.status === 'done' ? '已处理' : '标记处理'}}</button>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="empty-box">
+        <text class="subtitle">暂无兑换订单</text>
       </view>
     </view>
   </block>
