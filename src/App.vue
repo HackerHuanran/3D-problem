@@ -388,6 +388,18 @@ const handleLogout = async () => { showUserMenu.value = false; await logout() }
           <button :class="['nav-tab', { active: activeTab === 'home' }]"   @click="switchTab('home')">{{ t('nav.home') }}</button>
           <button :class="['nav-tab', { active: activeTab === 'filament' }]"  @click="switchTab('filament')">{{ t('nav.filament') }}</button>
           <button :class="['nav-tab', { active: activeTab === 'knowledge' }]" @click="switchTab('knowledge')">{{ t('nav.knowledge') }}</button>
+          <div class="miniapp-nav-wrap">
+            <button class="nav-tab miniapp-nav-tab" type="button">小程序</button>
+            <div class="miniapp-qr-popover">
+              <div class="miniapp-qr-card">
+                <img class="miniapp-qr-image" src="/images/miniapp-qr.jpg" alt="别塌了模型小程序码" />
+                <div class="miniapp-qr-copy">
+                  <strong>微信扫码打开</strong>
+                  <span>别塌了模型小程序</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="nav-right">
           <template v-if="!currentUser">
@@ -832,6 +844,84 @@ body { color: var(--lab-text); font-family: -apple-system, 'PingFang SC', 'Helve
 }
 .nav-tab:hover { color: var(--lab-text); }
 .nav-tab.active { color: var(--lab-text); border-bottom-color: var(--lab-accent); }
+.miniapp-nav-wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  height: 56px;
+}
+.miniapp-nav-tab {
+  display: inline-flex;
+  align-items: center;
+}
+.miniapp-qr-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  z-index: 320;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, -6px);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
+}
+.miniapp-nav-wrap:hover .miniapp-qr-popover,
+.miniapp-nav-wrap:focus-within .miniapp-qr-popover {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+.miniapp-qr-card {
+  width: 210px;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(252, 253, 255, 0.98);
+  border: 1px solid var(--lab-line);
+  box-shadow: var(--lab-shadow);
+  backdrop-filter: blur(18px);
+}
+.miniapp-qr-card::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  background: rgba(252, 253, 255, 0.98);
+  border-left: 1px solid var(--lab-line);
+  border-top: 1px solid var(--lab-line);
+  transform: translateX(-50%) rotate(45deg);
+}
+.miniapp-qr-image {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  aspect-ratio: 1;
+  display: block;
+  border-radius: 16px;
+  background: #f4f7fb;
+  object-fit: cover;
+}
+.miniapp-qr-copy {
+  position: relative;
+  z-index: 1;
+  margin-top: 10px;
+  text-align: center;
+}
+.miniapp-qr-copy strong {
+  display: block;
+  color: var(--lab-text);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.miniapp-qr-copy span {
+  display: block;
+  margin-top: 3px;
+  color: var(--lab-text-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
 .nav-more-wrap { position: relative; display: flex; align-items: stretch; height: 100%; }
 .nav-tab-more { display: inline-flex; align-items: center; gap: 6px; }
 .nav-more-caret { font-size: 11px; transition: transform 0.18s; }
@@ -1147,6 +1237,14 @@ body { color: var(--lab-text); font-family: -apple-system, 'PingFang SC', 'Helve
   }
   .nav-tabs::-webkit-scrollbar { display: none; }
   .nav-tab { height: 40px; padding: 0 11px; font-size: 13px; }
+  .miniapp-nav-wrap { height: 40px; flex-shrink: 0; }
+  .miniapp-qr-popover { left: auto; right: 0; transform: translate(0, -6px); }
+  .miniapp-nav-wrap:hover .miniapp-qr-popover,
+  .miniapp-nav-wrap:focus-within .miniapp-qr-popover {
+    transform: translate(0, 0);
+  }
+  .miniapp-qr-card { width: 180px; }
+  .miniapp-qr-card::before { left: auto; right: 22px; transform: rotate(45deg); }
   .nav-more-wrap { height: 40px; }
   .nav-more-menu { left: 8px; top: calc(100% + 8px); }
   .user-name { display: none; }
