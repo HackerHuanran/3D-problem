@@ -1,32 +1,140 @@
 .knowledge-submit-btn {
   margin-top: 24rpx;
   width: 100%;
+  height: 84rpx;
+  line-height: 84rpx;
+  border-radius: 24rpx;
+  background: #46b855;
 }
 
-.knowledge-effect-row {
+.panel .search-input {
+  background: #f4f4f4;
+}
+
+.list {
+  gap: 18rpx;
+}
+
+.knowledge-card {
+  padding: 24rpx;
+  border-radius: 30rpx;
+  background: #ffffff;
+  transition: transform 0.16s ease, opacity 0.16s ease;
+}
+
+.knowledge-card:active {
+  transform: scale(0.988);
+  opacity: 0.95;
+}
+
+.knowledge-card-head {
   display: flex;
-  gap: 12rpx;
+  align-items: flex-start;
+  gap: 18rpx;
+}
+
+.knowledge-card-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.knowledge-date {
+  margin-top: 5rpx;
+  color: #8a8a8a;
+  font-size: 22rpx;
+  line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.knowledge-media-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86rpx;
+  align-items: stretch;
+  gap: 16rpx;
   margin-top: 18rpx;
 }
 
-.knowledge-effect-image {
-  width: calc((100% - 24rpx) / 3);
-  height: 180rpx;
-  border-radius: 18rpx;
-  background: #e8eef6;
+.knowledge-cover-image,
+.knowledge-cover-placeholder {
+  width: 100%;
+  height: 238rpx;
+  border-radius: 24rpx;
+  background: #eeeeee;
+  display: block;
+}
+
+.knowledge-cover-placeholder {
+  background: linear-gradient(135deg, #eaf8ff 0%, #e8f8e9 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #46b855;
+  font-size: 24rpx;
+  font-weight: 850;
+}
+
+.knowledge-reactions {
+  min-width: 0;
+  height: 238rpx;
+  border-radius: 24rpx;
+  background: #f3f3f3;
+  color: #8a8a8a;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.knowledge-reaction {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  color: #9a9a9a;
+}
+
+.knowledge-reaction + .knowledge-reaction {
+  border-top: 1rpx solid #e5e5e5;
+}
+
+.knowledge-reaction.up.active {
+  background: #eefbea;
+  color: #46b855;
+}
+
+.knowledge-reaction.down.active {
+  background: #fff4e8;
+  color: #e58b2a;
+}
+
+.knowledge-reaction-icon {
+  display: block;
+  font-size: 30rpx;
+  line-height: 1;
+}
+
+.knowledge-reaction-count {
+  font-size: 23rpx;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .loading-title {
   display: block;
-  color: #08203d;
+  color: #1f2329;
   font-size: 30rpx;
-  font-weight: 800;
+  font-weight: 850;
 }
 
 .loading-subtitle {
   display: block;
   margin-top: 10rpx;
-  color: #6b86a8;
+  color: #8a8a8a;
   font-size: 24rpx;
   line-height: 1.7;
 }

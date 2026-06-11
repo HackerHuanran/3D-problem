@@ -1,0 +1,67 @@
+<view class="page service-submit-page">
+  <view class="hero-card service-submit-hero">
+    <text class="meta">PRINT SERVICE</text>
+    <text class="title">{{pageTitle}}</text>
+    <text class="subtitle">提交后需要管理员审核，审核通过后会显示在打印服务列表里。</text>
+  </view>
+
+  <view class="panel service-form">
+    <view class="service-field">
+      <text class="service-field-label">工作室 / 工厂名称</text>
+      <input class="text-input" placeholder="例如：沈阳某某打印工作室" value="{{studioName}}" data-field="studioName" bindinput="onInput" />
+    </view>
+
+    <view class="service-field">
+      <text class="service-field-label">机器型号</text>
+      <input class="text-input" placeholder="例如：Bambu Lab X1C / K1 Max" value="{{machineModel}}" data-field="machineModel" bindinput="onInput" />
+    </view>
+
+    <view class="service-field">
+      <text class="service-field-label">机器数量</text>
+      <input class="text-input" placeholder="例如：6 台" value="{{machineCount}}" data-field="machineCount" bindinput="onInput" />
+    </view>
+
+    <view class="service-field">
+      <text class="service-field-label">服务描述</text>
+      <textarea class="textarea" maxlength="300" placeholder="例如：可打印手办、结构件、原型件，支持 PLA / PETG / ABS，支持小批量打样与发货。" value="{{description}}" data-field="description" bindinput="onInput"></textarea>
+    </view>
+
+    <view class="service-field">
+      <text class="service-field-label">展示图片（选填，最多 3 张）</text>
+      <text class="field-tip">建议上传工作室环境、设备或样件图片。</text>
+      <view class="image-grid">
+        <view wx:for="{{imageDisplays}}" wx:key="index" class="image-card">
+          <image class="image-preview" src="{{item}}" mode="aspectFill"></image>
+          <text class="image-remove" data-index="{{index}}" bindtap="removeImage">删除</text>
+        </view>
+        <view wx:if="{{imageDisplays.length < 3}}" class="image-picker" bindtap="chooseImages">
+          <text class="image-picker-plus">+</text>
+          <text class="image-picker-text">上传图片</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="service-field">
+      <text class="service-field-label">微信号</text>
+      <input class="text-input" placeholder="例如：model-help-01" value="{{contact}}" data-field="contact" bindinput="onInput" />
+    </view>
+
+    <view class="service-field">
+      <text class="service-field-label">联系方式二维码</text>
+      <text class="field-tip">微信号和二维码至少填写一个。</text>
+      <view class="qr-picker" bindtap="chooseWechatQrImage">
+        <image wx:if="{{wechatQrImageDisplay}}" class="qr-preview" src="{{wechatQrImageDisplay}}" mode="aspectFill"></image>
+        <view wx:else class="qr-placeholder">
+          <text class="image-picker-plus">+</text>
+          <text class="image-picker-text">上传二维码</text>
+        </view>
+      </view>
+      <view class="form-actions">
+        <text class="form-link" bindtap="chooseWechatQrImage">选择二维码</text>
+        <text wx:if="{{wechatQrImageDisplay}}" class="form-link danger" bindtap="clearWechatQrImage">清空二维码</text>
+      </view>
+    </view>
+  </view>
+
+  <button class="btn-primary submit-btn" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit">{{submissionId ? '保存修改' : '提交入驻'}}</button>
+</view>

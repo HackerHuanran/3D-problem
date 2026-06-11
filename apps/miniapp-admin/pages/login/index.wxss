@@ -1,0 +1,13 @@
+.status-card {
+  margin-top: 24rpx;
+}
+
+.debug-text {
+  display: block;
+  margin-top: 10rpx;
+  color: #08203d;
+  font-size: 21rpx;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

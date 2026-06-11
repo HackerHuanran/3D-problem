@@ -1,0 +1,38 @@
+<view class="page submissions-page">
+  <view class="hero-card">
+    <text class="eyebrow">REVIEW QUEUE</text>
+    <text class="title">投稿审核</text>
+    <text class="subtitle">集中处理用户分享的问题、知识和打印服务入驻。</text>
+  </view>
+
+  <view class="filter-row">
+    <view wx:for="{{filters}}" wx:key="key" class="filter-chip {{filter === item.key ? 'active' : ''}}" data-filter="{{item.key}}" bindtap="switchFilter">
+      {{item.label}} {{item.count}}
+    </view>
+  </view>
+
+  <view wx:if="{{filteredSubmissions.length}}" class="submission-list">
+    <view wx:for="{{filteredSubmissions}}" wx:key="id" class="submission-card">
+      <view class="submission-head">
+        <text class="submission-title">{{item.title}}</text>
+        <text class="status-badge {{item.status === 'published' ? 'done' : item.status === 'rejected' ? 'reject' : ''}}">{{item.statusText}}</text>
+      </view>
+      <view class="type-badge {{item.submissionType}}">{{item.submissionTypeText}}</view>
+      <text class="submission-desc">{{item.submissionType === 'service' ? item.description : (item.description || item.subtitle || '未填写描述')}}</text>
+      <text wx:if="{{item.submissionType === 'service'}}" class="submission-meta">机器：{{item.machineModel || '未填写'}} · 数量：{{item.machineCount || '未填写'}}</text>
+      <text wx:if="{{item.submissionType === 'service'}}" class="submission-meta">微信号：{{item.contact || '未填写'}} · 图片 {{item.images.length || 0}} 张</text>
+
+      <view class="action-row">
+        <button class="action-btn view" size="mini" data-id="{{item.id}}" bindtap="viewSubmission" disabled="{{opLoading && opTargetId === item.id}}">查看详情</button>
+        <button class="action-btn approve {{item.status === 'published' ? 'disabled' : ''}}" size="mini" data-id="{{item.id}}" bindtap="approveSubmission" disabled="{{item.status === 'published' || (opLoading && opTargetId === item.id)}}">{{item.status === 'published' ? '已通过' : '通过'}}</button>
+        <button class="action-btn reject" size="mini" data-id="{{item.id}}" bindtap="rejectSubmission" disabled="{{opLoading && opTargetId === item.id}}">拒绝</button>
+        <button class="action-btn delete" size="mini" data-id="{{item.id}}" bindtap="deleteSubmission" disabled="{{opLoading && opTargetId === item.id}}">删除</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="panel empty-panel">
+    <text class="panel-title">暂无投稿</text>
+    <text class="panel-text">当前筛选条件下没有需要处理的数据。</text>
+  </view>
+</view>

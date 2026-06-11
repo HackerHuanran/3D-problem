@@ -1,4 +1,5 @@
 const { showAppLoading, hideAppLoading } = require('../../utils/loading')
+const { requireLoginForAction } = require('../../utils/user-service')
 const SERVICES_CACHE_KEY = 'miniapp_services_cache_v1'
 const SERVICES_CACHE_TTL = 5 * 60 * 1000
 const SERVICE_IMAGE_CACHE_KEY = 'miniapp_service_image_cache_v1'
@@ -23,6 +24,17 @@ function writeServicesCache(services = []) {
   } catch (error) {
     console.warn('writeServicesCache failed', error)
   }
+}
+
+function normalizeCachedServices(services = []) {
+  return (Array.isArray(services) ? services : []).map((item) => {
+    const coverImageDisplay = normalizeServiceAsset(item.coverImageDisplay)
+    return {
+      ...item,
+      coverImageDisplay,
+      coverImageThumb: buildServiceThumbUrl(coverImageDisplay || item.coverImageThumb || '', { width: 420, quality: 72 }),
+    }
+  })
 }
 
 function readServiceImageCache() {
@@ -62,11 +74,33 @@ function normalizeServiceAsset(value) {
   return String(value).trim()
 }
 
+function extractServiceCloudPath(value = '') {
+  const raw = normalizeServiceAsset(value)
+  if (!raw || raw.startsWith('wxfile://') || raw.startsWith('http://tmp/') || raw.startsWith('data:image/')) return ''
+  let clean = raw.split('?')[0].split('#')[0]
+  try {
+    clean = decodeURIComponent(clean)
+  } catch (error) {}
+  const match = clean.match(/(?:^|\/)((?:service-submits|service-submits-qr|studio-services|studio-services-qr)\/[^?#\s]+)/)
+  return match?.[1] || ''
+}
+
+function toServiceCloudFileID(value = '') {
+  const raw = normalizeServiceAsset(value)
+  if (!raw) return ''
+  if (raw.startsWith('cloud://')) return raw
+  const cloudPath = extractServiceCloudPath(raw)
+  if (!cloudPath) return ''
+  const envId = getApp()?.globalData?.envId || ''
+  return envId ? `cloud://${envId}/${cloudPath.replace(/^\/+/, '')}` : ''
+}
+
 function buildServiceThumbUrl(url = '', { width = 420, quality = 72 } = {}) {
   const raw = String(url || '').trim()
   if (!raw) return ''
   if (!/^https?:\/\//i.test(raw)) return raw
   if (/imageMogr2|x-oss-process|x-cos-process/i.test(raw)) return raw
+  if (raw.includes('?')) return raw
   const joiner = raw.includes('?') ? '&' : '?'
   return `${raw}${joiner}imageMogr2/thumbnail/${Math.max(1, Number(width) || 420)}x/interlace/1/quality/${Math.max(1, Math.min(100, Number(quality) || 72))}`
 }
@@ -83,19 +117,15 @@ Page({
     wx.hideLoading()
     const cache = readServicesCache()
     if (Array.isArray(cache?.services) && cache.services.length) {
+      const services = normalizeCachedServices(cache.services)
       this.setData({
         loading: false,
-        services: cache.services,
+        services,
       })
     }
   },
 
   async onShow() {
-    const cache = readServicesCache()
-    if (Array.isArray(cache?.services) && cache.services.length) {
-      this.lastRefreshAt = Date.now()
-      return
-    }
     if (this.data.services.length && Date.now() - this.lastRefreshAt < SERVICES_CACHE_TTL) {
       return
     }
@@ -161,51 +191,103 @@ Page({
   async resolveCloudFile(value) {
     const raw = normalizeServiceAsset(value)
     if (!raw) return ''
-    if (!raw.startsWith('cloud://')) return raw
+    const fileID = toServiceCloudFileID(raw)
+    if (!fileID) return raw
     const cache = readServiceImageCache()
-    const cached = cache[raw]
+    const cached = cache[fileID]
     if (cached?.url && cached?.ts && Date.now() - cached.ts <= SERVICE_IMAGE_CACHE_TTL) {
       return cached.url
     }
     try {
-      const res = await wx.cloud.getTempFileURL({ fileList: [raw] })
-      const nextUrl = res?.fileList?.[0]?.tempFileURL || res?.fileList?.[0]?.download_url || raw
-      cache[raw] = {
+      const res = await wx.cloud.getTempFileURL({ fileList: [fileID] })
+      const nextUrl = res?.fileList?.[0]?.tempFileURL || res?.fileList?.[0]?.tempFileUrl || res?.fileList?.[0]?.download_url || ''
+      if (nextUrl) {
+        cache[fileID] = {
+          ts: Date.now(),
+          url: nextUrl,
+        }
+        writeServiceImageCache(cache)
+        return nextUrl
+      }
+    } catch (error) {
+      console.warn('resolve service image failed', error)
+    }
+    const mappedUrls = await this.resolveServiceCloudFilesByFunction([fileID])
+    const nextUrl = mappedUrls[fileID] || raw
+    if (nextUrl && nextUrl !== raw) {
+      cache[fileID] = {
         ts: Date.now(),
         url: nextUrl,
       }
       writeServiceImageCache(cache)
-      return nextUrl
+    }
+    return nextUrl
+  },
+
+  async resolveServiceCloudFilesByFunction(fileList = []) {
+    const rows = [...new Set((fileList || []).map((item) => toServiceCloudFileID(item) || normalizeServiceAsset(item)).filter((item) => item.startsWith('cloud://')))]
+    if (!rows.length) return {}
+    try {
+      const res = await wx.cloud.callFunction({
+        name: 'miniappAuth',
+        data: {
+          action: 'resolveServiceFileUrls',
+          fileList: rows,
+        },
+      })
+      const result = res?.result || {}
+      if (result.ok === false) {
+        throw new Error(result.error || '服务图片解析失败')
+      }
+      const mappedUrls = { ...(result.urlMap || {}) }
+      ;(result.fileList || []).forEach((item) => {
+        const fileID = item?.fileID || item?.fileId || ''
+        const url = item?.tempFileURL || item?.tempFileUrl || item?.download_url || ''
+        if (fileID && url) mappedUrls[fileID] = url
+      })
+      return mappedUrls
     } catch (error) {
-      console.warn('resolve service image failed', error)
-      return raw
+      console.warn('resolve service images by function failed', error)
+      return {}
     }
   },
 
   async resolveCloudFiles(list = []) {
     const rows = (list || []).map((item) => normalizeServiceAsset(item)).filter(Boolean)
     if (!rows.length) return []
-    const cloudRows = rows.filter((item) => item.startsWith('cloud://'))
+    const cloudPairs = rows
+      .map((item) => ({ raw: item, fileID: toServiceCloudFileID(item) }))
+      .filter((item) => item.fileID)
+    const cloudRows = [...new Set(cloudPairs.map((item) => item.fileID))]
     const mappedUrls = {}
     if (cloudRows.length) {
       try {
         const res = await wx.cloud.getTempFileURL({ fileList: cloudRows })
         ;(res?.fileList || []).forEach((item) => {
-          if (item?.fileID) {
-            mappedUrls[item.fileID] = item.tempFileURL || item.fileID
+          const fileID = item?.fileID || item?.fileId || ''
+          const url = item?.tempFileURL || item?.tempFileUrl || item?.download_url || ''
+          if (fileID && url) {
+            mappedUrls[fileID] = url
           }
         })
       } catch (error) {
         console.warn('resolve service image batch failed', error)
       }
     }
+    const missingRows = cloudRows.filter((item) => !mappedUrls[item])
+    if (missingRows.length) {
+      Object.assign(mappedUrls, await this.resolveServiceCloudFilesByFunction(missingRows))
+    }
+    cloudPairs.forEach((item) => {
+      if (mappedUrls[item.fileID]) mappedUrls[item.raw] = mappedUrls[item.fileID]
+    })
     const results = []
     for (const item of rows) {
       if (mappedUrls[item]) {
         results.push(mappedUrls[item])
         continue
       }
-      if (!item.startsWith('cloud://')) {
+      if (!toServiceCloudFileID(item)) {
         results.push(item)
         continue
       }
@@ -216,13 +298,11 @@ Page({
   },
 
   normalizeServiceImages(item = {}) {
-    if (Array.isArray(item.images) && item.images.length) {
-      return item.images.map((row) => normalizeServiceAsset(row)).filter(Boolean).slice(0, 3)
-    }
-    if (item.environmentImage) {
-      return [normalizeServiceAsset(item.environmentImage)].filter(Boolean)
-    }
-    return []
+    const candidates = []
+    if (Array.isArray(item.images)) candidates.push(...item.images)
+    else candidates.push(item.images)
+    candidates.push(item.environmentImage, item.environment_image, item.image_url, item.imageUrl, item.coverImage, item.cover_image)
+    return candidates.map((row) => normalizeServiceAsset(row)).filter(Boolean).slice(0, 3)
   },
 
   openServiceDetail(e) {
@@ -231,6 +311,18 @@ Page({
     showAppLoading('正在打开')
     wx.navigateTo({
       url: `/pages/service-detail/index?id=${id}`,
+      complete: () => {
+        hideAppLoading()
+      },
+    })
+  },
+
+  async openServiceSubmit() {
+    const user = await requireLoginForAction('请先登录后入驻服务')
+    if (!user?.id) return
+    showAppLoading('正在打开')
+    wx.navigateTo({
+      url: '/pages/service-submit/index',
       complete: () => {
         hideAppLoading()
       },

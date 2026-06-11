@@ -1,28 +1,24 @@
 page {
-  background:
-    radial-gradient(circle at top left, rgba(29, 78, 216, 0.1), transparent 28%),
-    radial-gradient(circle at top right, rgba(20, 184, 166, 0.08), transparent 24%),
-    linear-gradient(180deg, #f4f9ff 0%, #edf4ff 100%);
-  color: #08203d;
+  background: #f6f6f6;
+  color: #1f2329;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
 }
 
 .page {
-  padding: 24rpx;
+  padding: 28rpx 30rpx 40rpx;
   display: flex;
   flex-direction: column;
-  gap: 20rpx;
+  gap: 24rpx;
 }
 
 .panel,
 .hero-card,
 .card,
 .empty-box {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1rpx solid rgba(29, 78, 216, 0.08);
+  background: #ffffff;
+  border: 0;
   border-radius: 28rpx;
-  box-shadow: 0 16rpx 42rpx rgba(13, 41, 87, 0.07);
-  backdrop-filter: blur(12px);
+  box-shadow: none;
 }
 
 .hero-card,
@@ -32,14 +28,14 @@ page {
 }
 
 .hero-card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 248, 255, 0.94) 100%);
+  background: #ffffff;
 }
 
 .title {
   display: block;
-  font-size: 34rpx;
-  font-weight: 700;
-  color: #08203d;
+  font-size: 38rpx;
+  font-weight: 850;
+  color: #1f2329;
 }
 
 .subtitle {
@@ -47,7 +43,7 @@ page {
   margin-top: 10rpx;
   font-size: 24rpx;
   line-height: 1.7;
-  color: #57708f;
+  color: #7a7f87;
 }
 
 .row {
@@ -69,7 +65,7 @@ page {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #1d4ed8 0%, #14b8a6 100%);
+  background: #46b855;
   color: #fff;
 }
 
@@ -80,8 +76,8 @@ page {
 }
 
 .btn-ghost {
-  background: rgba(29, 78, 216, 0.08);
-  color: #1d4ed8;
+  background: #f1f2f3;
+  color: #1f2329;
 }
 
 .btn-danger {
@@ -99,12 +95,12 @@ page {
 .search-input,
 .text-input {
   height: 84rpx;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1rpx solid rgba(29, 78, 216, 0.1);
-  border-radius: 20rpx;
+  background: #ffffff;
+  border: 0;
+  border-radius: 24rpx;
   padding: 0 24rpx;
   font-size: 28rpx;
-  color: #08203d;
+  color: #1f2329;
 }
 
 .chip-row {
@@ -115,15 +111,15 @@ page {
   display: inline-flex;
   padding: 14rpx 20rpx;
   border-radius: 999rpx;
-  background: rgba(29, 78, 216, 0.07);
-  color: #244f88;
+  background: #f1f2f3;
+  color: #555b62;
   font-size: 24rpx;
   margin-right: 14rpx;
   margin-bottom: 14rpx;
 }
 
 .chip.active {
-  background: linear-gradient(135deg, #1d4ed8 0%, #14b8a6 100%);
+  background: #46b855;
   color: #fff;
 }
 
@@ -139,13 +135,13 @@ page {
 
 .meta {
   font-size: 22rpx;
-  color: #6b86a8;
+  color: #8a8a8a;
 }
 
 .badge {
   padding: 6rpx 14rpx;
   border-radius: 999rpx;
-  background: rgba(29, 78, 216, 0.1);
-  color: #1d4ed8;
+  background: #eef8ef;
+  color: #46b855;
   font-size: 22rpx;
 }

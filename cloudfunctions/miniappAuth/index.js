@@ -206,19 +206,186 @@ async function syncLoginProfile(uid, openid, wechatProfile = {}) {
   return addProfile
 }
 
+function normalizeServiceFileAsset(value = '') {
+  if (!value) return ''
+  if (typeof value === 'object') {
+    return String(
+      value.fileID
+      || value.fileId
+      || value.cloudPath
+      || value.cloud_path
+      || value.url
+      || value.src
+      || value.path
+      || value.tempFileURL
+      || value.tempFileUrl
+      || value.download_url
+      || ''
+    ).trim()
+  }
+  return String(value || '').trim()
+}
+
+function extractServiceCloudPath(value = '') {
+  const raw = normalizeServiceFileAsset(value)
+  if (!raw || raw.startsWith('wxfile://') || raw.startsWith('http://tmp/') || raw.startsWith('data:image/')) return ''
+  let clean = raw.split('?')[0].split('#')[0]
+  try {
+    clean = decodeURIComponent(clean)
+  } catch (error) {}
+  const match = clean.match(/(?:^|\/)((?:service-submits|service-submits-qr|studio-services|studio-services-qr)\/[^?#\s]+)/)
+  return match?.[1] || ''
+}
+
+function normalizeServiceAssetKey(value = '') {
+  const raw = normalizeServiceFileAsset(value)
+  if (!raw) return ''
+  const cloudPath = extractServiceCloudPath(raw)
+  if (cloudPath) return cloudPath.replace(/^\/+/, '')
+  if (raw.startsWith('cloud://')) {
+    return raw.replace(/^cloud:\/\/[^/]+\//, '')
+  }
+  return ''
+}
+
+function addServiceAsset(referenceSet, value = '') {
+  const key = normalizeServiceAssetKey(value)
+  if (key) referenceSet.add(key)
+}
+
+function addServiceAssetsFromRecord(referenceSet, item = {}) {
+  const service = item.service || {}
+  const images = Array.isArray(item.images) ? item.images : [item.images]
+  const serviceImages = Array.isArray(service.images) ? service.images : [service.images]
+  images.forEach((image) => addServiceAsset(referenceSet, image))
+  serviceImages.forEach((image) => addServiceAsset(referenceSet, image))
+  addServiceAsset(referenceSet, item.environmentImage)
+  addServiceAsset(referenceSet, item.environment_image)
+  addServiceAsset(referenceSet, item.wechatQrImage)
+  addServiceAsset(referenceSet, item.wechat_qr_image)
+  addServiceAsset(referenceSet, item.image_url)
+  addServiceAsset(referenceSet, item.imageUrl)
+  addServiceAsset(referenceSet, item.coverImage)
+  addServiceAsset(referenceSet, item.cover_image)
+  addServiceAsset(referenceSet, service.environmentImage)
+  addServiceAsset(referenceSet, service.environment_image)
+  addServiceAsset(referenceSet, service.wechatQrImage)
+  addServiceAsset(referenceSet, service.wechat_qr_image)
+  addServiceAsset(referenceSet, service.image_url)
+  addServiceAsset(referenceSet, service.imageUrl)
+  addServiceAsset(referenceSet, service.coverImage)
+  addServiceAsset(referenceSet, service.cover_image)
+}
+
+async function collectServiceAssetReferences({ uid = '', limit = 500 } = {}) {
+  const referenceSet = new Set()
+  const pageSize = 100
+  const safeLimit = Math.max(100, Math.min(1000, Number(limit) || 500))
+
+  for (let skip = 0; skip < safeLimit; skip += pageSize) {
+    const { data } = await db.collection('studio_services')
+      .skip(skip)
+      .limit(pageSize)
+      .get()
+    const rows = Array.isArray(data) ? data : []
+    rows.forEach((item) => addServiceAssetsFromRecord(referenceSet, item))
+    if (rows.length < pageSize) break
+  }
+
+  if (uid) {
+    for (let skip = 0; skip < safeLimit; skip += pageSize) {
+      const { data } = await db.collection('user_problems')
+        .where({
+          user_id: uid,
+          submission_type: 'service',
+        })
+        .skip(skip)
+        .limit(pageSize)
+        .get()
+      const rows = Array.isArray(data) ? data : []
+      rows.forEach((item) => addServiceAssetsFromRecord(referenceSet, item))
+      if (rows.length < pageSize) break
+    }
+  }
+
+  return referenceSet
+}
+
+async function resolveServiceFileUrls({ uid = '', fileList = [] } = {}) {
+  const requestedFiles = (Array.isArray(fileList) ? fileList : [])
+    .map((item) => normalizeServiceFileAsset(item))
+    .filter((item) => item.startsWith('cloud://'))
+  const requestedRows = [...new Map(requestedFiles
+    .map((fileID) => [fileID, normalizeServiceAssetKey(fileID)])
+    .filter(([, key]) => !!key))]
+    .slice(0, 50)
+
+  if (!requestedRows.length) {
+    return {
+      ok: true,
+      fileList: [],
+      urlMap: {},
+    }
+  }
+
+  const referenceSet = await collectServiceAssetReferences({ uid })
+  const safeFileList = requestedRows
+    .filter(([, key]) => referenceSet.has(key))
+    .map(([fileID]) => fileID)
+  if (!safeFileList.length) {
+    return {
+      ok: true,
+      fileList: [],
+      urlMap: {},
+    }
+  }
+
+  const res = await cloud.getTempFileURL({
+    fileList: safeFileList,
+  })
+  const resolvedList = Array.isArray(res?.fileList) ? res.fileList : []
+  const urlMap = resolvedList.reduce((acc, item) => {
+    const fileID = item.fileID || item.fileId || ''
+    const url = item.tempFileURL || item.tempFileUrl || item.download_url || ''
+    if (fileID && url) acc[fileID] = url
+    return acc
+  }, {})
+
+  return {
+    ok: true,
+    fileList: resolvedList,
+    urlMap,
+  }
+}
+
 exports.main = async (event = {}) => {
   try {
     const wxContext = cloud.getWXContext()
-    const openid = wxContext.OPENID
+    const openid = wxContext.OPENID || wxContext.FROM_OPENID || ''
+
+    if (event.action === 'debugContext') {
+      return {
+        ok: true,
+        wxContext,
+        openid,
+      }
+    }
 
     if (!openid) {
       return {
         ok: false,
-        error: '未获取到微信 OPENID，请确认当前是在真机/正式调试环境，并且云开发环境绑定正确。',
+        error: '未获取到微信 OPENID，请确认当前是在真机/正式调试环境，并且云开发环境或环境共享绑定正确。',
       }
     }
 
     const uid = `wx_${openid}`
+
+    if (event.action === 'resolveServiceFileUrls') {
+      return await resolveServiceFileUrls({
+        uid,
+        fileList: event.fileList || [],
+      })
+    }
 
     if (event.action === 'saveProfile') {
       const savedProfile = await saveProfile(uid, event.profile || {})

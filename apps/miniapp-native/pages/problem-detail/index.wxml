@@ -3,7 +3,19 @@
     <image wx:if="{{(detail.heroThumbUrl || detail.image_url) && !heroImageFailed}}" class="detail-hero-image" src="{{detail.heroThumbUrl || detail.image_url}}" mode="aspectFill" lazy-load="true" binderror="onHeroImageError"></image>
     <view wx:else class="detail-hero-image detail-hero-image-fallback"></view>
     <text class="meta">TROUBLESHOOTING DETAIL</text>
-    <text class="title">{{detail.title}}</text>
+    <view class="detail-title-row">
+      <text class="title detail-title-text">{{detail.title}}</text>
+      <view class="detail-reactions">
+        <view class="detail-reaction up {{detail.liked ? 'active' : ''}}" catchtap="toggleProblemLike">
+          <text class="detail-reaction-icon">👍</text>
+          <text class="detail-reaction-count">{{detail.likeCount || 0}}</text>
+        </view>
+        <view class="detail-reaction down {{detail.disliked ? 'active' : ''}}" catchtap="toggleProblemDislike">
+          <text class="detail-reaction-icon">👎</text>
+          <text class="detail-reaction-count">{{detail.dislikeCount || 0}}</text>
+        </view>
+      </view>
+    </view>
     <text class="subtitle">{{detail.subtitle}}</text>
     <view class="row" style="margin-top: 18rpx;">
       <view>
@@ -42,10 +54,17 @@
     </view>
     <view class="list detail-list">
       <view wx:for="{{detail.solutions}}" wx:key="step" class="step-card">
-        <view class="step-number">{{item.step}}</view>
-        <view class="step-copy">
-          <text class="title step-title">{{item.title}}</text>
+        <view class="step-card-head" data-key="{{item.step}}" bindtap="toggleStep">
+          <view class="step-number">{{item.step}}</view>
+          <view class="step-copy">
+            <text class="title step-title">{{item.title}}</text>
+            <text class="subtitle step-status">{{expandedStepMap[item.step] ? '点击收起' : '点击展开查看步骤内容'}}</text>
+          </view>
+          <text class="step-toggle">{{expandedStepMap[item.step] ? '−' : '+'}}</text>
+        </view>
+        <view wx:if="{{expandedStepMap[item.step]}}" class="step-expanded">
           <text class="subtitle step-detail">{{item.detail}}</text>
+          <image wx:if="{{item.imageThumbUrl}}" class="step-detail-image" src="{{item.imageThumbUrl}}" mode="aspectFill" lazy-load="true" data-url="{{item.imagePreviewUrl || item.image_url || item.imageThumbUrl}}" bindtap="previewStepImage"></image>
         </view>
       </view>
     </view>

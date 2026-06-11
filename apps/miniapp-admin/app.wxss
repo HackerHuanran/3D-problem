@@ -1,0 +1,264 @@
+page {
+  min-height: 100vh;
+  background: #f6f6f6;
+  color: #1f2329;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+}
+
+.page {
+  padding: 30rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.hero-card,
+.panel {
+  border-radius: 30rpx;
+  background: #ffffff;
+  border: 0;
+  box-shadow: none;
+}
+
+.hero-card {
+  padding: 34rpx 30rpx;
+}
+
+.panel {
+  padding: 30rpx;
+}
+
+.eyebrow {
+  display: block;
+  color: #46b855;
+  font-size: 22rpx;
+  letter-spacing: 3rpx;
+  font-weight: 900;
+}
+
+.title {
+  display: block;
+  margin-top: 12rpx;
+  color: #1f2329;
+  font-size: 42rpx;
+  font-weight: 900;
+  letter-spacing: -1rpx;
+}
+
+.subtitle {
+  display: block;
+  margin-top: 12rpx;
+  color: #7a7f87;
+  font-size: 25rpx;
+  line-height: 1.7;
+}
+
+.panel-title {
+  display: block;
+  color: #1f2329;
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.panel-text {
+  display: block;
+  margin-top: 12rpx;
+  color: #7a7f87;
+  font-size: 25rpx;
+  line-height: 1.7;
+}
+
+.btn-primary,
+.btn-ghost {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 24rpx;
+  border: 0;
+  font-size: 28rpx;
+  font-weight: 850;
+}
+
+.btn-primary {
+  margin-top: 28rpx;
+  color: #ffffff;
+  background: #46b855;
+}
+
+.btn-ghost {
+  margin-top: 18rpx;
+  color: #1f2329;
+  background: #f1f2f3;
+}
+
+.btn-primary::after,
+.btn-ghost::after {
+  border: 0;
+}
+
+.status-card {
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: #f4f4f4;
+}
+
+.status-card.danger {
+  background: #fff1f1;
+}
+
+.status-label {
+  display: block;
+  color: #8a8a8a;
+  font-size: 23rpx;
+}
+
+.status-value {
+  display: block;
+  margin-top: 8rpx;
+  color: #1f2329;
+  font-size: 28rpx;
+  font-weight: 850;
+}
+
+.filter-chip.active,
+.reward-tab.active {
+  background: #46b855 !important;
+  color: #ffffff !important;
+}
+
+.action-btn.view,
+.search-btn,
+.hero-refresh {
+  background: #46b855 !important;
+}
+
+.action-btn.approve,
+.action-btn.enable,
+.action-btn.ship {
+  background: #46b855 !important;
+}
+
+.status-badge.done,
+.badge-done {
+  color: #46b855 !important;
+  background: #eef8ef !important;
+}
+
+.status-badge,
+.type-badge,
+.category-badge,
+.problem-badge {
+  background: #f1f2f3 !important;
+  color: #555b62 !important;
+}
+
+.input,
+.textarea,
+.search-input,
+.picker-field {
+  background: #f4f4f4 !important;
+  border-color: transparent !important;
+  color: #1f2329 !important;
+}
+
+.dashboard-card,
+.submission-card,
+.feedback-card,
+.order-card,
+.problem-card,
+.announcement-card,
+.goods-card {
+  background: #ffffff !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.submission-title,
+.feedback-title,
+.order-title,
+.problem-title,
+.announcement-title,
+.goods-title,
+.profile-title,
+.info-value {
+  color: #1f2329 !important;
+}
+
+.submission-desc,
+.submission-meta,
+.feedback-meta,
+.order-meta,
+.problem-desc,
+.problem-meta,
+.announcement-content,
+.announcement-meta,
+.goods-meta,
+.info-label,
+.menu-desc {
+  color: #8a8a8a !important;
+}
+
+.tracking-meta,
+.text-link {
+  color: #46b855 !important;
+}
+
+.filter-chip {
+  background: #ffffff !important;
+  border: 0 !important;
+  color: #777777 !important;
+}
+
+.filter-row {
+  padding: 2rpx 0 !important;
+}
+
+.action-btn,
+.search-btn,
+.add-btn {
+  border-radius: 20rpx !important;
+  font-weight: 850 !important;
+}
+
+.action-btn.view,
+.action-btn.edit,
+.action-btn.approve,
+.action-btn.enable,
+.action-btn.ship,
+.add-btn {
+  background: #46b855 !important;
+}
+
+.action-btn.reject {
+  background: #f2a65a !important;
+}
+
+.action-btn.delete,
+.btn-danger {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+}
+
+.action-btn.disabled,
+.action-btn.disable {
+  background: #d6d6d6 !important;
+  color: #ffffff !important;
+}
+
+.status-badge.reject {
+  color: #dc2626 !important;
+  background: #fff1f1 !important;
+}
+
+.status-badge.shipped {
+  color: #46b855 !important;
+  background: #eef8ef !important;
+}
+
+.image-empty,
+.cover-empty,
+.order-image-empty,
+.goods-image.image-empty {
+  background: #eeeeee !important;
+  color: #8a8a8a !important;
+}

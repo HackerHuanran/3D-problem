@@ -1,0 +1,39 @@
+<view class="page">
+  <view class="hero-card">
+    <text class="eyebrow">MODEL ADMIN</text>
+    <text class="title">别塌了模型管理端</text>
+    <text class="subtitle">独立管理小程序第一步：先验证微信登录、云环境连接和管理员权限。</text>
+  </view>
+
+  <view class="panel">
+    <text class="panel-title">登录状态</text>
+    <text class="panel-text">当前连接云环境：cloud1-d0gqkk2h2dea42d2b</text>
+
+    <view wx:if="{{user}}" class="status-card">
+      <text class="status-label">当前账号</text>
+      <text class="status-value">{{user.username || user.id}}</text>
+      <text class="status-label" style="margin-top: 18rpx;">管理员权限</text>
+      <text class="status-value">{{isAdmin ? '已通过' : '未通过'}}</text>
+    </view>
+
+    <view wx:if="{{error}}" class="status-card danger">
+      <text class="status-label">提示</text>
+      <text class="status-value">{{error}}</text>
+    </view>
+
+    <view wx:if="{{debugInfo}}" class="status-card">
+      <text class="status-label">调试信息</text>
+      <text class="debug-text">{{debugInfo}}</text>
+    </view>
+
+    <button wx:if="{{!user}}" class="btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="login">微信登录</button>
+    <button wx:elif="{{!isAdmin}}" class="btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="login">重新检测权限</button>
+    <button wx:else class="btn-primary" loading="{{loading}}" disabled="{{loading}}" bindtap="login">刷新登录状态</button>
+    <button wx:if="{{user}}" class="btn-ghost" bindtap="logout">退出登录</button>
+  </view>
+
+  <view wx:if="{{isAdmin}}" class="panel">
+    <text class="panel-title">管理端已跑通</text>
+    <text class="panel-text">下一步可以开始迁移投稿审核、问题管理、服务审核、积分兑换订单等后台模块。</text>
+  </view>
+</view>

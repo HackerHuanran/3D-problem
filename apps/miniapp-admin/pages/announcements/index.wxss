@@ -1,0 +1,119 @@
+.announcement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.announcement-card {
+  padding: 28rpx;
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1rpx solid rgba(29, 78, 216, 0.08);
+  box-shadow: 0 16rpx 42rpx rgba(13, 41, 87, 0.08);
+}
+
+.announcement-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.announcement-title {
+  flex: 1;
+  color: #08203d;
+  font-size: 30rpx;
+  font-weight: 860;
+  line-height: 1.35;
+}
+
+.status-badge {
+  flex: 0 0 auto;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.12);
+  font-size: 22rpx;
+  font-weight: 820;
+}
+
+.status-badge.done {
+  color: #059669;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.announcement-content {
+  display: block;
+  margin-top: 16rpx;
+  color: #57708f;
+  font-size: 25rpx;
+  line-height: 1.6;
+}
+
+.announcement-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-top: 14rpx;
+}
+
+.announcement-meta {
+  color: #8aa0bd;
+  font-size: 22rpx;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin-top: 22rpx;
+}
+
+.action-btn {
+  min-width: 132rpx;
+  height: 64rpx;
+  line-height: 64rpx;
+  margin: 0;
+  padding: 0 20rpx;
+  border-radius: 18rpx;
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 820;
+}
+
+.action-btn::after,
+.add-btn::after {
+  border: 0;
+}
+
+.action-btn.edit {
+  background: #2563eb;
+}
+
+.action-btn.enable {
+  background: #059669;
+}
+
+.action-btn.disable {
+  background: #94a3b8;
+}
+
+.action-btn.delete {
+  background: #dc2626;
+}
+
+.add-btn {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  margin: 8rpx 0 28rpx;
+  border-radius: 22rpx;
+  color: #ffffff;
+  background: linear-gradient(135deg, #1d4ed8 0%, #14b8a6 100%);
+  font-size: 28rpx;
+  font-weight: 860;
+}
+
+.empty-panel {
+  text-align: left;
+}

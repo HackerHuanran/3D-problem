@@ -1,0 +1,30 @@
+<view class="page me-page">
+  <view class="hero-card profile-card">
+    <view class="avatar">{{avatarText}}</view>
+    <view class="profile-info">
+      <text class="title profile-title">{{user.username || user.id}}</text>
+      <text class="subtitle">管理员账号</text>
+    </view>
+  </view>
+
+  <view class="panel">
+    <text class="panel-title">账号信息</text>
+    <view class="info-row">
+      <text class="info-label">权限状态</text>
+      <text class="info-value">已通过</text>
+    </view>
+    <view class="info-row">
+      <text class="info-label">当前环境</text>
+      <text class="info-value">{{envId}}</text>
+    </view>
+    <view class="info-row">
+      <text class="info-label">用户 ID</text>
+      <text class="info-value wrap">{{user.id}}</text>
+    </view>
+  </view>
+
+  <view class="panel">
+    <button class="btn-ghost" bindtap="refreshLogin">重新检测权限</button>
+    <button class="btn-danger" bindtap="logout">退出登录</button>
+  </view>
+</view>

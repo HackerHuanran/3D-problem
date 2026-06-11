@@ -1,0 +1,33 @@
+<view class="page feedback-page">
+  <view class="hero-card">
+    <text class="eyebrow">USER VOICE</text>
+    <text class="title">用户反馈</text>
+    <text class="subtitle">集中查看用户提交的投诉、建议和问题反馈。</text>
+  </view>
+
+  <view class="filter-row">
+    <view wx:for="{{filters}}" wx:key="key" class="filter-chip {{filter === item.key ? 'active' : ''}}" data-filter="{{item.key}}" bindtap="switchFilter">
+      {{item.label}} {{item.count}}
+    </view>
+  </view>
+
+  <view wx:if="{{filteredFeedback.length}}" class="feedback-list">
+    <view wx:for="{{filteredFeedback}}" wx:key="id" class="feedback-card">
+      <view class="feedback-head">
+        <text class="feedback-title">{{item.title}}</text>
+        <text class="status-badge {{item.status === 'resolved' ? 'done' : ''}}">{{item.statusText}}</text>
+      </view>
+      <text class="feedback-meta">{{item.type}} · {{item.userName}} · {{item.createdAtText || '未知时间'}}</text>
+      <text class="feedback-content">{{item.content}}</text>
+      <view class="action-row">
+        <button class="action-btn view" size="mini" data-id="{{item.id}}" bindtap="viewFeedback" disabled="{{opLoading && opTargetId === item.id}}">查看详情</button>
+        <button class="action-btn approve {{item.status === 'resolved' ? 'disabled' : ''}}" size="mini" data-id="{{item.id}}" bindtap="resolveFeedback" disabled="{{item.status === 'resolved' || (opLoading && opTargetId === item.id)}}">{{item.status === 'resolved' ? '已处理' : '标记处理'}}</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="panel empty-panel">
+    <text class="panel-title">暂无反馈</text>
+    <text class="panel-text">当前筛选条件下没有用户反馈。如果刚进入时报集合不存在，请在云数据库创建 user_feedback 集合。</text>
+  </view>
+</view>

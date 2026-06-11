@@ -80,6 +80,7 @@ Page({
         goodsImageDisplay: await this.resolveCloudFile(item.goodsImage),
         pointsCost: Number(item.pointsCost || 0),
         statusText: item.statusText || '',
+        trackingNo: item.trackingNo || '',
         addressText: `${item.addressSnapshot?.region_text || ''} ${item.addressSnapshot?.detail || ''}`.trim(),
       })))
       this.setData({ orders })

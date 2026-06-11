@@ -1,0 +1,34 @@
+<view class="page reward-goods-page">
+  <view class="hero-card">
+    <text class="eyebrow">REWARD GOODS</text>
+    <text class="title">积分商品</text>
+    <text class="subtitle">上架积分兑换商品，用户可在小程序里用积分兑换。分类会对应兑换页的“耗材 / 模型 / 其他”。</text>
+  </view>
+
+  <view wx:if="{{goods.length}}" class="goods-list">
+    <view wx:for="{{goods}}" wx:key="id" class="goods-card">
+      <image wx:if="{{item.imageDisplayUrl}}" class="goods-image" src="{{item.imageDisplayUrl}}" mode="aspectFill"></image>
+      <view wx:else class="goods-image image-empty">无图</view>
+      <view class="goods-copy">
+        <view class="goods-head">
+          <text class="goods-title">{{item.name}}</text>
+          <text class="category-badge">{{item.categoryText}}</text>
+        </view>
+        <text class="goods-meta">库存：{{item.quantity}}</text>
+        <text class="goods-meta">兑换积分：{{item.pointsCost}} 积分</text>
+        <text class="goods-meta">更新：{{item.updatedAtText || '未知时间'}}</text>
+        <view class="action-row">
+          <button class="action-btn edit" size="mini" data-id="{{item.id}}" bindtap="editGood" disabled="{{opLoading && opTargetId === item.id}}">修改</button>
+          <button class="action-btn delete" size="mini" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="deleteGood" disabled="{{opLoading && opTargetId === item.id}}">删除</button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="panel empty-panel">
+    <text class="panel-title">暂无积分商品</text>
+    <text class="panel-text">上架商品后，用户可以在积分兑换页看到。</text>
+  </view>
+
+  <button class="add-btn" bindtap="addGood">新增商品</button>
+</view>

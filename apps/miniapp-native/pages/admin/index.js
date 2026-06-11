@@ -1,11 +1,16 @@
 const {
   getCurrentUser,
   getCurrentProfile,
+  requireLoginForAction,
   fetchAdminFeedback,
   markFeedbackResolved,
 } = require('../../utils/user-service')
 const { listProblems, clearProblemCache, clearProblemCaches } = require('../../utils/problem-service')
 const { showAppLoading, hideAppLoading } = require('../../utils/loading')
+const SERVICES_CACHE_KEY = 'miniapp_services_cache_v1'
+const SERVICE_DETAIL_CACHE_KEY = 'miniapp_service_detail_cache_v1'
+const SERVICE_IMAGE_CACHE_KEY = 'miniapp_service_image_cache_v1'
+const SERVICE_DETAIL_IMAGE_CACHE_KEY = 'miniapp_service_detail_image_cache_v1'
 
 function normalizeServiceAsset(value) {
   if (!value) return ''
@@ -41,6 +46,17 @@ function isUploadedAsset(value = '') {
   return false
 }
 
+function clearServiceCaches() {
+  try {
+    wx.removeStorageSync(SERVICES_CACHE_KEY)
+    wx.removeStorageSync(SERVICE_DETAIL_CACHE_KEY)
+    wx.removeStorageSync(SERVICE_IMAGE_CACHE_KEY)
+    wx.removeStorageSync(SERVICE_DETAIL_IMAGE_CACHE_KEY)
+  } catch (error) {
+    console.warn('clear service caches failed', error)
+  }
+}
+
 Page({
   data: {
     currentUser: null,
@@ -52,6 +68,17 @@ Page({
     opAction: '',
     opTargetId: '',
     submissions: [],
+    filteredSubmissions: [],
+    submissionFilter: 'all',
+    submissionCounts: {
+      all: 0,
+      problem: 0,
+      knowledge: 0,
+      service: 0,
+    },
+    serviceAuditPageSize: 10,
+    serviceSubmissionVisibleCount: 10,
+    serviceSubmissionHasMore: false,
     feedbackList: [],
     announcements: [],
     usageStats: [],
@@ -66,6 +93,9 @@ Page({
     },
     problems: [],
     services: [],
+    servicesLoadingMore: false,
+    servicePageSize: 10,
+    serviceHasMore: true,
     rewardGoods: [],
     rewardOrders: [],
     serviceForm: {
@@ -124,7 +154,7 @@ Page({
         this.loadAnnouncements(),
         this.loadUsageStats(),
         this.loadProblems({ reset: true }),
-        this.loadServices(),
+        this.loadServices({ reset: true }),
         this.loadRewardGoods(),
         this.loadRewardOrders(),
       ])
@@ -155,6 +185,16 @@ Page({
         statusText: item.status === 'published' ? '已通过' : item.status === 'rejected' ? '已拒绝' : '待审核',
         image_url: item.image_url || '',
         submissionType: item.submission_type || 'problem',
+        submissionTypeText: item.submission_type === 'knowledge' ? '知识投稿' : item.submission_type === 'service' ? '服务审核' : '问题投稿',
+        service: item.service || null,
+        service_id: item.service_id || '',
+        studioName: item.service?.studioName || item.studioName || '',
+        machineModel: item.service?.machineModel || item.machineModel || '',
+        machineCount: item.service?.machineCount || item.machineCount || '',
+        contact: item.service?.contact || item.contact || '',
+        images: item.service?.images || item.images || [],
+        environmentImage: item.service?.environmentImage || item.environmentImage || '',
+        wechatQrImage: item.service?.wechatQrImage || item.wechatQrImage || '',
         detailBlocks: item.detail_blocks || [],
         effectImages: item.effect_images || [],
         causes: item.causes || [],
@@ -166,10 +206,52 @@ Page({
         })),
         tips: item.tips || '',
       }))
-      this.setData({ submissions })
+      this.setSubmissionsData(submissions)
     } catch (error) {
       console.warn('loadSubmissions failed', error)
-      this.setData({ submissions: [] })
+      this.setSubmissionsData([])
+    }
+  },
+
+  getFilteredSubmissions(submissions = this.data.submissions, filter = this.data.submissionFilter, visibleCount = this.data.serviceSubmissionVisibleCount) {
+    if (filter === 'problem') return submissions.filter((item) => item.submissionType !== 'knowledge' && item.submissionType !== 'service')
+    if (filter === 'knowledge') return submissions.filter((item) => item.submissionType === 'knowledge')
+    if (filter === 'service') return submissions
+      .filter((item) => item.submissionType === 'service')
+      .slice(0, visibleCount || 10)
+    return submissions
+  },
+
+  setSubmissionsData(submissions = this.data.submissions, filter = this.data.submissionFilter) {
+    const counts = submissions.reduce((acc, item) => {
+      acc.all += 1
+      if (item.submissionType === 'knowledge') acc.knowledge += 1
+      else if (item.submissionType === 'service') acc.service += 1
+      else acc.problem += 1
+      return acc
+    }, { all: 0, problem: 0, knowledge: 0, service: 0 })
+    const serviceSubmissionTotal = counts.service
+    const serviceVisibleCount = filter === 'service'
+      ? Math.min(this.data.serviceSubmissionVisibleCount || this.data.serviceAuditPageSize || 10, serviceSubmissionTotal)
+      : (this.data.serviceSubmissionVisibleCount || this.data.serviceAuditPageSize || 10)
+    this.setData({
+      submissions,
+      submissionFilter: filter,
+      submissionCounts: counts,
+      serviceSubmissionVisibleCount: serviceVisibleCount,
+      serviceSubmissionHasMore: filter === 'service' && serviceVisibleCount < serviceSubmissionTotal,
+      filteredSubmissions: this.getFilteredSubmissions(submissions, filter, serviceVisibleCount),
+    })
+  },
+
+  switchSubmissionFilter(e) {
+    const filter = String(e.currentTarget.dataset.filter || 'all')
+    if (filter === 'service') {
+      this.setData({ serviceSubmissionVisibleCount: this.data.serviceAuditPageSize || 10 })
+    }
+    this.setSubmissionsData(this.data.submissions, filter)
+    if (filter === 'service') {
+      this.loadServices({ reset: true })
     }
   },
 
@@ -286,18 +368,29 @@ Page({
     }
   },
 
-  async loadServices() {
+  async loadServices({ reset = false } = {}) {
+    if (!reset && (!this.data.serviceHasMore || this.data.servicesLoadingMore)) return
     const db = wx.cloud.database()
+    const skip = reset ? 0 : this.data.services.length
+    this.setData({ servicesLoadingMore: !reset })
     try {
       const { data } = await db.collection('studio_services')
         .orderBy('updated_at', 'desc')
-        .limit(100)
+        .skip(skip)
+        .limit(this.data.servicePageSize)
         .get()
       const services = await Promise.all((data || []).map((item) => this.normalizeServiceRecord(item)))
-      this.setData({ services })
+      this.setData({
+        services: reset ? services : this.data.services.concat(services),
+        serviceHasMore: services.length === this.data.servicePageSize,
+      })
     } catch (error) {
       console.warn('loadServices failed', error)
-      this.setData({ services: [] })
+      if (reset) {
+        this.setData({ services: [], serviceHasMore: false })
+      }
+    } finally {
+      this.setData({ servicesLoadingMore: false })
     }
   },
 
@@ -467,7 +560,7 @@ Page({
       this.loadUsageStats()
     }
     if (section === 'services' && !this.data.services.length) {
-      this.loadServices()
+      this.loadServices({ reset: true })
     }
     if (section === 'rewards' && !this.data.rewardGoods.length) {
       this.loadRewardGoods()
@@ -822,6 +915,53 @@ Page({
     }
   },
 
+  async publishServiceSubmission(item) {
+    const db = wx.cloud.database()
+    const service = item.service || {}
+    const studioName = String(service.studioName || item.studioName || item.title || '').trim()
+    const machineModel = String(service.machineModel || item.machineModel || '').trim()
+    const machineCount = String(service.machineCount || item.machineCount || '').trim()
+    const description = String(service.description || item.description || '').trim()
+    const contact = String(service.contact || item.contact || '').trim()
+    const images = Array.isArray(service.images || item.images) ? (service.images || item.images).filter(Boolean).slice(0, 3) : []
+    const wechatQrImage = String(service.wechatQrImage || item.wechatQrImage || '').trim()
+
+    if (!studioName || !machineModel || !machineCount || !description) {
+      throw new Error('服务入驻信息不完整，无法通过')
+    }
+
+    const payload = {
+      studioName,
+      machineModel,
+      machineCount,
+      contact,
+      description,
+      images,
+      environmentImage: service.environmentImage || item.environmentImage || images[0] || '',
+      wechatQrImage,
+      source: 'user_submitted',
+      submission_id: item.id,
+      user_id: item.userId || '',
+      updated_at: db.serverDate(),
+    }
+
+    const { data } = await db.collection('studio_services')
+      .where({ submission_id: item.id })
+      .limit(1)
+      .get()
+    if (data?.length) {
+      await db.collection('studio_services').doc(data[0]._id).update({ data: payload })
+      return data[0]._id
+    }
+    const created = await db.collection('studio_services').add({
+      data: {
+        ...payload,
+        created_at: db.serverDate(),
+      },
+    })
+    return created?._id || ''
+  },
+
   async markRewardOrderDone(e) {
     const id = e.currentTarget.dataset.id
     const item = this.data.rewardOrders.find((row) => row.id === id)
@@ -1014,8 +1154,9 @@ Page({
         })
       }
       wx.showToast({ title: form.id ? '已更新' : '已添加', icon: 'success' })
+      clearServiceCaches()
       this.resetServiceForm()
-      await this.loadServices()
+      await this.loadServices({ reset: true })
     } catch (error) {
       wx.showModal({
         title: '保存失败',
@@ -1041,10 +1182,11 @@ Page({
         try {
           await wx.cloud.database().collection('studio_services').doc(item.id).remove()
           wx.showToast({ title: '已删除', icon: 'success' })
+          clearServiceCaches()
           if (this.data.serviceForm.id === item.id) {
             this.resetServiceForm()
           }
-          await this.loadServices()
+          await this.loadServices({ reset: true })
         } catch (error) {
           wx.showModal({
             title: '删除失败',
@@ -1054,6 +1196,34 @@ Page({
         } finally {
           this.clearOperationState()
         }
+      },
+    })
+  },
+
+  openPublishedServiceDetail(e) {
+    const id = e.currentTarget.dataset.id
+    if (!id) return
+    this.setOperationState('view-service', id)
+    showAppLoading('正在打开')
+    wx.navigateTo({
+      url: `/pages/service-detail/index?id=${id}`,
+      complete: () => {
+        this.clearOperationState()
+        hideAppLoading()
+      },
+    })
+  },
+
+  editPublishedService(e) {
+    const id = e.currentTarget.dataset.id
+    if (!id) return
+    this.setOperationState('edit-service', id)
+    showAppLoading('正在打开')
+    wx.navigateTo({
+      url: `/pages/service-submit/index?serviceId=${id}`,
+      complete: () => {
+        this.clearOperationState()
+        hideAppLoading()
       },
     })
   },
@@ -1074,6 +1244,24 @@ Page({
     this.setOperationState('approve', item.id)
     showAppLoading('处理中')
     try {
+      if (item.submissionType === 'service') {
+        const serviceId = await this.publishServiceSubmission(item)
+        await db.collection('user_problems').doc(item.id).update({
+          data: {
+            status: 'published',
+            service_id: serviceId,
+            updated_at: db.serverDate(),
+          },
+        })
+        wx.showToast({ title: '服务已通过', icon: 'success' })
+        clearServiceCaches()
+        await Promise.all([
+          this.loadSubmissions(),
+          this.loadServices({ reset: true }),
+        ])
+        return
+      }
+
       await db.collection('user_problems').doc(item.id).update({
         data: {
           status: 'published',
@@ -1097,6 +1285,9 @@ Page({
         tips: item.tips || '',
         image_url: item.image_url || '',
         source: 'user_submitted',
+        source_submission_id: item.id,
+        submission_id: item.id,
+        user_problem_id: item.id,
       }
       if (item.submissionType !== 'knowledge') {
         const { data } = await db.collection('problems').where({ problem_id: item.problemId }).limit(1).get()
@@ -1129,11 +1320,6 @@ Page({
       clearProblemCaches()
       await this.loadSubmissions()
       await this.loadProblems({ reset: true })
-      if (this.data.section === 'submissions') {
-        this.setData({
-          submissions: this.data.submissions.map((row) => row.id === item.id ? { ...row, status: 'published', statusText: '已通过' } : row),
-        })
-      }
     } catch (error) {
       wx.showModal({
         title: '审核失败',
@@ -1238,6 +1424,26 @@ Page({
       await db.collection('user_problems').doc(item.id).remove()
       clearProblemCache(item.problemId)
 
+      if (item.submissionType === 'service') {
+        if (item.service_id) {
+          try {
+            await db.collection('studio_services').doc(item.service_id).remove()
+          } catch (error) {
+            console.warn('remove linked studio service failed', error)
+          }
+        }
+        if (item.id) {
+          const { data } = await db.collection('studio_services').where({ submission_id: item.id }).limit(20).get()
+          const rows = data || []
+          for (const row of rows) {
+            if (row?._id && row._id !== item.service_id) {
+              await db.collection('studio_services').doc(row._id).remove()
+            }
+          }
+        }
+        clearServiceCaches()
+      }
+
       if (item.problemId) {
         const { data } = await db.collection('problems').where({ problem_id: item.problemId }).limit(20).get()
         const rows = data || []
@@ -1326,9 +1532,11 @@ Page({
     }
   },
 
-  openProblemDetail(e) {
+  async openProblemDetail(e) {
     const id = e.currentTarget.dataset.id
     if (!id) return
+    const user = await requireLoginForAction('请先登录后查看详情')
+    if (!user?.id) return
     this.setOperationState('view-problem', id)
     showAppLoading('正在打开')
     wx.navigateTo({
@@ -1344,14 +1552,34 @@ Page({
     })
   },
 
-  openSubmissionDetail(e) {
+  openProblemEditor(e) {
+    const id = e.currentTarget.dataset.id
+    if (!id) return
+    this.setOperationState('edit-problem', id)
+    showAppLoading('正在打开')
+    wx.navigateTo({
+      url: `/pages/problem-submit/index?problemId=${id}`,
+      complete: () => {
+        this.clearOperationState()
+        hideAppLoading()
+      },
+    })
+  },
+
+  async openSubmissionDetail(e) {
     const id = e.currentTarget.dataset.id
     if (!id) return
     const item = this.data.submissions.find((row) => row.id === id)
+    if (!item || item.submissionType === 'problem') {
+      const user = await requireLoginForAction('请先登录后查看详情')
+      if (!user?.id) return
+    }
     this.setOperationState('view', id)
     showAppLoading('正在打开')
     wx.navigateTo({
-      url: item?.submissionType === 'knowledge'
+      url: item?.submissionType === 'service'
+        ? `/pages/service-submit/index?id=${id}`
+        : item?.submissionType === 'knowledge'
         ? `/pages/knowledge-submit/index?id=${id}`
         : `/pages/problem-detail/index?id=${id}`,
       fail: () => {
@@ -1366,12 +1594,26 @@ Page({
   },
 
   async onReachBottom() {
-    if (this.data.section !== 'problems') return
-    await this.loadProblems()
+    if (this.data.section === 'problems') {
+      await this.loadProblems()
+      return
+    }
+    if (this.data.section === 'submissions' && this.data.submissionFilter === 'service') {
+      let loadedMoreSubmissions = false
+      if (this.data.serviceSubmissionHasMore) {
+        const nextVisibleCount = (this.data.serviceSubmissionVisibleCount || 0) + (this.data.serviceAuditPageSize || 10)
+        this.setData({ serviceSubmissionVisibleCount: nextVisibleCount })
+        this.setSubmissionsData(this.data.submissions, 'service')
+        loadedMoreSubmissions = true
+      }
+      if (!loadedMoreSubmissions && this.data.serviceHasMore) {
+        await this.loadServices()
+      }
+    }
   },
 
   setDataForItem(item, patch) {
     const submissions = this.data.submissions.map((row) => (row._id === item._id ? { ...row, ...patch } : row))
-    this.setData({ submissions })
+    this.setSubmissionsData(submissions)
   },
 })

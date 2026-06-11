@@ -41,12 +41,26 @@ function sortAddresses(addresses = []) {
   })
 }
 
+function normalizeRewardCategory(item = {}) {
+  const raw = String(item.category || item.type || item.goods_type || '').trim()
+  if (/模型|model/i.test(raw)) return 'model'
+  if (/其他|其它|other/i.test(raw)) return 'other'
+  return 'filament'
+}
+
 Page({
   data: {
     currentUser: null,
     currentProfile: null,
     points: 0,
     goods: [],
+    filteredGoods: [],
+    activeCategory: 'filament',
+    categoryTabs: [
+      { id: 'filament', label: '耗材' },
+      { id: 'model', label: '模型' },
+      { id: 'other', label: '其他' },
+    ],
     addresses: [],
     loading: false,
     redeemingId: '',
@@ -119,12 +133,26 @@ Page({
         imageDisplayUrl: await this.resolveCloudFile(item.image_url),
         quantity: Number(item.quantity || 0),
         pointsCost: Number(item.points_cost || item.pointsCost || 0),
+        category: normalizeRewardCategory(item),
       })))
-      this.setData({ goods })
+      this.setGoodsData(goods)
     } catch (error) {
       console.warn('load reward goods failed', error)
-      this.setData({ goods: [] })
+      this.setGoodsData([])
     }
+  },
+
+  setGoodsData(goods = this.data.goods, activeCategory = this.data.activeCategory) {
+    this.setData({
+      goods,
+      activeCategory,
+      filteredGoods: goods.filter((item) => item.category === activeCategory),
+    })
+  },
+
+  switchCategory(e) {
+    const category = String(e.currentTarget.dataset.category || 'filament')
+    this.setGoodsData(this.data.goods, category)
   },
 
   async loadAddresses(userId) {

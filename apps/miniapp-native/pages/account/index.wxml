@@ -17,9 +17,22 @@
     </view>
 
     <view class="hero-highlight">
-      <text class="hero-highlight-label">个人工作台</text>
-      <text class="hero-highlight-desc">收藏、最近浏览和投稿会在这里统一同步。</text>
-      <text class="hero-highlight-points">当前积分 {{currentUser.points || currentProfile.points || 0}}</text>
+      <view class="hero-points-card">
+        <view class="hero-points-copy">
+          <text class="hero-points-label">当前积分</text>
+          <view class="hero-points-number-row">
+            <text class="hero-points-value">{{currentUser.points || currentProfile.points || 0}}</text>
+            <text class="hero-points-unit">分</text>
+          </view>
+          <text class="hero-points-hint">可用于兑换耗材奖励</text>
+        </view>
+        <view class="hero-points-visual" aria-hidden="true">
+          <view class="points-coin coin-back"></view>
+          <view class="points-coin coin-front"></view>
+          <view class="points-spark spark-a"></view>
+          <view class="points-spark spark-b"></view>
+        </view>
+      </view>
       <text class="hero-highlight-desc" wx:if="{{currentUser.gender}}">
         {{currentUser.gender ? ('性别 ' + (currentUser.gender === 'male' ? '男' : currentUser.gender === 'female' ? '女' : '保密')) : ''}}
       </text>
@@ -60,6 +73,12 @@
 
   <view wx:if="{{currentUser}}" class="menu-card">
     <view class="menu-cell" bindtap="openRewards">
+      <view class="menu-icon menu-icon-reward">
+        <view class="icon-gift">
+          <view class="icon-gift-bow"></view>
+          <view class="icon-gift-box"></view>
+        </view>
+      </view>
       <view class="menu-copy">
         <text class="menu-title">积分兑换</text>
         <text class="menu-desc">用已获得的积分兑换耗材商品</text>
@@ -68,6 +87,12 @@
     </view>
     <view class="menu-divider"></view>
     <view class="menu-cell" bindtap="openRewardOrders">
+      <view class="menu-icon menu-icon-orders">
+        <view class="icon-receipt">
+          <view class="icon-receipt-line"></view>
+          <view class="icon-receipt-line short"></view>
+        </view>
+      </view>
       <view class="menu-copy">
         <text class="menu-title">我的兑换记录</text>
         <text class="menu-desc">查看积分兑换耗材的处理状态</text>
@@ -76,6 +101,9 @@
     </view>
     <view class="menu-divider"></view>
     <view class="menu-cell" bindtap="openAddresses">
+      <view class="menu-icon menu-icon-address">
+        <view class="icon-pin"></view>
+      </view>
       <view class="menu-copy">
         <text class="menu-title">地址管理</text>
         <text class="menu-desc">维护积分兑换收货地址与默认地址</text>
@@ -84,6 +112,9 @@
     </view>
     <view class="menu-divider"></view>
     <view class="menu-cell" bindtap="openLegal">
+      <view class="menu-icon menu-icon-legal">
+        <view class="icon-shield"></view>
+      </view>
       <view class="menu-copy">
         <text class="menu-title">用户服务协议与隐私政策</text>
         <text class="menu-desc">查看平台服务规则与个人信息处理说明</text>
@@ -92,6 +123,9 @@
     </view>
     <view class="menu-divider"></view>
     <view class="menu-cell" bindtap="openFeedback">
+      <view class="menu-icon menu-icon-feedback">
+        <view class="icon-message"></view>
+      </view>
       <view class="menu-copy">
         <text class="menu-title">反馈与建议</text>
         <text class="menu-desc">填写使用建议或问题反馈，只有管理员可以查看</text>
@@ -100,6 +134,11 @@
     </view>
     <view class="menu-divider"></view>
     <view wx:if="{{isAdmin}}" class="menu-cell" bindtap="openAdmin">
+      <view class="menu-icon menu-icon-admin">
+        <view class="icon-gear">
+          <view class="icon-gear-core"></view>
+        </view>
+      </view>
       <view class="menu-copy">
         <text class="menu-title">管理后台</text>
         <text class="menu-desc">审核投稿、管理图片、维护内容</text>
@@ -109,6 +148,11 @@
     </view>
     <view wx:if="{{isAdmin}}" class="menu-divider"></view>
     <view class="menu-cell" bindtap="logout">
+      <view class="menu-icon menu-icon-logout">
+        <view class="icon-logout">
+          <view class="icon-logout-arrow"></view>
+        </view>
+      </view>
       <view class="menu-copy">
         <text class="menu-title danger">退出登录</text>
         <text class="menu-desc">退出后回到游客状态</text>

@@ -15,12 +15,15 @@
     </view>
 
     <view class="panel">
-      <view class="row">
-        <text class="title" style="font-size: 30rpx;">可兑换耗材</text>
-        <text class="meta">{{goods.length}} 件</text>
+      <view class="reward-tabs">
+        <view wx:for="{{categoryTabs}}" wx:key="id" class="reward-tab {{activeCategory === item.id ? 'active' : ''}}" data-category="{{item.id}}" bindtap="switchCategory">{{item.label}}</view>
       </view>
-      <view wx:if="{{goods.length}}" class="list" style="margin-top: 20rpx;">
-        <view wx:for="{{goods}}" wx:key="id" class="card reward-card">
+      <view class="row">
+        <text class="title" style="font-size: 30rpx;">可兑换奖励</text>
+        <text class="meta">{{filteredGoods.length}} 件</text>
+      </view>
+      <view wx:if="{{filteredGoods.length}}" class="reward-grid">
+        <view wx:for="{{filteredGoods}}" wx:key="id" class="card reward-card">
           <image wx:if="{{item.imageDisplayUrl}}" class="reward-image" src="{{item.imageDisplayUrl}}" mode="aspectFill"></image>
           <view wx:else class="reward-image reward-image-fallback"></view>
           <text class="reward-title">{{item.name}}</text>
@@ -32,7 +35,7 @@
         </view>
       </view>
       <view wx:else class="empty-box">
-        <text class="subtitle">管理员还没有上架积分商品。</text>
+        <text class="subtitle">当前分类还没有可兑换商品。</text>
       </view>
     </view>
 

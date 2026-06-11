@@ -1,0 +1,68 @@
+<view wx:if="{{detail}}" class="page knowledge-detail-page">
+  <view class="hero-card knowledge-detail-hero">
+    <view class="knowledge-detail-hero-head">
+      <view class="knowledge-detail-hero-copy">
+        <text class="meta">KNOWLEDGE</text>
+        <text class="title knowledge-detail-title">{{detail.title}}</text>
+      </view>
+      <view class="knowledge-detail-reactions">
+        <view class="knowledge-detail-reaction up {{detail.liked ? 'active' : ''}}" catchtap="toggleKnowledgeLike">
+          <text class="knowledge-detail-reaction-icon">👍</text>
+          <text class="knowledge-detail-reaction-count">{{detail.likeCount || 0}}</text>
+        </view>
+        <view class="knowledge-detail-reaction down {{detail.disliked ? 'active' : ''}}" catchtap="toggleKnowledgeDislike">
+          <text class="knowledge-detail-reaction-icon">👎</text>
+          <text class="knowledge-detail-reaction-count">{{detail.dislikeCount || 0}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="panel">
+    <text class="title section-title">详细描述</text>
+    <view wx:if="{{detail.blocks.length}}" class="knowledge-block-list">
+      <view wx:for="{{detail.blocks}}" wx:key="index" class="knowledge-block">
+        <text wx:if="{{item.text}}" class="knowledge-text">{{item.text}}</text>
+        <view wx:if="{{item.imageRows.length}}" class="knowledge-image-grid">
+          <image
+            wx:for="{{item.imageRows}}"
+            wx:for-item="image"
+            wx:key="index"
+            class="knowledge-image"
+            src="{{image.thumbUrl}}"
+            mode="aspectFill"
+            lazy-load="true"
+            data-list="{{item.images}}"
+            data-current="{{image.url}}"
+            bindtap="previewImage"
+          ></image>
+        </view>
+      </view>
+    </view>
+    <text wx:else class="knowledge-text">{{detail.description || '暂未填写详细描述'}}</text>
+  </view>
+
+  <view wx:if="{{detail.effectImageRows.length}}" class="panel">
+    <text class="title section-title">效果展示</text>
+    <view class="knowledge-image-grid effect-grid">
+      <image
+        wx:for="{{detail.effectImageRows}}"
+        wx:key="index"
+        class="knowledge-image effect-image"
+        src="{{item.thumbUrl}}"
+        mode="aspectFill"
+        lazy-load="true"
+        data-list="{{detail.effectImages}}"
+        data-current="{{item.url}}"
+        bindtap="previewImage"
+      ></image>
+    </view>
+  </view>
+</view>
+
+<view wx:elif="{{!loading}}" class="page">
+  <view class="empty-box">
+    <text class="title" style="font-size: 34rpx;">知识详情加载失败</text>
+    <text class="subtitle">{{loadError || '当前知识不存在或已删除'}}</text>
+  </view>
+</view>

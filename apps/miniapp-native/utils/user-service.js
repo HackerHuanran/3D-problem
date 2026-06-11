@@ -240,6 +240,16 @@ async function getCurrentUser() {
   return null
 }
 
+async function requireLoginForAction(message = '请先登录') {
+  const user = await getCurrentUser()
+  if (user?.id) return user
+  wx.showToast({ title: message, icon: 'none' })
+  setTimeout(() => {
+    wx.switchTab({ url: '/pages/account/index' })
+  }, 500)
+  return null
+}
+
 async function fetchFavorites(userId) {
   if (!userId) return []
   const { data } = await db.collection('problem_favorites')
@@ -269,6 +279,256 @@ async function toggleFavorite(userId, problemId) {
     },
   })
   return true
+}
+
+async function fetchKnowledgeLikeStates(userId = '', knowledgeIds = []) {
+  const ids = [...new Set((knowledgeIds || []).map((id) => String(id || '').trim()).filter(Boolean))]
+  if (!ids.length) return { counts: {}, likedIds: [], dislikeCounts: {}, dislikedIds: [] }
+  const counts = {}
+  const dislikeCounts = {}
+  await Promise.all(ids.map(async (knowledgeId) => {
+    try {
+      const res = await db.collection('knowledge_likes')
+        .where({ knowledge_id: knowledgeId })
+        .count()
+      counts[knowledgeId] = Number(res?.total || res?.count || 0)
+    } catch (error) {
+      console.warn('count knowledge likes failed', error)
+      counts[knowledgeId] = 0
+    }
+    try {
+      const res = await db.collection('knowledge_dislikes')
+        .where({ knowledge_id: knowledgeId })
+        .count()
+      dislikeCounts[knowledgeId] = Number(res?.total || res?.count || 0)
+    } catch (error) {
+      console.warn('count knowledge dislikes failed', error)
+      dislikeCounts[knowledgeId] = 0
+    }
+  }))
+  if (!userId) return { counts, likedIds: [], dislikeCounts, dislikedIds: [] }
+  try {
+    const [likeRes, dislikeRes] = await Promise.all([
+      db.collection('knowledge_likes').where({ user_id: userId }).limit(200).get(),
+      db.collection('knowledge_dislikes').where({ user_id: userId }).limit(200).get(),
+    ])
+    const likedSet = new Set((likeRes?.data || []).map((item) => item.knowledge_id).filter(Boolean))
+    const dislikedSet = new Set((dislikeRes?.data || []).map((item) => item.knowledge_id).filter(Boolean))
+    return {
+      counts,
+      likedIds: ids.filter((id) => likedSet.has(id)),
+      dislikeCounts,
+      dislikedIds: ids.filter((id) => dislikedSet.has(id)),
+    }
+  } catch (error) {
+    console.warn('fetch knowledge reaction ids failed', error)
+    return { counts, likedIds: [], dislikeCounts, dislikedIds: [] }
+  }
+}
+
+async function toggleKnowledgeLike(userId, knowledgeId) {
+  if (!userId || !knowledgeId) return { liked: false, count: 0, disliked: false, dislikeCount: 0 }
+  const { data } = await db.collection('knowledge_likes')
+    .where({ user_id: userId, knowledge_id: knowledgeId })
+    .limit(1)
+    .get()
+
+  let liked = true
+  if (data && data.length) {
+    await db.collection('knowledge_likes').doc(data[0]._id).remove()
+    liked = false
+  } else {
+    await db.collection('knowledge_likes').add({
+      data: {
+        user_id: userId,
+        knowledge_id: knowledgeId,
+        created_at: db.serverDate(),
+      },
+    })
+  }
+  const dislikeRes = await db.collection('knowledge_dislikes')
+    .where({ user_id: userId, knowledge_id: knowledgeId })
+    .limit(1)
+    .get()
+  if (liked && dislikeRes?.data?.length) {
+    await db.collection('knowledge_dislikes').doc(dislikeRes.data[0]._id).remove()
+  }
+
+  const [countRes, dislikeCountRes] = await Promise.all([
+    db.collection('knowledge_likes').where({ knowledge_id: knowledgeId }).count(),
+    db.collection('knowledge_dislikes').where({ knowledge_id: knowledgeId }).count(),
+  ])
+  return {
+    liked,
+    count: Number(countRes?.total || countRes?.count || 0),
+    disliked: false,
+    dislikeCount: Number(dislikeCountRes?.total || dislikeCountRes?.count || 0),
+  }
+}
+
+async function toggleKnowledgeDislike(userId, knowledgeId) {
+  if (!userId || !knowledgeId) return { liked: false, count: 0, disliked: false, dislikeCount: 0 }
+  const { data } = await db.collection('knowledge_dislikes')
+    .where({ user_id: userId, knowledge_id: knowledgeId })
+    .limit(1)
+    .get()
+
+  let disliked = true
+  if (data && data.length) {
+    await db.collection('knowledge_dislikes').doc(data[0]._id).remove()
+    disliked = false
+  } else {
+    await db.collection('knowledge_dislikes').add({
+      data: {
+        user_id: userId,
+        knowledge_id: knowledgeId,
+        created_at: db.serverDate(),
+      },
+    })
+  }
+  const likeRes = await db.collection('knowledge_likes')
+    .where({ user_id: userId, knowledge_id: knowledgeId })
+    .limit(1)
+    .get()
+  if (disliked && likeRes?.data?.length) {
+    await db.collection('knowledge_likes').doc(likeRes.data[0]._id).remove()
+  }
+
+  const [countRes, dislikeCountRes] = await Promise.all([
+    db.collection('knowledge_likes').where({ knowledge_id: knowledgeId }).count(),
+    db.collection('knowledge_dislikes').where({ knowledge_id: knowledgeId }).count(),
+  ])
+  return {
+    liked: false,
+    count: Number(countRes?.total || countRes?.count || 0),
+    disliked,
+    dislikeCount: Number(dislikeCountRes?.total || dislikeCountRes?.count || 0),
+  }
+}
+
+async function fetchProblemReactionStates(userId = '', problemIds = []) {
+  const ids = [...new Set((problemIds || []).map((id) => String(id || '').trim()).filter(Boolean))]
+  if (!ids.length) return { counts: {}, likedIds: [], dislikeCounts: {}, dislikedIds: [] }
+  const counts = {}
+  const dislikeCounts = {}
+  await Promise.all(ids.map(async (problemId) => {
+    try {
+      const res = await db.collection('problem_likes')
+        .where({ problem_id: problemId })
+        .count()
+      counts[problemId] = Number(res?.total || res?.count || 0)
+    } catch (error) {
+      console.warn('count problem likes failed', error)
+      counts[problemId] = 0
+    }
+    try {
+      const res = await db.collection('problem_dislikes')
+        .where({ problem_id: problemId })
+        .count()
+      dislikeCounts[problemId] = Number(res?.total || res?.count || 0)
+    } catch (error) {
+      console.warn('count problem dislikes failed', error)
+      dislikeCounts[problemId] = 0
+    }
+  }))
+  if (!userId) return { counts, likedIds: [], dislikeCounts, dislikedIds: [] }
+  try {
+    const [likeRes, dislikeRes] = await Promise.all([
+      db.collection('problem_likes').where({ user_id: userId }).limit(200).get(),
+      db.collection('problem_dislikes').where({ user_id: userId }).limit(200).get(),
+    ])
+    const likedSet = new Set((likeRes?.data || []).map((item) => item.problem_id).filter(Boolean))
+    const dislikedSet = new Set((dislikeRes?.data || []).map((item) => item.problem_id).filter(Boolean))
+    return {
+      counts,
+      likedIds: ids.filter((id) => likedSet.has(id)),
+      dislikeCounts,
+      dislikedIds: ids.filter((id) => dislikedSet.has(id)),
+    }
+  } catch (error) {
+    console.warn('fetch problem reaction ids failed', error)
+    return { counts, likedIds: [], dislikeCounts, dislikedIds: [] }
+  }
+}
+
+async function toggleProblemLike(userId, problemId) {
+  if (!userId || !problemId) return { liked: false, count: 0, disliked: false, dislikeCount: 0 }
+  const { data } = await db.collection('problem_likes')
+    .where({ user_id: userId, problem_id: problemId })
+    .limit(1)
+    .get()
+
+  let liked = true
+  if (data && data.length) {
+    await db.collection('problem_likes').doc(data[0]._id).remove()
+    liked = false
+  } else {
+    await db.collection('problem_likes').add({
+      data: {
+        user_id: userId,
+        problem_id: problemId,
+        created_at: db.serverDate(),
+      },
+    })
+  }
+  const dislikeRes = await db.collection('problem_dislikes')
+    .where({ user_id: userId, problem_id: problemId })
+    .limit(1)
+    .get()
+  if (liked && dislikeRes?.data?.length) {
+    await db.collection('problem_dislikes').doc(dislikeRes.data[0]._id).remove()
+  }
+
+  const [countRes, dislikeCountRes] = await Promise.all([
+    db.collection('problem_likes').where({ problem_id: problemId }).count(),
+    db.collection('problem_dislikes').where({ problem_id: problemId }).count(),
+  ])
+  return {
+    liked,
+    count: Number(countRes?.total || countRes?.count || 0),
+    disliked: false,
+    dislikeCount: Number(dislikeCountRes?.total || dislikeCountRes?.count || 0),
+  }
+}
+
+async function toggleProblemDislike(userId, problemId) {
+  if (!userId || !problemId) return { liked: false, count: 0, disliked: false, dislikeCount: 0 }
+  const { data } = await db.collection('problem_dislikes')
+    .where({ user_id: userId, problem_id: problemId })
+    .limit(1)
+    .get()
+
+  let disliked = true
+  if (data && data.length) {
+    await db.collection('problem_dislikes').doc(data[0]._id).remove()
+    disliked = false
+  } else {
+    await db.collection('problem_dislikes').add({
+      data: {
+        user_id: userId,
+        problem_id: problemId,
+        created_at: db.serverDate(),
+      },
+    })
+  }
+  const likeRes = await db.collection('problem_likes')
+    .where({ user_id: userId, problem_id: problemId })
+    .limit(1)
+    .get()
+  if (disliked && likeRes?.data?.length) {
+    await db.collection('problem_likes').doc(likeRes.data[0]._id).remove()
+  }
+
+  const [countRes, dislikeCountRes] = await Promise.all([
+    db.collection('problem_likes').where({ problem_id: problemId }).count(),
+    db.collection('problem_dislikes').where({ problem_id: problemId }).count(),
+  ])
+  return {
+    liked: false,
+    count: Number(countRes?.total || countRes?.count || 0),
+    disliked,
+    dislikeCount: Number(dislikeCountRes?.total || dislikeCountRes?.count || 0),
+  }
 }
 
 async function recordHistory(userId, problemId) {
@@ -365,7 +625,7 @@ async function fetchMyProblemSubmissions(userId, options = {}) {
         status: item.status || 'pending',
         statusText: item.status === 'published' ? '已通过' : item.status === 'rejected' ? '已拒绝' : item.status === 'hidden' ? '已下架' : '待审核',
         submissionType: item.submission_type || 'problem',
-        detailType: item.submission_type === 'knowledge' ? 'knowledge' : 'problem',
+        detailType: item.submission_type === 'knowledge' ? 'knowledge' : item.submission_type === 'service' ? 'service' : 'problem',
         createdAt: item.created_at || null,
         parentProblemTitle: item.parent_problem_title || '',
         image_url: item.image_url || '',
@@ -565,6 +825,7 @@ async function markFeedbackResolved(feedbackId) {
 module.exports = {
   ensureUser,
   getCurrentUser,
+  requireLoginForAction,
   getCurrentProfile,
   getUserCacheKeys,
   logoutCurrentUser,
@@ -572,6 +833,12 @@ module.exports = {
   fetchFavoriteProblems,
   fetchHistoryProblems,
   toggleFavorite,
+  fetchKnowledgeLikeStates,
+  toggleKnowledgeLike,
+  toggleKnowledgeDislike,
+  fetchProblemReactionStates,
+  toggleProblemLike,
+  toggleProblemDislike,
   recordHistory,
   fetchHistory,
   fetchMyProblemSubmissions,

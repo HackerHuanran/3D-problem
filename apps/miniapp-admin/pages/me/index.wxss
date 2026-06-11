@@ -1,0 +1,75 @@
+.profile-card {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+}
+
+.avatar {
+  flex: 0 0 auto;
+  width: 104rpx;
+  height: 104rpx;
+  line-height: 104rpx;
+  border-radius: 32rpx;
+  color: #ffffff;
+  font-size: 42rpx;
+  font-weight: 900;
+  text-align: center;
+  background: linear-gradient(135deg, #1d4ed8 0%, #14b8a6 100%);
+}
+
+.profile-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-title {
+  margin-top: 0;
+  font-size: 38rpx;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 22rpx;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid rgba(87, 112, 143, 0.12);
+}
+
+.info-row:last-child {
+  border-bottom: 0;
+}
+
+.info-label {
+  flex: 0 0 auto;
+  color: #6b86a8;
+  font-size: 25rpx;
+}
+
+.info-value {
+  flex: 1;
+  color: #08203d;
+  font-size: 25rpx;
+  font-weight: 760;
+  text-align: right;
+}
+
+.info-value.wrap {
+  word-break: break-all;
+}
+
+.btn-danger {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  margin-top: 18rpx;
+  border-radius: 22rpx;
+  border: 0;
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.1);
+  font-size: 28rpx;
+  font-weight: 820;
+}
+
+.btn-danger::after {
+  border: 0;
+}

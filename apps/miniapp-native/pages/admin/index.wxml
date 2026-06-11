@@ -14,7 +14,6 @@
         <view class="admin-tab {{section === 'announcements' ? 'active' : ''}}" data-section="announcements" bindtap="switchSection">公告通知</view>
         <view class="admin-tab {{section === 'analytics' ? 'active' : ''}}" data-section="analytics" bindtap="switchSection">使用统计</view>
         <view class="admin-tab {{section === 'problems' ? 'active' : ''}}" data-section="problems" bindtap="switchSection">问题图片</view>
-        <view class="admin-tab {{section === 'services' ? 'active' : ''}}" data-section="services" bindtap="switchSection">打印服务</view>
         <view class="admin-tab {{section === 'rewards' ? 'active' : ''}}" data-section="rewards" bindtap="switchSection">积分商品</view>
         <view class="admin-tab {{section === 'rewardOrders' ? 'active' : ''}}" data-section="rewardOrders" bindtap="switchSection">兑换订单</view>
       </view>
@@ -67,13 +66,21 @@
         <text class="title" style="font-size: 32rpx;">用户投稿</text>
         <text class="admin-link admin-link-right" bindtap="loadSubmissions">刷新</text>
       </view>
-      <view wx:if="{{submissions.length}}" class="list">
-        <view wx:for="{{submissions}}" wx:key="id" class="card">
+      <view class="submission-filter-row">
+        <view class="submission-filter-chip {{submissionFilter === 'all' ? 'active' : ''}}" data-filter="all" bindtap="switchSubmissionFilter">全部 {{submissionCounts.all}}</view>
+        <view class="submission-filter-chip {{submissionFilter === 'problem' ? 'active' : ''}}" data-filter="problem" bindtap="switchSubmissionFilter">问题投稿 {{submissionCounts.problem}}</view>
+        <view class="submission-filter-chip {{submissionFilter === 'knowledge' ? 'active' : ''}}" data-filter="knowledge" bindtap="switchSubmissionFilter">知识投稿 {{submissionCounts.knowledge}}</view>
+        <view class="submission-filter-chip {{submissionFilter === 'service' ? 'active' : ''}}" data-filter="service" bindtap="switchSubmissionFilter">服务审核 {{submissionCounts.service}}</view>
+      </view>
+      <view wx:if="{{filteredSubmissions.length}}" class="list">
+        <view wx:for="{{filteredSubmissions}}" wx:key="id" class="card">
           <view class="row">
             <text class="title" style="font-size: 28rpx; flex: 1;">{{item.title}}</text>
             <text class="badge">{{item.statusText}}</text>
           </view>
+          <text class="submission-type-badge {{item.submissionType === 'knowledge' ? 'knowledge' : item.submissionType === 'service' ? 'service' : 'problem'}}">{{item.submissionTypeText}}</text>
           <text class="subtitle">{{item.subtitle}}</text>
+          <text wx:if="{{item.submissionType === 'service'}}" class="subtitle">微信号：{{item.contact || '未填写'}} · 展示图片 {{item.images.length || 0}} 张</text>
           <view class="admin-actions admin-actions-buttons">
             <button class="admin-action-btn admin-action-view" size="mini" data-id="{{item.id}}" bindtap="openSubmissionDetail" disabled="{{opLoading && opTargetId === item.id}}">查看详情</button>
             <button class="admin-action-btn {{item.status === 'published' ? 'admin-action-disabled' : 'admin-action-approve'}}" size="mini" data-id="{{item.id}}" bindtap="approveSubmission" disabled="{{item.status === 'published' || (opLoading && opTargetId === item.id)}}">{{item.status === 'published' ? '已通过' : '通过'}}</button>
@@ -81,10 +88,49 @@
             <button class="admin-action-btn admin-action-delete" size="mini" data-id="{{item.id}}" bindtap="deleteSubmission" disabled="{{opLoading && opTargetId === item.id}}">删除</button>
           </view>
         </view>
+        <view wx:if="{{submissionFilter === 'service' && serviceSubmissionHasMore}}" class="empty-box compact-empty">
+          <text class="subtitle">继续上拉，加载更多服务入驻</text>
+        </view>
       </view>
       <view wx:else class="empty-box">
-        <text class="subtitle">暂无投稿</text>
+        <text class="subtitle">{{submissionFilter === 'knowledge' ? '暂无知识投稿' : submissionFilter === 'service' ? '暂无服务入驻' : submissionFilter === 'problem' ? '暂无问题投稿' : '暂无投稿'}}</text>
       </view>
+
+      <block wx:if="{{submissionFilter === 'service'}}">
+        <view class="row service-admin-head">
+          <text class="title" style="font-size: 30rpx;">已发布服务</text>
+          <text class="admin-link admin-link-right" bindtap="loadServices">刷新</text>
+        </view>
+        <view wx:if="{{services.length}}" class="list">
+          <view wx:for="{{services}}" wx:key="id" class="card">
+            <view class="row">
+              <text class="title" style="font-size: 28rpx; flex: 1;">{{item.studioName}}</text>
+              <text class="badge">{{item.machineCount}}</text>
+            </view>
+            <text class="subtitle">机器型号：{{item.machineModel}}</text>
+            <text class="subtitle">服务描述：{{item.descriptionPreview || '未填写描述'}}</text>
+            <text class="subtitle">微信号：{{item.contact || '未填写微信号'}}</text>
+            <text class="subtitle">{{item.wechatQrImageDisplay ? '已上传联系方式二维码' : '未上传联系方式二维码'}}</text>
+            <view wx:if="{{item.imageDisplays.length}}" class="service-admin-gallery">
+              <image wx:for="{{item.imageDisplays}}" wx:key="index" class="service-admin-gallery-image" src="{{item}}" mode="aspectFill"></image>
+            </view>
+            <view class="admin-actions admin-actions-buttons">
+              <button class="admin-action-btn admin-action-view" size="mini" data-id="{{item.id}}" bindtap="openPublishedServiceDetail" disabled="{{opLoading && opTargetId === item.id}}">查看详情</button>
+              <button class="admin-action-btn admin-action-approve" size="mini" data-id="{{item.id}}" bindtap="editPublishedService" disabled="{{opLoading && opTargetId === item.id}}">修改</button>
+              <button class="admin-action-btn admin-action-delete" size="mini" data-id="{{item.id}}" bindtap="deleteService" disabled="{{opLoading && opTargetId === item.id}}">删除</button>
+            </view>
+          </view>
+          <view wx:if="{{servicesLoadingMore}}" class="empty-box compact-empty">
+            <text class="subtitle">正在加载更多服务...</text>
+          </view>
+          <view wx:elif="{{!serviceHasMore}}" class="empty-box compact-empty">
+            <text class="subtitle">已显示全部服务</text>
+          </view>
+        </view>
+        <view wx:else class="empty-box">
+          <text class="subtitle">当前还没有已发布的打印服务</text>
+        </view>
+      </block>
     </view>
 
     <view wx:if="{{section === 'feedback'}}" class="panel">
@@ -165,7 +211,7 @@
 
     <view wx:if="{{section === 'problems'}}" class="panel">
       <view class="row">
-        <text class="title" style="font-size: 32rpx;">问题图片</text>
+        <text class="title" style="font-size: 32rpx;">问题管理</text>
         <text class="admin-link admin-link-right" bindtap="refreshProblems">刷新</text>
       </view>
       <view wx:if="{{problems.length}}" class="list">
@@ -178,6 +224,7 @@
           <view wx:else class="admin-problem-image admin-problem-image-fallback"></view>
           <view class="admin-actions">
             <text class="admin-link" data-id="{{item.id}}" bindtap="openProblemDetail">查看详情</text>
+            <text class="admin-link" data-id="{{item.id}}" bindtap="openProblemEditor">修改问题</text>
             <text class="admin-link" data-id="{{item.id}}" bindtap="openProblemImagePicker">上传图片</text>
           </view>
         </view>

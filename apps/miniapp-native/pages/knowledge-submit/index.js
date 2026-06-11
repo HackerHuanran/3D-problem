@@ -1,4 +1,4 @@
-const { ensureUser } = require('../../utils/user-service')
+const { requireLoginForAction } = require('../../utils/user-service')
 const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 
 function normalizeBlockImages(list = []) {
@@ -17,11 +17,8 @@ Page({
 
   async onLoad(query) {
     wx.hideLoading()
-    try {
-      await ensureUser()
-    } catch (error) {
-      console.warn('knowledge-submit ensureUser failed', error)
-    }
+    const user = await requireLoginForAction('请先登录后分享知识')
+    if (!user?.id) return
 
     const submissionId = query?.id || ''
     if (!submissionId) return
@@ -158,6 +155,9 @@ Page({
 
   async submit() {
     if (this.data.submitting) return
+    const user = await requireLoginForAction(this.data.submissionId ? '请先登录后保存' : '请先登录后分享知识')
+    if (!user?.id) return
+
     const title = String(this.data.title || '').trim()
     const descriptionBlocks = (this.data.descriptionBlocks || [])
       .map((block) => ({
@@ -178,7 +178,6 @@ Page({
     this.setData({ submitting: true })
     showAppLoading(this.data.submissionId ? '保存中' : '提交中')
     try {
-      const user = await ensureUser()
       const db = wx.cloud.database()
 
       const uploadedBlocks = []

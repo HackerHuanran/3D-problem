@@ -1,4 +1,5 @@
 const { getDiagnosisCandidates } = require('../../utils/problem-service')
+const { requireLoginForAction } = require('../../utils/user-service')
 
 Page({
   data: {
@@ -48,8 +49,11 @@ Page({
     this.refreshCandidates()
   },
 
-  openDetail(e) {
+  async openDetail(e) {
     const id = e.currentTarget.dataset.id
+    if (!id) return
+    const user = await requireLoginForAction('请先登录后查看详情')
+    if (!user?.id) return
     wx.navigateTo({ url: `/pages/problem-detail/index?id=${id}` })
   },
 })

@@ -1,0 +1,137 @@
+.knowledge-detail-page {
+  gap: 24rpx;
+}
+
+.knowledge-detail-hero {
+  padding: 30rpx;
+  border-radius: 30rpx;
+  background: #ffffff;
+}
+
+.knowledge-detail-hero-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 22rpx;
+}
+
+.knowledge-detail-hero-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.knowledge-detail-hero .meta {
+  color: #46b855;
+  font-weight: 900;
+  letter-spacing: 2rpx;
+}
+
+.knowledge-detail-title {
+  color: #1f2329;
+  line-height: 1.35;
+}
+
+.knowledge-detail-reactions {
+  min-width: 148rpx;
+  height: 70rpx;
+  border-radius: 999rpx;
+  background: #f3f3f3;
+  color: #8a8a8a;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.knowledge-detail-reaction {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6rpx;
+  color: #9a9a9a;
+}
+
+.knowledge-detail-reaction + .knowledge-detail-reaction {
+  border-left: 1rpx solid #e5e5e5;
+}
+
+.knowledge-detail-reaction.up.active {
+  background: #eefbea;
+  color: #46b855;
+}
+
+.knowledge-detail-reaction.down.active {
+  background: #fff4e8;
+  color: #e58b2a;
+}
+
+.knowledge-detail-reaction-icon {
+  display: block;
+  font-size: 28rpx;
+  line-height: 1;
+}
+
+.knowledge-detail-reaction-count {
+  font-size: 22rpx;
+  line-height: 1;
+  font-weight: 850;
+}
+
+.section-title {
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.knowledge-block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 28rpx;
+  margin-top: 20rpx;
+}
+
+.knowledge-block {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  padding-bottom: 24rpx;
+  border-bottom: 1rpx solid #eeeeee;
+}
+
+.knowledge-block:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.knowledge-text {
+  display: block;
+  color: #33383f;
+  font-size: 28rpx;
+  line-height: 1.85;
+  white-space: pre-wrap;
+}
+
+.knowledge-image-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-top: 16rpx;
+}
+
+.knowledge-image {
+  width: 100%;
+  height: 220rpx;
+  border-radius: 24rpx;
+  background: #eeeeee;
+  display: block;
+}
+
+.effect-grid {
+  margin-top: 18rpx;
+}
+
+.effect-image {
+  height: 250rpx;
+}

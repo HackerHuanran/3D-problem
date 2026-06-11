@@ -1,0 +1,9 @@
+{
+  "desc": "别塌了模型管理端 sitemap。管理工具不需要被搜索索引。",
+  "rules": [
+    {
+      "action": "disallow",
+      "page": "*"
+    }
+  ]
+}

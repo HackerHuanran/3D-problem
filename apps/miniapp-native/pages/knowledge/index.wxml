@@ -10,11 +10,28 @@
   </view>
 
   <view wx:if="{{filteredInsights.length}}" class="list">
-    <view wx:for="{{filteredInsights}}" wx:key="id" class="card">
-      <text class="title" style="font-size: 30rpx;">{{item.title}}</text>
-      <text class="subtitle">{{item.subtitle}}</text>
-      <view wx:if="{{item.effectThumbImages.length}}" class="knowledge-effect-row">
-        <image wx:for="{{item.effectThumbImages}}" wx:key="index" class="knowledge-effect-image" src="{{item}}" mode="aspectFill" lazy-load="true"></image>
+    <view wx:for="{{filteredInsights}}" wx:key="id" class="card knowledge-card" data-id="{{item.id}}" bindtap="openKnowledgeDetail">
+      <view class="knowledge-card-head">
+        <view class="knowledge-card-copy">
+          <text class="title" style="font-size: 30rpx;">{{item.title}}</text>
+        </view>
+        <text wx:if="{{item.publishDateText}}" class="knowledge-date">{{item.publishDateText}}</text>
+      </view>
+      <view class="knowledge-media-row">
+        <image wx:if="{{item.coverThumbImage}}" class="knowledge-cover-image" src="{{item.coverThumbImage}}" mode="aspectFill" lazy-load="true"></image>
+        <view wx:else class="knowledge-cover-placeholder">
+          <text>知识心得</text>
+        </view>
+        <view class="knowledge-reactions">
+          <view class="knowledge-reaction up {{item.liked ? 'active' : ''}}" data-id="{{item.id}}" catchtap="toggleKnowledgeLike">
+            <text class="knowledge-reaction-icon">👍</text>
+            <text class="knowledge-reaction-count">{{item.likeCount || 0}}</text>
+          </view>
+          <view class="knowledge-reaction down {{item.disliked ? 'active' : ''}}" data-id="{{item.id}}" catchtap="toggleKnowledgeDislike">
+            <text class="knowledge-reaction-icon">👎</text>
+            <text class="knowledge-reaction-count">{{item.dislikeCount || 0}}</text>
+          </view>
+        </view>
       </view>
     </view>
   </view>

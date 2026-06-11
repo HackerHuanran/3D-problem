@@ -22,6 +22,7 @@
             </view>
             <text class="order-meta">消耗积分：{{item.pointsCost}}</text>
             <text class="order-meta">{{item.addressText}}</text>
+            <text wx:if="{{item.trackingNo}}" class="order-meta">快递单号：{{item.trackingNo}}</text>
           </view>
         </view>
       </view>

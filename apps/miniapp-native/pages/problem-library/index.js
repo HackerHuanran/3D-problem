@@ -1,5 +1,6 @@
 const { listProblems, clearProblemCaches } = require('../../utils/problem-service')
 const { showAppLoading, hideAppLoading } = require('../../utils/loading')
+const { getCurrentUser, requireLoginForAction, fetchProblemReactionStates, toggleProblemLike, toggleProblemDislike } = require('../../utils/user-service')
 const LIBRARY_CACHE_KEY = 'problem_library_state_v1'
 const LIBRARY_CACHE_TTL = 3 * 60 * 1000
 
@@ -34,6 +35,8 @@ Page({
     pageSize: 10,
     hasMore: true,
     searchTimer: null,
+    currentUser: null,
+    reactionLoadingMap: {},
   },
 
   lastRefreshAt: 0,
@@ -52,10 +55,12 @@ Page({
         page: cache.page || 1,
         hasMore: cache.hasMore !== false,
       })
+      this.loadCurrentUser()
       return
     }
     this.setData({ query: nextQuery })
     this.loadProblems({ reset: true })
+    this.loadCurrentUser()
   },
 
   async onShow() {
@@ -66,9 +71,58 @@ Page({
     if (String(this.data.query || '').trim()) return
     if (this.data.loading || this.data.loadingMore) return
     if (this.data.problems.length && Date.now() - this.lastRefreshAt < LIBRARY_CACHE_TTL) {
+      await this.refreshReactionStates()
       return
     }
     await this.loadProblems({ reset: true })
+  },
+
+  async loadCurrentUser() {
+    try {
+      const user = await getCurrentUser()
+      this.setData({ currentUser: user })
+      if (this.data.problems.length) {
+        await this.attachReactionStates(this.data.problems, user?.id || '')
+      }
+    } catch (error) {
+      console.warn('load problem library current user failed', error)
+    }
+  },
+
+  async refreshReactionStates() {
+    try {
+      let user = this.data.currentUser
+      if (!user?.id) {
+        user = await getCurrentUser()
+        this.setData({ currentUser: user })
+      }
+      await this.attachReactionStates(this.data.problems, user?.id || '')
+    } catch (error) {
+      console.warn('refresh problem reactions failed', error)
+    }
+  },
+
+  async attachReactionStates(problems = [], userId = '') {
+    const ids = (problems || []).map((item) => item.id).filter(Boolean)
+    if (!ids.length) return problems
+    const { counts, likedIds, dislikeCounts, dislikedIds } = await fetchProblemReactionStates(userId, ids)
+    const likedSet = new Set(likedIds || [])
+    const dislikedSet = new Set(dislikedIds || [])
+    const nextProblems = (problems || []).map((item) => ({
+      ...item,
+      likeCount: Number(counts?.[item.id] ?? item.likeCount ?? 0),
+      liked: likedSet.has(item.id),
+      dislikeCount: Number(dislikeCounts?.[item.id] ?? item.dislikeCount ?? 0),
+      disliked: dislikedSet.has(item.id),
+    }))
+    this.setData({ problems: nextProblems })
+    writeLibraryCache({
+      query: this.data.query,
+      problems: nextProblems,
+      page: this.data.page,
+      hasMore: this.data.hasMore,
+    })
+    return nextProblems
   },
 
   async onPullDownRefresh() {
@@ -118,11 +172,12 @@ Page({
         searchAll: hasQuery,
       })
 
-      const mergedProblems = reset
+      let mergedProblems = reset
         ? problems
         : hasQuery
         ? problems
         : this.data.problems.concat(problems)
+      mergedProblems = await this.attachReactionStates(mergedProblems, this.data.currentUser?.id || '')
 
       this.setData({
         problems: mergedProblems,
@@ -166,15 +221,82 @@ Page({
     await this.loadProblems()
   },
 
-  openDetail(e) {
+  async openDetail(e) {
     const id = e.currentTarget.dataset.id
     if (!id) return
+    const user = await requireLoginForAction('请先登录后查看详情')
+    if (!user?.id) return
+    this.setData({ currentUser: user })
     showAppLoading('正在打开')
     wx.navigateTo({
       url: `/pages/problem-detail/index?id=${id}`,
       complete: () => {
         hideAppLoading()
       },
+    })
+  },
+
+  async toggleProblemLike(e) {
+    const id = String(e.currentTarget.dataset.id || '').trim()
+    if (!id || this.data.reactionLoadingMap[id]) return
+    let user = this.data.currentUser
+    if (!user?.id) {
+      user = await requireLoginForAction('请先登录后点赞')
+      if (!user?.id) return
+      this.setData({ currentUser: user })
+    }
+    this.setData({ [`reactionLoadingMap.${id}`]: true })
+    try {
+      const result = await toggleProblemLike(user.id, id)
+      this.updateProblemReaction(id, result)
+      wx.showToast({ title: result.liked ? '已点赞' : '已取消', icon: 'success' })
+    } catch (error) {
+      console.warn('toggle problem like failed', error)
+      wx.showToast({ title: '操作失败，请检查集合权限', icon: 'none' })
+    } finally {
+      this.setData({ [`reactionLoadingMap.${id}`]: false })
+    }
+  },
+
+  async toggleProblemDislike(e) {
+    const id = String(e.currentTarget.dataset.id || '').trim()
+    if (!id || this.data.reactionLoadingMap[id]) return
+    let user = this.data.currentUser
+    if (!user?.id) {
+      user = await requireLoginForAction('请先登录后操作')
+      if (!user?.id) return
+      this.setData({ currentUser: user })
+    }
+    this.setData({ [`reactionLoadingMap.${id}`]: true })
+    try {
+      const result = await toggleProblemDislike(user.id, id)
+      this.updateProblemReaction(id, result)
+      wx.showToast({ title: result.disliked ? '已标记' : '已取消', icon: 'success' })
+    } catch (error) {
+      console.warn('toggle problem dislike failed', error)
+      wx.showToast({ title: '操作失败，请检查集合权限', icon: 'none' })
+    } finally {
+      this.setData({ [`reactionLoadingMap.${id}`]: false })
+    }
+  },
+
+  updateProblemReaction(id, result = {}) {
+    const problems = (this.data.problems || []).map((item) => {
+      if (item.id !== id) return item
+      return {
+        ...item,
+        liked: result.liked,
+        likeCount: result.count,
+        disliked: result.disliked,
+        dislikeCount: result.dislikeCount,
+      }
+    })
+    this.setData({ problems })
+    writeLibraryCache({
+      query: this.data.query,
+      problems,
+      page: this.data.page,
+      hasMore: this.data.hasMore,
     })
   },
 })

@@ -1,0 +1,42 @@
+{
+  "pages": [
+    "pages/login/index",
+    "pages/home/index",
+    "pages/me/index",
+    "pages/submissions/index",
+    "pages/submission-edit/index",
+    "pages/problems/index",
+    "pages/problem-edit/index",
+    "pages/announcements/index",
+    "pages/announcement-edit/index",
+    "pages/reward-goods/index",
+    "pages/reward-good-edit/index",
+    "pages/feedback/index",
+    "pages/reward-orders/index",
+    "pages/points-adjust/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "别塌了模型管理端",
+    "navigationBarBackgroundColor": "#f6f6f6",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f6f6f6"
+  },
+  "tabBar": {
+    "color": "#8a8a8a",
+    "selectedColor": "#46b855",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "工作台"
+      },
+      {
+        "pagePath": "pages/me/index",
+        "text": "我的"
+      }
+    ]
+  },
+  "lazyCodeLoading": "requiredComponents",
+  "sitemapLocation": "sitemap.json"
+}

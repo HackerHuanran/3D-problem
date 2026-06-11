@@ -1,0 +1,84 @@
+.home-page {
+  gap: 28rpx;
+  padding-top: 36rpx;
+}
+
+.home-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.hero-refresh {
+  flex: 0 0 auto;
+  min-width: 132rpx;
+  height: 64rpx;
+  line-height: 64rpx;
+  margin: 0;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 800;
+  background: #46b855;
+}
+
+.hero-refresh::after {
+  border: 0;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18rpx;
+}
+
+.dashboard-card {
+  min-height: 188rpx;
+  padding: 26rpx;
+  border-radius: 28rpx;
+  background: #ffffff;
+  border: 0;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+
+.card-title {
+  color: #1f2329;
+  font-size: 30rpx;
+  font-weight: 860;
+}
+
+.card-desc {
+  color: #8a8a8a;
+  font-size: 23rpx;
+  line-height: 1.45;
+}
+
+.card-count {
+  align-self: flex-start;
+  min-width: 74rpx;
+  height: 50rpx;
+  line-height: 50rpx;
+  padding: 0 18rpx;
+  border-radius: 999rpx;
+  color: #777777;
+  background: #f1f2f3;
+  font-size: 25rpx;
+  font-weight: 860;
+  text-align: center;
+}
+
+.card-count.active {
+  color: #ffffff;
+  background: #46b855;
+}

@@ -1,0 +1,57 @@
+<view class="page problem-edit-page">
+  <view class="hero-card">
+    <text class="eyebrow">EDIT PROBLEM</text>
+    <text class="title">编辑问题</text>
+    <text class="subtitle">问题 ID：{{problemId || docId}}。修改后会直接更新正式问题库。</text>
+  </view>
+
+  <view class="panel form-panel">
+    <text class="field-label">问题标题</text>
+    <input class="input" value="{{title}}" data-field="title" bindinput="onFieldInput" placeholder="请输入问题标题" />
+
+    <text class="field-label">分类</text>
+    <input class="input" value="{{category}}" data-field="category" bindinput="onFieldInput" placeholder="例如 首层问题 / 材料 / 切片" />
+
+    <text class="field-label">难度</text>
+    <input class="input" value="{{difficulty}}" data-field="difficulty" bindinput="onFieldInput" placeholder="例如 常见 / 中等 / 复杂" />
+
+    <text class="field-label">封面图片</text>
+    <image wx:if="{{imageDisplayUrl}}" class="preview-image cover-preview" src="{{imageDisplayUrl}}" mode="aspectFill" data-url="{{imageDisplayUrl}}" bindtap="previewImage"></image>
+    <view wx:else class="image-empty">暂无封面图片</view>
+    <button class="btn-ghost compact" bindtap="chooseCoverImage">上传/更换封面</button>
+    <input wx:if="{{imageInputsVisible}}" class="input" value="{{imageUrl}}" data-field="imageUrl" bindinput="onFieldInput" placeholder="cloud:// 或 https:// 图片地址" />
+
+    <text class="field-label">副标题</text>
+    <input class="input" value="{{subtitle}}" data-field="subtitle" bindinput="onFieldInput" placeholder="不填则自动取描述前 80 字" />
+
+    <text class="field-label">问题描述</text>
+    <textarea class="textarea" value="{{description}}" data-field="description" bindinput="onFieldInput" placeholder="请输入问题描述" />
+
+    <text class="section-title">常见原因</text>
+    <view wx:for="{{causes}}" wx:key="index" class="repeat-item">
+      <input class="input flex" value="{{item.text}}" data-index="{{index}}" bindinput="onCauseInput" placeholder="原因内容" />
+      <text class="text-link danger" data-index="{{index}}" bindtap="removeCause">删除</text>
+    </view>
+    <button class="btn-ghost compact" bindtap="addCause">添加原因</button>
+
+    <text class="section-title">解决步骤</text>
+    <view wx:for="{{solutions}}" wx:key="index" class="repeat-item vertical">
+      <text class="step-title">步骤 {{index + 1}}</text>
+      <input class="input" value="{{item.title}}" data-index="{{index}}" data-field="title" bindinput="onSolutionInput" placeholder="步骤标题，可不填" />
+      <textarea class="textarea small" value="{{item.detail}}" data-index="{{index}}" data-field="detail" bindinput="onSolutionInput" placeholder="步骤说明" />
+      <image wx:if="{{item.displayUrl}}" class="preview-image step-preview" src="{{item.displayUrl}}" mode="aspectFill" data-url="{{item.displayUrl}}" bindtap="previewImage"></image>
+      <view wx:else class="image-empty small-empty">暂无步骤图片</view>
+      <button class="btn-ghost compact" data-index="{{index}}" bindtap="chooseSolutionImage">上传/更换步骤图</button>
+      <input wx:if="{{imageInputsVisible}}" class="input" value="{{item.image_url}}" data-index="{{index}}" data-field="image_url" bindinput="onSolutionInput" placeholder="步骤图片 URL / 云文件 ID" />
+      <text class="text-link danger" data-index="{{index}}" bindtap="removeSolution">删除步骤</text>
+    </view>
+    <button class="btn-ghost compact" bindtap="addSolution">添加步骤</button>
+
+    <text class="field-label">补充提示</text>
+    <textarea class="textarea small" value="{{tips}}" data-field="tips" bindinput="onFieldInput" placeholder="可选，填写补充提示" />
+
+    <button class="btn-ghost compact" bindtap="toggleImageInputs">{{imageInputsVisible ? '隐藏图片地址' : '显示/修改图片地址'}}</button>
+    <button class="btn-primary" loading="{{saving}}" disabled="{{saving || deleting}}" bindtap="save">保存修改</button>
+    <button class="btn-danger" loading="{{deleting}}" disabled="{{saving || deleting}}" bindtap="deleteProblem">删除问题</button>
+  </view>
+</view>

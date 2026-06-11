@@ -1,0 +1,27 @@
+<view class="page home-page">
+  <view class="hero-card home-hero">
+    <view>
+      <text class="eyebrow">MODEL ADMIN</text>
+      <text class="title">管理工作台</text>
+      <text class="subtitle">你好，{{user.username || user.id}}。这里会集中处理投稿、反馈、订单和内容维护。</text>
+    </view>
+    <button class="hero-refresh" loading="{{loading}}" disabled="{{loading}}" bindtap="refresh">刷新</button>
+  </view>
+
+  <view class="dashboard-grid">
+    <view wx:for="{{cards}}" wx:key="key" class="dashboard-card" data-key="{{item.key}}" bindtap="openModule">
+      <view class="card-main">
+        <text class="card-title">{{item.title}}</text>
+        <text class="card-desc">{{item.desc}}</text>
+      </view>
+      <view class="card-count {{item.count > 0 ? 'active' : ''}}">
+        <text>{{item.countText}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="panel">
+    <text class="panel-title">下一步</text>
+    <text class="panel-text">登录和权限已经独立出来了。接下来建议先迁移“投稿审核”，再迁移“打印服务审核”。</text>
+  </view>
+</view>

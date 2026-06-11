@@ -1,0 +1,47 @@
+.form-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.field-label {
+  display: block;
+  color: #08203d;
+  font-size: 25rpx;
+  font-weight: 820;
+}
+
+.input,
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  border-radius: 20rpx;
+  padding: 0 22rpx;
+  color: #08203d;
+  background: rgba(29, 78, 216, 0.06);
+  border: 1rpx solid rgba(29, 78, 216, 0.08);
+  font-size: 26rpx;
+}
+
+.input {
+  height: 78rpx;
+}
+
+.textarea {
+  min-height: 150rpx;
+  padding-top: 20rpx;
+  line-height: 1.55;
+}
+
+.result-box {
+  padding: 20rpx 22rpx;
+  border-radius: 20rpx;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.1);
+  font-size: 25rpx;
+  font-weight: 820;
+}
+
+.tip-panel {
+  background: rgba(255, 255, 255, 0.82);
+}

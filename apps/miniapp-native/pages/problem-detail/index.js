@@ -1,5 +1,5 @@
 const { getProblemDetail, getRelatedProblems, resolveProblemThumbUrl } = require('../../utils/problem-service')
-const { getCurrentUser, ensureUser, fetchFavorites, toggleFavorite, recordHistory, getSubmissionDetail } = require('../../utils/user-service')
+const { requireLoginForAction, fetchFavorites, toggleFavorite, recordHistory, getSubmissionDetail, fetchProblemReactionStates, toggleProblemLike, toggleProblemDislike } = require('../../utils/user-service')
 const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 
 Page({
@@ -12,16 +12,50 @@ Page({
     loadingRelated: false,
     relatedReady: false,
     heroImageFailed: false,
+    expandedStepMap: {},
+    reactionLoading: false,
+  },
+
+  async resolveDetailImageUrl(value = '', { width = 720, quality = 76 } = {}) {
+    const raw = String(value || '').trim()
+    if (!raw) return ''
+    if (raw.startsWith('/images/')) return raw
+    let publicUrl = raw
+    if (raw.startsWith('cloud://')) {
+      try {
+        const res = await wx.cloud.getTempFileURL({ fileList: [raw] })
+        publicUrl = res?.fileList?.[0]?.tempFileURL || raw
+      } catch (error) {
+        console.warn('resolve step image failed', error)
+      }
+    }
+    return resolveProblemThumbUrl(publicUrl, { width, quality })
   },
 
   async prepareDetail(detail = null) {
     if (!detail) return null
+    const solutions = Array.isArray(detail.solutions) ? detail.solutions : []
+    const normalizedSolutions = await Promise.all(solutions.map(async (solution, index) => {
+      const imageUrl = solution.image_url || solution.image || ''
+      const imageThumbUrl = imageUrl
+        ? await this.resolveDetailImageUrl(imageUrl, { width: 720, quality: 76 })
+        : ''
+      return {
+        ...solution,
+        step: solution.step || index + 1,
+        title: solution.title || `步骤 ${solution.step || index + 1}`,
+        detail: solution.detail || solution.text || '',
+        image_url: imageUrl,
+        imageThumbUrl,
+        imagePreviewUrl: imageUrl ? (imageUrl.startsWith('cloud://') ? imageThumbUrl : imageUrl) : '',
+      }
+    }))
     const normalizedDetail = {
       ...detail,
       causes: (Array.isArray(detail.causes) && detail.causes.length)
         ? detail.causes.filter(Boolean)
         : ['暂无常见原因，可能是投稿内容尚未补全。'],
-      solutions: (detail.solutions && detail.solutions.length) ? detail.solutions : [],
+      solutions: normalizedSolutions,
     }
     if (normalizedDetail.image_url && !normalizedDetail.heroThumbUrl) {
       normalizedDetail.heroThumbUrl = await resolveProblemThumbUrl(normalizedDetail.image_url, {
@@ -67,6 +101,9 @@ Page({
   async onLoad(query) {
     const id = query.id || ''
     wx.hideLoading()
+    const loginUser = await requireLoginForAction('请先登录后查看详情')
+    if (!loginUser?.id) return
+
     wx.showShareMenu({
       menus: ['shareAppMessage', 'shareTimeline'],
     })
@@ -75,11 +112,12 @@ Page({
       id,
       detail: null,
       related: [],
-      currentUser: null,
+      currentUser: loginUser,
       isFav: false,
       loadingRelated: false,
       relatedReady: false,
       heroImageFailed: false,
+      expandedStepMap: {},
     })
 
     const problemDetailPromise = getProblemDetail(id)
@@ -97,7 +135,6 @@ Page({
     })
 
     try {
-      const userPromise = getCurrentUser()
       const problemDetail = await problemDetailPromise
       const needsSubmission = !problemDetail
         || problemDetail.sourceType === 'submission'
@@ -106,7 +143,7 @@ Page({
         || !Array.isArray(problemDetail.solutions)
         || !problemDetail.solutions.length
       const submission = needsSubmission ? await getSubmissionDetail(id) : null
-      const user = await userPromise
+      const user = loginUser
       const normalizedDetail = await this.prepareDetail(this.mergeDetail(problemDetail, submission))
 
       this.setData({
@@ -124,15 +161,14 @@ Page({
       }
       hideAppLoading()
 
-      if (user?.id) {
-        recordHistory(user.id, id).catch((error) => {
-          console.warn('recordHistory failed', error)
-        })
-      }
+      recordHistory(user.id, id).catch((error) => {
+        console.warn('recordHistory failed', error)
+      })
+      this.loadProblemReactions(user.id, id)
 
       Promise.all([
         normalizedDetail.sourceType === 'submission' ? Promise.resolve([]) : getRelatedProblems(normalizedDetail),
-        user?.id ? fetchFavorites(user.id) : Promise.resolve([]),
+        fetchFavorites(user.id),
       ]).then(([related, favorites]) => {
         this.setData({
           related,
@@ -155,15 +191,87 @@ Page({
     }
   },
 
+  async loadProblemReactions(userId = this.data.currentUser?.id || '', problemId = this.data.id) {
+    if (!problemId || !this.data.detail) return
+    try {
+      const { counts, likedIds, dislikeCounts, dislikedIds } = await fetchProblemReactionStates(userId, [problemId])
+      const likedSet = new Set(likedIds || [])
+      const dislikedSet = new Set(dislikedIds || [])
+      this.setData({
+        detail: {
+          ...this.data.detail,
+          likeCount: Number(counts?.[problemId] ?? this.data.detail.likeCount ?? 0),
+          liked: likedSet.has(problemId),
+          dislikeCount: Number(dislikeCounts?.[problemId] ?? this.data.detail.dislikeCount ?? 0),
+          disliked: dislikedSet.has(problemId),
+        },
+      })
+    } catch (error) {
+      console.warn('load problem detail reactions failed', error)
+    }
+  },
+
+  async toggleProblemLike() {
+    if (!this.data.id || this.data.reactionLoading) return
+    let user = this.data.currentUser
+    if (!user?.id) {
+      user = await requireLoginForAction('请先登录后点赞')
+      if (!user?.id) return
+      this.setData({ currentUser: user })
+    }
+    this.setData({ reactionLoading: true })
+    try {
+      const result = await toggleProblemLike(user.id, this.data.id)
+      this.updateProblemReaction(result)
+      wx.showToast({ title: result.liked ? '已点赞' : '已取消', icon: 'success' })
+    } catch (error) {
+      console.warn('toggle problem detail like failed', error)
+      wx.showToast({ title: '操作失败，请检查集合权限', icon: 'none' })
+    } finally {
+      this.setData({ reactionLoading: false })
+    }
+  },
+
+  async toggleProblemDislike() {
+    if (!this.data.id || this.data.reactionLoading) return
+    let user = this.data.currentUser
+    if (!user?.id) {
+      user = await requireLoginForAction('请先登录后操作')
+      if (!user?.id) return
+      this.setData({ currentUser: user })
+    }
+    this.setData({ reactionLoading: true })
+    try {
+      const result = await toggleProblemDislike(user.id, this.data.id)
+      this.updateProblemReaction(result)
+      wx.showToast({ title: result.disliked ? '已标记' : '已取消', icon: 'success' })
+    } catch (error) {
+      console.warn('toggle problem detail dislike failed', error)
+      wx.showToast({ title: '操作失败，请检查集合权限', icon: 'none' })
+    } finally {
+      this.setData({ reactionLoading: false })
+    }
+  },
+
+  updateProblemReaction(result = {}) {
+    const detail = this.data.detail || {}
+    this.setData({
+      detail: {
+        ...detail,
+        liked: result.liked,
+        likeCount: result.count,
+        disliked: result.disliked,
+        dislikeCount: result.dislikeCount,
+      },
+    })
+  },
+
   async toggleFavorite() {
     if (this.data.favoriteLoading) return
     let user = this.data.currentUser
     if (!user?.id) {
-      user = await ensureUser()
-    }
-    if (!user?.id) {
-      wx.showToast({ title: '微信登录暂不可用，请稍后再试', icon: 'none' })
-      return
+      user = await requireLoginForAction('请先登录后收藏')
+      if (!user?.id) return
     }
     this.setData({ favoriteLoading: true })
     try {
@@ -178,15 +286,34 @@ Page({
     }
   },
 
-  openRelated(e) {
+  async openRelated(e) {
     const id = e.currentTarget.dataset.id
     if (!id) return
+    const user = await requireLoginForAction('请先登录后查看详情')
+    if (!user?.id) return
     showAppLoading('正在打开')
     wx.navigateTo({
       url: `/pages/problem-detail/index?id=${id}`,
       complete: () => {
         hideAppLoading()
       },
+    })
+  },
+
+  toggleStep(e) {
+    const key = String(e.currentTarget.dataset.key || '').trim()
+    if (!key) return
+    this.setData({
+      [`expandedStepMap.${key}`]: !this.data.expandedStepMap[key],
+    })
+  },
+
+  previewStepImage(e) {
+    const url = String(e.currentTarget.dataset.url || '').trim()
+    if (!url) return
+    wx.previewImage({
+      current: url,
+      urls: [url],
     })
   },
 

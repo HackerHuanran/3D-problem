@@ -1,0 +1,37 @@
+<view class="page reward-good-edit-page">
+  <view class="hero-card">
+    <text class="eyebrow">REWARD GOOD</text>
+    <text class="title">{{id ? '修改商品' : '新增商品'}}</text>
+    <text class="subtitle">这里上架的商品会显示在用户端“积分兑换”页面。</text>
+  </view>
+
+  <view class="panel form-panel">
+    <text class="field-label">商品名称</text>
+    <input class="input" placeholder="例如：PLA 白色 1kg" value="{{name}}" data-field="name" bindinput="onFieldInput" />
+
+    <text class="field-label">商品分类</text>
+    <picker mode="selector" range="{{categoryOptions}}" range-key="label" value="{{categoryIndex}}" bindchange="onCategoryChange">
+      <view class="picker-field">{{categoryText}}</view>
+    </picker>
+
+    <text class="field-label">商品图片</text>
+    <view class="image-picker" bindtap="chooseImage">
+      <image wx:if="{{imageDisplayUrl}}" class="image-preview" src="{{imageDisplayUrl}}" mode="aspectFill"></image>
+      <view wx:else class="image-placeholder">
+        <text class="image-placeholder-text">点击上传商品图片</text>
+      </view>
+    </view>
+    <view class="inline-actions">
+      <text class="text-link" bindtap="chooseImage">选择图片</text>
+      <text wx:if="{{imageDisplayUrl}}" class="text-link danger" bindtap="clearImage">清空图片</text>
+    </view>
+
+    <text class="field-label">商品数量</text>
+    <input class="input" type="number" placeholder="例如：20" value="{{quantity}}" data-field="quantity" bindinput="onFieldInput" />
+
+    <text class="field-label">所需积分</text>
+    <input class="input" type="number" placeholder="例如：10，代表 10 积分兑换 1 件" value="{{pointsCost}}" data-field="pointsCost" bindinput="onFieldInput" />
+
+    <button class="btn-primary" loading="{{saving}}" disabled="{{saving}}" bindtap="save">{{id ? '保存修改' : '上架商品'}}</button>
+  </view>
+</view>

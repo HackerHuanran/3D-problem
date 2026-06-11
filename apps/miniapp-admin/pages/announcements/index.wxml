@@ -1,0 +1,33 @@
+<view class="page announcements-page">
+  <view class="hero-card">
+    <text class="eyebrow">ANNOUNCEMENTS</text>
+    <text class="title">公告通知</text>
+    <text class="subtitle">发布新功能或重要提醒后，用户进入“别塌了模型”会看到弹窗；用户关闭后同一条公告不会重复弹出。</text>
+  </view>
+
+  <view wx:if="{{announcements.length}}" class="announcement-list">
+    <view wx:for="{{announcements}}" wx:key="id" class="announcement-card">
+      <view class="announcement-head">
+        <text class="announcement-title">{{item.title}}</text>
+        <text class="status-badge {{item.enabled ? 'done' : ''}}">{{item.statusText}}</text>
+      </view>
+      <text class="announcement-content">{{item.content}}</text>
+      <view class="announcement-meta-row">
+        <text class="announcement-meta">按钮：{{item.confirmText || '知道了'}}</text>
+        <text class="announcement-meta">{{item.updatedAtText || '未知时间'}}</text>
+      </view>
+      <view class="action-row">
+        <button class="action-btn edit" size="mini" data-id="{{item.id}}" bindtap="editAnnouncement" disabled="{{opLoading && opTargetId === item.id}}">修改</button>
+        <button class="action-btn {{item.enabled ? 'disable' : 'enable'}}" size="mini" data-id="{{item.id}}" bindtap="toggleAnnouncement" disabled="{{opLoading && opTargetId === item.id}}">{{item.enabled ? '停用' : '启用'}}</button>
+        <button class="action-btn delete" size="mini" data-id="{{item.id}}" data-title="{{item.title}}" bindtap="deleteAnnouncement" disabled="{{opLoading && opTargetId === item.id}}">删除</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="panel empty-panel">
+    <text class="panel-title">暂无公告</text>
+    <text class="panel-text">发布一条公告后，用户进入小程序时就能看到弹窗提醒。</text>
+  </view>
+
+  <button class="add-btn" bindtap="addAnnouncement">新增公告</button>
+</view>

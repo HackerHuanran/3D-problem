@@ -12,7 +12,7 @@
           <text class="content-badge">{{type === 'submissions' ? (item.statusText || item.status) : (item.category || '问题')}}</text>
         </view>
         <text class="content-desc">
-          {{type === 'submissions' ? (item.submissionType === 'knowledge' ? ('知识心得 · ' + item.subtitle) : item.subtitle) : item.subtitle}}
+          {{type === 'submissions' ? (item.submissionType === 'service' ? ('服务入驻 · ' + item.subtitle) : item.submissionType === 'knowledge' ? ('知识心得 · ' + item.subtitle) : item.subtitle) : item.subtitle}}
         </text>
         <view wx:if="{{type === 'submissions'}}" class="content-foot">
           <text class="content-meta">{{item.updatedAtText || '可继续修改后重新提交'}}</text>

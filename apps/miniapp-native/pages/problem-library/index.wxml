@@ -21,10 +21,19 @@
         <view class="problem-copy">
           <view class="row problem-head">
             <text class="problem-title">{{item.title}}</text>
-            <text class="badge">{{item.category}}</text>
           </view>
           <text class="subtitle problem-subtitle">{{item.subtitle}}</text>
           <text class="problem-action">查看解决方案</text>
+        </view>
+        <view class="problem-reactions">
+          <view class="problem-reaction up {{item.liked ? 'active' : ''}}" data-id="{{item.id}}" catchtap="toggleProblemLike">
+            <text class="problem-reaction-icon">👍</text>
+            <text class="problem-reaction-count">{{item.likeCount || 0}}</text>
+          </view>
+          <view class="problem-reaction down {{item.disliked ? 'active' : ''}}" data-id="{{item.id}}" catchtap="toggleProblemDislike">
+            <text class="problem-reaction-icon">👎</text>
+            <text class="problem-reaction-count">{{item.dislikeCount || 0}}</text>
+          </view>
         </view>
       </view>
 

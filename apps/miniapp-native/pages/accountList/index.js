@@ -1,5 +1,6 @@
 const {
   getCurrentUser,
+  requireLoginForAction,
   fetchFavoriteProblems,
   fetchHistoryProblems,
   fetchMyProblemSubmissions,
@@ -42,7 +43,15 @@ Page({
   },
 
   async loadList() {
-    const user = await getCurrentUser()
+    let user = await getCurrentUser()
+    if (!user?.id) {
+      const message = this.data.type === 'favorites'
+        ? '请先登录后查看收藏'
+        : this.data.type === 'history'
+        ? '请先登录后查看浏览记录'
+        : '请先登录后查看投稿'
+      user = await requireLoginForAction(message)
+    }
     if (!user?.id) {
       this.setData({ items: [] })
       return
@@ -69,15 +78,21 @@ Page({
     }
   },
 
-  openItem(e) {
+  async openItem(e) {
     if (this.data.navigating) return
     const item = this.data.items.find((row) => row.id === e.currentTarget.dataset.id)
     if (!item) return
+    if (this.data.type !== 'submissions') {
+      const user = await requireLoginForAction('请先登录后查看详情')
+      if (!user?.id) return
+    }
     this.setData({ navigating: true })
     showAppLoading('正在打开')
     let url = ''
     if (this.data.type === 'submissions') {
-      url = item.submissionType === 'knowledge'
+      url = item.submissionType === 'service'
+        ? `/pages/service-submit/index?id=${item.id}`
+        : item.submissionType === 'knowledge'
         ? `/pages/knowledge-submit/index?id=${item.id}`
         : `/pages/problem-submit/index?id=${item.id}`
     } else {
@@ -101,7 +116,9 @@ Page({
     this.setData({ navigating: true })
     showAppLoading('正在打开')
     wx.navigateTo({
-      url: item.submissionType === 'knowledge'
+      url: item.submissionType === 'service'
+        ? `/pages/service-submit/index?id=${id}`
+        : item.submissionType === 'knowledge'
         ? `/pages/knowledge-submit/index?id=${id}`
         : `/pages/problem-submit/index?id=${id}`,
       complete: () => {

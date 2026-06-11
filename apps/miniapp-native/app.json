@@ -13,17 +13,19 @@
     "pages/legal/index",
     "pages/services/index",
     "pages/service-detail/index",
+    "pages/service-submit/index",
     "pages/knowledge-submit/index",
     "pages/filament/index",
     "pages/diagnosis/index",
     "pages/knowledge/index",
+    "pages/knowledge-detail/index",
     "pages/admin/index",
     "pages/account/index"
   ],
   "tabBar": {
-    "color": "#6b86a8",
-    "selectedColor": "#1d4ed8",
-    "backgroundColor": "#f8fbff",
+    "color": "#8a8a8a",
+    "selectedColor": "#46b855",
+    "backgroundColor": "#ffffff",
     "borderStyle": "white",
     "list": [
       {
@@ -38,9 +40,9 @@
   },
   "window": {
     "navigationBarTitleText": "别塌了模型",
-    "navigationBarBackgroundColor": "#f8fbff",
+    "navigationBarBackgroundColor": "#f6f6f6",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#f4f9ff"
+    "backgroundColor": "#f6f6f6"
   },
   "lazyCodeLoading": "requiredComponents",
   "sitemapLocation": "sitemap.json"

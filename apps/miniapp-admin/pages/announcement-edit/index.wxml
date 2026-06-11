@@ -1,0 +1,30 @@
+<view class="page announcement-edit-page">
+  <view class="hero-card">
+    <text class="eyebrow">ANNOUNCEMENT</text>
+    <text class="title">{{id ? '修改公告' : '新增公告'}}</text>
+    <text class="subtitle">公告启用后，用户进入“别塌了模型”会看到弹窗；关闭后同一条公告不会重复弹出。</text>
+  </view>
+
+  <view class="panel form-panel">
+    <text class="form-tip">建议公告内容写 1-3 句话，说明新功能或重要提醒，尽量清楚直接。</text>
+
+    <text class="field-label">公告标题</text>
+    <input class="input" placeholder="例如：积分兑换上线啦" value="{{title}}" data-field="title" bindinput="onFieldInput" />
+
+    <text class="field-label">公告内容</text>
+    <textarea class="textarea announcement-textarea" maxlength="500" placeholder="写给用户看的更新内容，建议 1-3 句话。" value="{{content}}" data-field="content" bindinput="onFieldInput" />
+
+    <text class="field-label">按钮文字</text>
+    <input class="input" placeholder="例如：知道了" value="{{confirmText}}" data-field="confirmText" bindinput="onFieldInput" />
+
+    <view class="switch-row">
+      <view>
+        <text class="field-label">是否启用</text>
+        <text class="switch-tip">启用后，用户进入小程序会看到这条公告。</text>
+      </view>
+      <switch checked="{{enabled}}" color="#1d4ed8" bindchange="onEnabledChange" />
+    </view>
+
+    <button class="btn-primary" loading="{{saving}}" disabled="{{saving}}" bindtap="save">{{id ? '保存公告' : '发布公告'}}</button>
+  </view>
+</view>

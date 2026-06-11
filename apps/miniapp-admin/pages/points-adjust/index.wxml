@@ -1,0 +1,29 @@
+<view class="page points-page">
+  <view class="hero-card">
+    <text class="eyebrow">POINTS</text>
+    <text class="title">积分调整</text>
+    <text class="subtitle">给指定用户增加或扣减积分。正数增加，负数扣减。</text>
+  </view>
+
+  <view class="panel form-panel">
+    <text class="field-label">用户 ID</text>
+    <input class="input" value="{{targetUserId}}" data-field="targetUserId" bindinput="onInput" placeholder="例如 wx_xxxxx" />
+
+    <text class="field-label">调整积分</text>
+    <input class="input" type="number" value="{{delta}}" data-field="delta" bindinput="onInput" placeholder="例如 10 或 -5" />
+
+    <text class="field-label">调整原因</text>
+    <textarea class="textarea" value="{{reason}}" data-field="reason" bindinput="onInput" placeholder="例如 活动奖励 / 误发扣回" />
+
+    <view wx:if="{{resultText}}" class="result-box">
+      <text>{{resultText}}</text>
+    </view>
+
+    <button class="btn-primary" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit">提交调整</button>
+  </view>
+
+  <view class="panel tip-panel">
+    <text class="panel-title">怎么找用户 ID</text>
+    <text class="panel-text">可以在 profiles 集合里复制用户的 uid 字段，例如 wx_xxxxx。用户主页显示的积分会读取 profiles.points。</text>
+  </view>
+</view>

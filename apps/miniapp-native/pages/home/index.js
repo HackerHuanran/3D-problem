@@ -1,4 +1,4 @@
-const { getCurrentUser, fetchHistory, readDashboardCache } = require('../../utils/user-service')
+const { getCurrentUser, requireLoginForAction, fetchHistory, readDashboardCache } = require('../../utils/user-service')
 const { getProblemCount, getProblemDetail, listProblems, resolveProblemThumbUrl } = require('../../utils/problem-service')
 const { showAppLoading, hideAppLoading } = require('../../utils/loading')
 const HOME_CACHE_KEY = 'miniapp_home_cache_v1'
@@ -32,6 +32,9 @@ Page({
   data: {
     query: '',
     problemCount: 0,
+    knowledgeCount: 0,
+    serviceCount: 0,
+    shareCount: 0,
     recentProblems: [],
     featuredProblems: [],
     navigating: false,
@@ -79,6 +82,9 @@ Page({
     if (!cache) return
     this.setData({
       problemCount: Number(cache.problemCount) || 0,
+      knowledgeCount: Number(cache.knowledgeCount) || 0,
+      serviceCount: Number(cache.serviceCount) || 0,
+      shareCount: Number(cache.shareCount) || 0,
       recentProblems: cache.recentProblems || [],
       featuredProblems: cache.featuredProblems || [],
     })
@@ -90,7 +96,7 @@ Page({
       clearTimeout(this.refreshTimer)
       this.refreshTimer = null
     }
-    const hasVisibleData = !!(this.data.problemCount || this.data.recentProblems.length || this.data.featuredProblems.length)
+    const hasVisibleData = !!(this.data.problemCount || this.data.knowledgeCount || this.data.serviceCount || this.data.recentProblems.length || this.data.featuredProblems.length)
     const shouldSkipRefresh = hasVisibleData && Date.now() - this.lastRefreshAt < HOME_REFRESH_INTERVAL
     if (shouldSkipRefresh) return
     this.refreshTimer = setTimeout(() => {
@@ -115,7 +121,7 @@ Page({
     this.lastRefreshAt = Date.now()
     try {
       await Promise.allSettled([
-        this.loadProblemCount(),
+        this.loadHomeCounts(),
         this.loadRecentProblems(),
       ])
       await this.loadFeaturedProblems()
@@ -134,8 +140,10 @@ Page({
     })
   },
 
-  shareProblem() {
+  async shareProblem() {
     if (this.data.navigating) return
+    const user = await requireLoginForAction('请先登录后分享问题')
+    if (!user?.id) return
     this.setData({ navigating: true })
     wx.navigateTo({
       url: '/pages/problem-submit/index',
@@ -157,15 +165,42 @@ Page({
     }
   },
 
-  async loadProblemCount() {
+  async loadHomeCounts() {
     try {
-      const problemCount = await getProblemCount()
-      this.setData({ problemCount: Number(problemCount) || 0 })
-      setHomeCache({ problemCount: Number(problemCount) || 0 })
+      const db = wx.cloud.database()
+      const [problemCount, knowledgeRes, serviceRes] = await Promise.all([
+        getProblemCount(),
+        db.collection('user_problems').where({
+          submission_type: 'knowledge',
+          status: 'published',
+        }).count(),
+        db.collection('studio_services').count(),
+      ])
+      const nextProblemCount = Number(problemCount) || 0
+      const nextKnowledgeCount = Number(knowledgeRes?.total || knowledgeRes?.count || 0)
+      const nextServiceCount = Number(serviceRes?.total || serviceRes?.count || 0)
+      const nextShareCount = nextProblemCount + nextKnowledgeCount
+      this.setData({
+        problemCount: nextProblemCount,
+        knowledgeCount: nextKnowledgeCount,
+        serviceCount: nextServiceCount,
+        shareCount: nextShareCount,
+      })
+      setHomeCache({
+        problemCount: nextProblemCount,
+        knowledgeCount: nextKnowledgeCount,
+        serviceCount: nextServiceCount,
+        shareCount: nextShareCount,
+      })
     } catch (error) {
-      console.warn('loadProblemCount failed', error)
+      console.warn('loadHomeCounts failed', error)
       if (!this.data.problemCount) {
-        this.setData({ problemCount: 0 })
+        this.setData({
+          problemCount: 0,
+          knowledgeCount: 0,
+          serviceCount: 0,
+          shareCount: 0,
+        })
       }
     }
   },
@@ -223,12 +258,14 @@ Page({
     this.setData({ navigating: false })
   },
 
-  openRecentProblem(e) {
+  async openRecentProblem(e) {
     if (this.data.navigating) return
     if (Date.now() - this.lastNavigateAt < 320) return
     this.lastNavigateAt = Date.now()
     const problemId = e.currentTarget.dataset.problemId
     if (!problemId) return
+    const user = await requireLoginForAction('请先登录后查看详情')
+    if (!user?.id) return
     this.setData({ navigating: true })
     showAppLoading('正在打开')
     wx.navigateTo({

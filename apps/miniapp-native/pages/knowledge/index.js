@@ -1,4 +1,5 @@
 const { showAppLoading, hideAppLoading } = require('../../utils/loading')
+const { getCurrentUser, ensureUser, requireLoginForAction, fetchKnowledgeLikeStates, toggleKnowledgeLike, toggleKnowledgeDislike } = require('../../utils/user-service')
 const KNOWLEDGE_INSIGHTS_CACHE_KEY = 'miniapp_knowledge_insights_v1'
 const KNOWLEDGE_INSIGHTS_CACHE_TTL = 5 * 60 * 1000
 const KNOWLEDGE_IMAGE_CACHE_KEY = 'miniapp_knowledge_image_cache_v1'
@@ -50,12 +51,32 @@ function buildKnowledgeThumbUrl(url = '', { width = 520, quality = 72 } = {}) {
   return `${raw}${joiner}imageMogr2/thumbnail/${Math.max(1, Number(width) || 520)}x/interlace/1/quality/${Math.max(1, Math.min(100, Number(quality) || 72))}`
 }
 
+function getTimeValue(value) {
+  if (!value) return 0
+  if (typeof value === 'number') return value
+  if (value && typeof value.toDate === 'function') return value.toDate().getTime()
+  const parsed = new Date(value).getTime()
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function formatPublishDate(item = {}) {
+  const timestamp = getTimeValue(item.updated_at || item.created_at || item.updatedAt || item.createdAt)
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}年${month}月${day}日`
+}
+
 Page({
   data: {
     query: '',
     insights: [],
     filteredInsights: [],
     loadingInsights: false,
+    currentUser: null,
+    likeLoadingMap: {},
   },
 
   onLoad() {
@@ -67,6 +88,13 @@ Page({
       })
     }
     this.loadInsights()
+    this.loadCurrentUser()
+  },
+
+  async onShow() {
+    await this.loadInsights({ force: true, silent: true })
+    if (!this.data.insights.length) return
+    await this.refreshLikeStates()
   },
 
   async onPullDownRefresh() {
@@ -93,13 +121,155 @@ Page({
     })
   },
 
-  openKnowledgeSubmit() {
+  async openKnowledgeSubmit() {
+    const user = await requireLoginForAction('请先登录后分享知识')
+    if (!user?.id) return
     wx.navigateTo({ url: '/pages/knowledge-submit/index' })
   },
 
-  async loadInsights({ force = false } = {}) {
+  openKnowledgeDetail(e) {
+    const id = String(e.currentTarget.dataset.id || '').trim()
+    if (!id) return
+    wx.navigateTo({ url: `/pages/knowledge-detail/index?id=${id}` })
+  },
+
+  async loadCurrentUser() {
+    try {
+      const user = await getCurrentUser()
+      this.setData({ currentUser: user })
+      if (user?.id && this.data.insights.length) {
+        await this.attachLikeStates(this.data.insights, user.id)
+      }
+    } catch (error) {
+      console.warn('load knowledge current user failed', error)
+    }
+  },
+
+  async refreshLikeStates() {
+    try {
+      let user = this.data.currentUser
+      if (!user?.id) {
+        user = await getCurrentUser()
+        this.setData({ currentUser: user })
+      }
+      await this.attachLikeStates(this.data.insights, user?.id || '')
+    } catch (error) {
+      console.warn('refresh knowledge likes failed', error)
+    }
+  },
+
+  async attachLikeStates(insights = [], userId = '') {
+    const ids = (insights || []).map((item) => item.id).filter(Boolean)
+    if (!ids.length) return insights
+    const { counts, likedIds, dislikeCounts, dislikedIds } = await fetchKnowledgeLikeStates(userId, ids)
+    const likedSet = new Set(likedIds || [])
+    const dislikedSet = new Set(dislikedIds || [])
+    const nextInsights = (insights || []).map((item) => ({
+      ...item,
+      likeCount: Number(counts?.[item.id] ?? item.likeCount ?? 0),
+      liked: likedSet.has(item.id),
+      dislikeCount: Number(dislikeCounts?.[item.id] ?? item.dislikeCount ?? 0),
+      disliked: dislikedSet.has(item.id),
+    }))
+    this.setData({
+      insights: nextInsights,
+      filteredInsights: this.filterInsights(nextInsights, this.data.query),
+    })
+    writeInsightsCache(nextInsights)
+    return nextInsights
+  },
+
+  async toggleKnowledgeLike(e) {
+    const id = String(e.currentTarget.dataset.id || '').trim()
+    if (!id || this.data.likeLoadingMap[id]) return
+    let user = this.data.currentUser
+    if (!user?.id) {
+      try {
+        user = await ensureUser()
+        this.setData({ currentUser: user })
+      } catch (error) {
+        wx.showToast({ title: '请先登录后点赞', icon: 'none' })
+        return
+      }
+    }
+    if (!user?.id) {
+      wx.showToast({ title: '请先登录后点赞', icon: 'none' })
+      return
+    }
+    this.setData({ [`likeLoadingMap.${id}`]: true })
+    try {
+      const result = await toggleKnowledgeLike(user.id, id)
+      const nextInsights = (this.data.insights || []).map((item) => {
+        if (item.id !== id) return item
+        return {
+          ...item,
+          liked: result.liked,
+          likeCount: result.count,
+          disliked: result.disliked,
+          dislikeCount: result.dislikeCount,
+        }
+      })
+      this.setData({
+        insights: nextInsights,
+        filteredInsights: this.filterInsights(nextInsights, this.data.query),
+      })
+      writeInsightsCache(nextInsights)
+      wx.showToast({ title: result.liked ? '已点赞' : '已取消', icon: 'success' })
+    } catch (error) {
+      console.warn('toggle knowledge like failed', error)
+      wx.showToast({ title: '点赞失败，请检查集合权限', icon: 'none' })
+    } finally {
+      this.setData({ [`likeLoadingMap.${id}`]: false })
+    }
+  },
+
+  async toggleKnowledgeDislike(e) {
+    const id = String(e.currentTarget.dataset.id || '').trim()
+    if (!id || this.data.likeLoadingMap[id]) return
+    let user = this.data.currentUser
+    if (!user?.id) {
+      try {
+        user = await ensureUser()
+        this.setData({ currentUser: user })
+      } catch (error) {
+        wx.showToast({ title: '请先登录后操作', icon: 'none' })
+        return
+      }
+    }
+    if (!user?.id) {
+      wx.showToast({ title: '请先登录后操作', icon: 'none' })
+      return
+    }
+    this.setData({ [`likeLoadingMap.${id}`]: true })
+    try {
+      const result = await toggleKnowledgeDislike(user.id, id)
+      const nextInsights = (this.data.insights || []).map((item) => {
+        if (item.id !== id) return item
+        return {
+          ...item,
+          liked: result.liked,
+          likeCount: result.count,
+          disliked: result.disliked,
+          dislikeCount: result.dislikeCount,
+        }
+      })
+      this.setData({
+        insights: nextInsights,
+        filteredInsights: this.filterInsights(nextInsights, this.data.query),
+      })
+      writeInsightsCache(nextInsights)
+      wx.showToast({ title: result.disliked ? '已标记' : '已取消', icon: 'success' })
+    } catch (error) {
+      console.warn('toggle knowledge dislike failed', error)
+      wx.showToast({ title: '操作失败，请检查集合权限', icon: 'none' })
+    } finally {
+      this.setData({ [`likeLoadingMap.${id}`]: false })
+    }
+  },
+
+  async loadInsights({ force = false, silent = false } = {}) {
     const db = wx.cloud.database()
-    const shouldShowLoading = !this.data.insights.length || force
+    const shouldShowLoading = !silent && (!this.data.insights.length || force)
     if (shouldShowLoading) {
       this.setData({ loadingInsights: true })
       showAppLoading('加载中')
@@ -118,14 +288,24 @@ Page({
         id: item._id,
         title: item.title || '',
         subtitle: item.subtitle || '',
+        publishDateText: formatPublishDate(item),
         effectImages: await this.resolveImages(Array.isArray(item.effect_images) ? item.effect_images : []),
       })))
-      const normalizedInsights = insights.map((item) => ({
+      let normalizedInsights = insights.map((item) => ({
         ...item,
         effectThumbImages: (item.effectImages || []).map((url) => buildKnowledgeThumbUrl(url, { width: 520, quality: 72 })),
+        coverThumbImage: (item.effectImages || [])[0]
+          ? buildKnowledgeThumbUrl((item.effectImages || [])[0], { width: 620, quality: 74 })
+          : '',
+        likeCount: Number(item.likeCount || 0),
+        liked: !!item.liked,
+        dislikeCount: Number(item.dislikeCount || 0),
+        disliked: !!item.disliked,
       }))
-      this.setData({ insights: normalizedInsights })
-      this.setData({ filteredInsights: this.filterInsights(normalizedInsights, this.data.query) })
+      normalizedInsights = await this.attachLikeStates(normalizedInsights, this.data.currentUser?.id || '')
+      if (!normalizedInsights.length) {
+        this.setData({ insights: [], filteredInsights: [] })
+      }
       writeInsightsCache(normalizedInsights)
     } catch (error) {
       console.warn('loadInsights failed', error)

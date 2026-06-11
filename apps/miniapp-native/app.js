@@ -6,6 +6,7 @@ App({
 
   announcementChecking: false,
   lastAnnouncementCheckAt: 0,
+  clientUpdatePromptShown: false,
 
   onLaunch() {
     if (wx.cloud) {
@@ -14,6 +15,7 @@ App({
         traceUser: true,
       })
     }
+    this.checkClientUpdate()
     this.trackDailyUsage('launch')
     this.checkAppAnnouncement({ delay: 900 })
   },
@@ -21,6 +23,40 @@ App({
   onShow() {
     this.trackDailyUsage('show')
     this.checkAppAnnouncement({ delay: 900 })
+  },
+
+  checkClientUpdate() {
+    if (!wx.canIUse?.('getUpdateManager')) return
+    const updateManager = wx.getUpdateManager()
+
+    updateManager.onCheckForUpdate((res) => {
+      if (res.hasUpdate) {
+        console.info('miniapp update available')
+      }
+    })
+
+    updateManager.onUpdateReady(() => {
+      if (this.clientUpdatePromptShown) return
+      this.clientUpdatePromptShown = true
+      wx.showModal({
+        title: '发现新版本',
+        content: '新版本已经准备好，是否立即重启小程序更新？',
+        confirmText: '立即更新',
+        cancelText: '稍后',
+        success: (res) => {
+          if (res.confirm) {
+            updateManager.applyUpdate()
+          }
+        },
+      })
+    })
+
+    updateManager.onUpdateFailed(() => {
+      wx.showToast({
+        title: '新版本下载失败，请稍后重试',
+        icon: 'none',
+      })
+    })
   },
 
   getAnnouncementReadKey(announcementId = '') {

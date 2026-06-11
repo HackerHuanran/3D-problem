@@ -1,0 +1,41 @@
+<view class="page problems-page">
+  <view class="hero-card">
+    <text class="eyebrow">PROBLEM LIBRARY</text>
+    <text class="title">问题管理</text>
+    <text class="subtitle">共 {{total}} 个问题。可搜索、编辑和删除问题库正式内容。</text>
+  </view>
+
+  <view class="search-panel">
+    <input class="search-input" value="{{keywordInput}}" bindinput="onKeywordInput" confirm-type="search" bindconfirm="search" placeholder="搜索标题、描述、原因或步骤" />
+    <button class="search-btn" loading="{{loading}}" disabled="{{loading}}" bindtap="search">搜索</button>
+    <button wx:if="{{keyword}}" class="clear-btn" bindtap="clearSearch">清空</button>
+  </view>
+
+  <view wx:if="{{problems.length}}" class="problem-list">
+    <view wx:for="{{problems}}" wx:key="docId" class="problem-card">
+      <image wx:if="{{item.imageDisplayUrl}}" class="problem-cover" src="{{item.imageDisplayUrl}}" mode="aspectFill"></image>
+      <view wx:else class="problem-cover cover-empty">无图</view>
+      <view class="problem-copy">
+        <view class="problem-head">
+          <text class="problem-title">{{item.title || '未命名问题'}}</text>
+          <text class="problem-badge">{{item.category || '未分类'}}</text>
+        </view>
+        <text class="problem-desc">{{item.desc || '暂无描述'}}</text>
+        <text class="problem-meta">ID：{{item.problemId || item.docId}}</text>
+        <text class="problem-meta">难度：{{item.difficulty || '未填写'}} · 原因 {{item.causes.length || 0}} · 步骤 {{item.solutions.length || 0}}</text>
+        <view class="action-row">
+          <button class="action-btn edit" size="mini" data-doc-id="{{item.docId}}" data-problem-id="{{item.problemId}}" bindtap="editProblem" disabled="{{opLoading && opTargetId === item.docId}}">编辑</button>
+          <button class="action-btn delete" size="mini" data-doc-id="{{item.docId}}" data-problem-id="{{item.problemId}}" data-title="{{item.title}}" bindtap="deleteProblem" disabled="{{opLoading && opTargetId === item.docId}}">删除</button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="panel empty-panel">
+    <text class="panel-title">暂无问题</text>
+    <text class="panel-text">{{keyword ? '没有搜索到匹配的问题。' : '问题库里还没有数据。'}}</text>
+  </view>
+
+  <view wx:if="{{loadingMore}}" class="load-more">正在加载更多...</view>
+  <view wx:elif="{{problems.length && !hasMore}}" class="load-more">已经到底了</view>
+</view>

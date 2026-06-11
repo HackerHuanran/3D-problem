@@ -1,62 +1,61 @@
 <view class="page home-page">
-  <view class="hero-card home-hero">
-    <text class="hero-eyebrow">3D PRINT TROUBLESHOOTER</text>
-    <text class="hero-title">别塌了模型</text>
-    <text class="hero-subtitle">3D打印排障助手，共收录 {{problemCount}} 个打印问题，覆盖翘边、拉丝、堵嘴、层移等常见故障。</text>
-    <view class="search-wrap">
-      <input class="search-input home-search" placeholder="搜索翘边、拉丝、堵嘴、层移…" value="{{query}}" bindinput="onQueryInput" confirm-type="search" bindconfirm="searchProblems" />
-      <button class="search-btn btn-primary" hover-class="button-hover" hover-stay-time="70" bindtap="searchProblems">搜索</button>
+  <view class="home-top">
+    <view>
+      <text class="home-title">别塌了模型</text>
+      <view class="home-status-row">
+        <view class="status-dot"></view>
+        <text class="home-status">共收录 {{problemCount}} 个打印问题</text>
+      </view>
     </view>
-    <view class="hero-actions">
-      <view class="share-btn interactive-chip" hover-class="interactive-chip-hover" hover-stay-time="70" bindtap="shareProblem">
-        <text class="share-btn-text">分享打印问题</text>
-      </view>
-      <view class="hero-count interactive-chip" hover-class="interactive-chip-hover" hover-stay-time="70" bindtap="searchProblems">
-        <text class="hero-count-main">{{problemCount}}</text>
-        <text class="hero-count-label">个问题</text>
-      </view>
+    <view class="top-tools">
+      <view class="top-icon">⌕</view>
+      <view class="top-icon">⌘</view>
     </view>
   </view>
 
+  <view class="search-wrap">
+    <input class="search-input home-search" placeholder="搜索翘边、拉丝、堵嘴、层移…" value="{{query}}" bindinput="onQueryInput" confirm-type="search" bindconfirm="searchProblems" />
+    <button class="search-btn" hover-class="button-hover" hover-stay-time="70" bindtap="searchProblems">搜索</button>
+  </view>
+
+  <view class="notice-card" bindtap="shareProblem">
+    <view class="notice-icon">!</view>
+    <text class="notice-text">遇到新问题？分享打印问题，审核通过后可获得积分。</text>
+    <text class="notice-arrow">›</text>
+  </view>
+
+  <view class="section-row module-section-row">
+    <text class="section-title">功能入口</text>
+    <text class="section-note">{{shareCount || problemCount}} 个分享</text>
+  </view>
+
   <view class="module-grid">
-    <view class="module-card module-card-large interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-id="problems" bindtap="openEntry">
-      <image wx:if="{{!moduleImageErrorMap[0]}}" class="module-image" src="/images/home/problem-center.jpg" mode="aspectFill" lazy-load="true" data-index="0" binderror="onModuleImageError"></image>
-      <view wx:else class="module-image module-image-fallback"></view>
-      <view class="module-mask"></view>
-      <view class="module-copy">
-        <text class="module-title">问题中心</text>
-        <text class="module-desc">直接进入问题库</text>
-      </view>
+    <view class="module-card module-green interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-id="problems" bindtap="openEntry">
+      <view class="module-icon">□</view>
+      <text class="module-title">问题中心</text>
+      <text class="module-desc">{{problemCount}} 个问题</text>
+      <text class="module-arrow">›</text>
     </view>
 
-    <view class="module-card module-card-half interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-id="filament" bindtap="openEntry">
-      <image wx:if="{{!moduleImageErrorMap[1]}}" class="module-image" src="/images/home/filament-library.jpg" mode="aspectFill" lazy-load="true" data-index="1" binderror="onModuleImageError"></image>
-      <view wx:else class="module-image module-image-fallback"></view>
-      <view class="module-mask"></view>
-      <view class="module-copy">
-        <text class="module-title">耗材库</text>
-        <text class="module-desc">查看材料参数</text>
-      </view>
+    <view class="module-card module-blue interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-id="knowledge" bindtap="openEntry">
+      <view class="module-icon">▣</view>
+      <text class="module-title">知识库</text>
+      <text class="module-desc">{{knowledgeCount}} 个知识</text>
+      <text class="module-arrow">›</text>
     </view>
 
-    <view class="module-card module-card-half interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-id="knowledge" bindtap="openEntry">
-      <image wx:if="{{!moduleImageErrorMap[2]}}" class="module-image" src="/images/home/knowledge-library.svg" mode="aspectFill" lazy-load="true" data-index="2" binderror="onModuleImageError"></image>
-      <view wx:else class="module-image module-image-fallback"></view>
-      <view class="module-mask"></view>
-      <view class="module-copy">
-        <text class="module-title">知识库</text>
-        <text class="module-desc">学习 3D 打印知识</text>
-      </view>
+    <view class="module-card module-orange interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-id="filament" bindtap="openEntry">
+      <view class="module-icon">◒</view>
+      <text class="module-title">耗材库</text>
+      <text class="module-desc">材料参数</text>
+      <text class="module-arrow">›</text>
     </view>
 
-    <view class="module-card module-card-large interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-id="services" bindtap="openEntry">
-      <image wx:if="{{!moduleImageErrorMap[3]}}" class="module-image" src="/images/home/services-workshop.jpg" mode="aspectFill" lazy-load="true" data-index="3" binderror="onModuleImageError"></image>
-      <view wx:else class="module-image module-image-fallback"></view>
-      <view class="module-mask"></view>
-      <view class="module-copy">
-        <text class="module-title">打印服务</text>
-        <text class="module-desc">查看工作室与工厂信息</text>
-      </view>
+    <view class="module-card module-purple interactive-card" hover-class="interactive-card-hover" hover-stay-time="70" data-id="services" bindtap="openEntry">
+      <view class="module-icon">◇</view>
+      <text class="module-title">打印服务</text>
+      <text class="module-desc">{{serviceCount}} 个服务</text>
+      <text class="module-arrow">›</text>
     </view>
   </view>
 

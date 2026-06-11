@@ -1,0 +1,44 @@
+<view class="page reward-orders-page">
+  <view class="hero-card">
+    <text class="eyebrow">REWARD ORDERS</text>
+    <text class="title">兑换订单</text>
+    <text class="subtitle">查看积分商品兑换记录，核对地址、处理订单并填写发货单号。</text>
+  </view>
+
+  <view class="filter-row">
+    <view wx:for="{{filters}}" wx:key="key" class="filter-chip {{filter === item.key ? 'active' : ''}}" data-filter="{{item.key}}" bindtap="switchFilter">
+      {{item.label}} {{item.count}}
+    </view>
+  </view>
+
+  <view wx:if="{{filteredOrders.length}}" class="order-list">
+    <view wx:for="{{filteredOrders}}" wx:key="id" class="order-card">
+      <view class="order-head">
+        <text class="order-title">{{item.goodsName}}</text>
+        <text class="status-badge {{item.status === 'done' ? 'done' : item.status === 'shipped' ? 'shipped' : ''}}">{{item.statusText}}</text>
+      </view>
+      <view class="order-body">
+        <image wx:if="{{item.goodsImageDisplay}}" class="order-image" src="{{item.goodsImageDisplay}}" mode="aspectFill"></image>
+        <view wx:else class="order-image order-image-empty"></view>
+        <view class="order-copy">
+          <text class="order-meta">消耗积分：{{item.pointsCost}}</text>
+          <text class="order-meta">用户：{{item.userId}}</text>
+          <text class="order-meta">时间：{{item.createdAtText || '未知时间'}}</text>
+          <text class="order-meta">地址：{{item.addressText || '未填写地址'}}</text>
+          <text wx:if="{{item.trackingNo}}" class="order-meta tracking-meta">快递单号：{{item.trackingNo}}</text>
+        </view>
+      </view>
+      <view class="action-row">
+        <button class="action-btn view" size="mini" data-id="{{item.id}}" bindtap="viewAddress" disabled="{{opLoading && opTargetId === item.id}}">查看地址</button>
+        <button wx:if="{{item.status === 'pending'}}" class="action-btn approve" size="mini" data-id="{{item.id}}" bindtap="markDone" disabled="{{opLoading && opTargetId === item.id}}">标记处理</button>
+        <button wx:elif="{{item.status === 'done'}}" class="action-btn ship" size="mini" data-id="{{item.id}}" bindtap="shipOrder" disabled="{{opLoading && opTargetId === item.id}}">发货</button>
+        <button wx:else class="action-btn disabled" size="mini" disabled>已发货</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="panel empty-panel">
+    <text class="panel-title">暂无订单</text>
+    <text class="panel-text">当前筛选条件下没有兑换订单。</text>
+  </view>
+</view>

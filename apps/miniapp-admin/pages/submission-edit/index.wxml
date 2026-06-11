@@ -1,0 +1,89 @@
+<view class="page edit-page">
+  <view class="hero-card">
+    <text class="eyebrow">SUBMISSION DETAIL</text>
+    <text class="title">{{submissionType === 'knowledge' ? '知识投稿' : submissionType === 'service' ? '服务投稿' : '问题投稿'}}</text>
+    <text class="subtitle">当前状态：{{statusText}}。修改后保存，再返回审核列表进行通过或拒绝。</text>
+  </view>
+
+  <view class="panel form-panel">
+    <text class="field-label">{{submissionType === 'service' ? '工作室名称' : '标题'}}</text>
+    <input class="input" value="{{submissionType === 'service' ? studioName : title}}" data-field="{{submissionType === 'service' ? 'studioName' : 'title'}}" bindinput="onFieldInput" placeholder="请输入标题" />
+
+    <block wx:if="{{submissionType === 'problem'}}">
+      <text class="field-label">问题图片</text>
+      <image wx:if="{{imageDisplayUrl}}" class="preview-image cover-preview" src="{{imageDisplayUrl}}" mode="aspectFill" data-url="{{imageDisplayUrl}}" bindtap="previewImage"></image>
+      <view wx:else class="image-empty">暂无问题图片</view>
+      <input wx:if="{{imageInputsVisible}}" class="input" value="{{imageUrl}}" data-field="imageUrl" bindinput="onFieldInput" placeholder="cloud:// 或 https:// 图片地址" />
+      <text class="field-label">问题描述</text>
+      <textarea class="textarea" value="{{description}}" data-field="description" bindinput="onFieldInput" placeholder="请输入问题描述" />
+
+      <text class="section-title">常见原因</text>
+      <view wx:for="{{causes}}" wx:key="index" class="repeat-item">
+        <input class="input" value="{{item.text}}" data-index="{{index}}" bindinput="onCauseInput" placeholder="原因内容" />
+        <text class="text-link danger" data-index="{{index}}" bindtap="removeCause">删除</text>
+      </view>
+      <button class="btn-ghost compact" bindtap="addCause">添加原因</button>
+
+      <text class="section-title">解决步骤</text>
+      <view wx:for="{{steps}}" wx:key="index" class="repeat-item vertical">
+        <textarea class="textarea small" value="{{item.text}}" data-index="{{index}}" data-field="text" bindinput="onStepInput" placeholder="步骤说明" />
+        <image wx:if="{{item.displayUrl}}" class="preview-image step-preview" src="{{item.displayUrl}}" mode="aspectFill" data-url="{{item.displayUrl}}" bindtap="previewImage"></image>
+        <input wx:if="{{imageInputsVisible}}" class="input" value="{{item.image}}" data-index="{{index}}" data-field="image" bindinput="onStepInput" placeholder="步骤图片 URL / 云文件 ID" />
+        <text class="text-link danger" data-index="{{index}}" bindtap="removeStep">删除步骤</text>
+      </view>
+      <button class="btn-ghost compact" bindtap="addStep">添加步骤</button>
+    </block>
+
+    <block wx:elif="{{submissionType === 'knowledge'}}">
+      <text class="section-title">详细描述</text>
+      <view wx:for="{{detailBlocks}}" wx:key="index" class="repeat-item vertical">
+        <textarea class="textarea small" value="{{item.text}}" data-index="{{index}}" bindinput="onBlockTextInput" placeholder="描述文字" />
+        <view class="block-image-grid">
+          <view wx:for="{{item.images}}" wx:for-item="image" wx:for-index="imageIndex" wx:key="imageIndex" class="block-image-item">
+            <image wx:if="{{image.displayUrl}}" class="preview-block-image" src="{{image.displayUrl}}" mode="aspectFill" data-url="{{image.displayUrl}}" bindtap="previewImage"></image>
+            <input wx:if="{{imageInputsVisible}}" class="input image-input" value="{{image.value}}" data-block-index="{{index}}" data-image-index="{{imageIndex}}" bindinput="onBlockImageInput" placeholder="描述图片 URL / 云文件 ID" />
+            <text wx:if="{{imageInputsVisible}}" class="text-link danger image-delete" data-block-index="{{index}}" data-image-index="{{imageIndex}}" bindtap="removeBlockImage">删除</text>
+          </view>
+        </view>
+        <view class="inline-actions">
+          <text wx:if="{{imageInputsVisible}}" class="text-link" data-block-index="{{index}}" bindtap="addBlockImage">添加图片</text>
+          <text class="text-link danger" data-index="{{index}}" bindtap="removeBlock">删除段落</text>
+        </view>
+      </view>
+      <button class="btn-ghost compact" bindtap="addBlock">添加段落</button>
+
+      <text class="section-title">效果展示图片</text>
+      <view wx:for="{{effectImages}}" wx:key="index" class="effect-image-item">
+        <image wx:if="{{item.displayUrl}}" class="preview-effect-image" src="{{item.displayUrl}}" mode="aspectFill" data-url="{{item.displayUrl}}" bindtap="previewImage"></image>
+        <input wx:if="{{imageInputsVisible}}" class="input" value="{{item.value}}" data-list="effectImages" data-index="{{index}}" bindinput="onListImageInput" placeholder="效果图 URL / 云文件 ID" />
+        <text wx:if="{{imageInputsVisible}}" class="text-link danger" data-list="effectImages" data-index="{{index}}" bindtap="removeListImage">删除</text>
+      </view>
+      <button wx:if="{{imageInputsVisible}}" class="btn-ghost compact" data-list="effectImages" bindtap="addListImage">添加效果图</button>
+    </block>
+
+    <block wx:else>
+      <text class="field-label">机器型号</text>
+      <input class="input" value="{{machineModel}}" data-field="machineModel" bindinput="onFieldInput" placeholder="例如 Bambu Lab X1C" />
+      <text class="field-label">机器数量</text>
+      <input class="input" value="{{machineCount}}" data-field="machineCount" bindinput="onFieldInput" placeholder="例如 6 台" />
+      <text class="field-label">服务描述</text>
+      <textarea class="textarea" value="{{description}}" data-field="description" bindinput="onFieldInput" placeholder="请输入服务描述" />
+      <text class="field-label">微信号</text>
+      <input class="input" value="{{contact}}" data-field="contact" bindinput="onFieldInput" placeholder="微信号，可选" />
+      <text class="field-label">联系方式二维码</text>
+      <image wx:if="{{wechatQrImageDisplayUrl}}" class="preview-image qr-preview" src="{{wechatQrImageDisplayUrl}}" mode="aspectFill" data-url="{{wechatQrImageDisplayUrl}}" bindtap="previewImage"></image>
+      <input wx:if="{{imageInputsVisible}}" class="input" value="{{wechatQrImage}}" data-field="wechatQrImage" bindinput="onFieldInput" placeholder="二维码图片地址，可选" />
+
+      <text class="section-title">展示图片，最多 3 张</text>
+      <view wx:for="{{serviceImages}}" wx:key="index" class="inline-row">
+        <image wx:if="{{item.displayUrl}}" class="preview-thumb" src="{{item.displayUrl}}" mode="aspectFill" data-url="{{item.displayUrl}}" bindtap="previewImage"></image>
+        <input wx:if="{{imageInputsVisible}}" class="input flex" value="{{item.value}}" data-list="serviceImages" data-index="{{index}}" bindinput="onListImageInput" placeholder="展示图片 URL / 云文件 ID" />
+        <text wx:if="{{imageInputsVisible}}" class="text-link danger" data-list="serviceImages" data-index="{{index}}" bindtap="removeListImage">删</text>
+      </view>
+      <button wx:if="{{imageInputsVisible}}" class="btn-ghost compact" data-list="serviceImages" bindtap="addListImage">添加展示图</button>
+    </block>
+
+    <button class="btn-ghost compact" bindtap="toggleImageInputs">{{imageInputsVisible ? '隐藏图片地址' : '修改图片地址'}}</button>
+    <button class="btn-primary" loading="{{saving}}" disabled="{{saving}}" bindtap="save">保存修改</button>
+  </view>
+</view>
